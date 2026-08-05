@@ -40,6 +40,8 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab Stats", true));
     public final KeybindSetting hudKeybind =
             register(new KeybindSetting("HUD Toggle Key", Keyboard.KEY_H));
+    public final KeybindSetting guiKeybind =
+            register(new KeybindSetting("Open GUI Key", Keyboard.KEY_L));
 
     // .bw command — which fields to include in the chat output
     public final BooleanSetting bwShowStar =
@@ -227,13 +229,30 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onKey(KeyEvent event) {
-        if (event.getKey() != hudKeybind.getKeyCode()) return;
+        int key = event.getKey();
 
-        boolean newState = !hudOverlay.isEnabled();
-        hudOverlay.setEnabled(newState);
+        if (key == hudKeybind.getKeyCode()) {
+            boolean newState = !hudOverlay.isEnabled();
+            hudOverlay.setEnabled(newState);
 
-        String status = newState ? "&a&lON" : "&c&lOFF";
-        ChatUtil.sendFormatted("&7[Intel] HUD Overlay: " + status);
+            String status = newState ? "&a&lON" : "&c&lOFF";
+            ChatUtil.sendFormatted("&7[Intel] HUD Overlay: " + status);
+            return;
+        }
+
+        if (key == guiKeybind.getKeyCode()) {
+            // Toggle open/closed — press again while the GUI is open to close it.
+            if (mc.currentScreen instanceof IntelGui) {
+                mc.displayGuiScreen(null);
+            } else if (mc.currentScreen == null) {
+                if (IntelManager.getInstance().getPlayers().isEmpty()) {
+                    IntelManager.getInstance().scanLobby();
+                } else {
+                    gui.setPlayers(IntelManager.getInstance().getPlayers());
+                }
+                mc.displayGuiScreen(gui);
+            }
+        }
     }
 
     @EventTarget
