@@ -4,8 +4,10 @@ import coralintel.CoralIntel;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
+import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiPlayerTabOverlay;
 import net.minecraft.client.network.NetworkPlayerInfo;
+import net.minecraft.scoreboard.ScorePlayerTeam;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -32,11 +34,15 @@ public abstract class MixinGuiPlayerTabOverlay {
             return vanillaName;
         }
 
+        // Team color in an active BedWars match; otherwise leave the rank
+        // color the server already sent (lobby state — no team assigned).
+        String coloredName = applyTeamColor(vanillaName, info);
+
         IntelPlayer player = IntelManager.getInstance()
                 .getPlayer(info.getGameProfile().getName());
 
         if (player == null || player.loading) {
-            return vanillaName;
+            return coloredName;
         }
 
         String starCode = coralintel.ui.intel.IntelColors.nearestCode(
@@ -62,6 +68,28 @@ public abstract class MixinGuiPlayerTabOverlay {
             stats.append(" ").append(tagCode).append(tag);
         }
 
-        return vanillaName + stats;
+        return coloredName + stats;
+    }
+
+    /**
+     * When a scoreboard team is assigned (an active BedWars match), strips
+     * any leading color code from the name and prepends the team's color
+     * instead. In the lobby, no team is assigned yet, so the name is left
+     * exactly as the server sent it (its normal rank color).
+     */
+    private String applyTeamColor(String vanillaName, NetworkPlayerInfo info) {
+        ScorePlayerTeam team = info.getPlayerTeam();
+        if (team == null) {
+            return vanillaName;
+        }
+
+        String colorPrefix = FontRenderer.getFormatFromString(team.getColorPrefix());
+        if (colorPrefix.length() < 2) {
+            return vanillaName;
+        }
+
+        char colorChar = colorPrefix.charAt(1);
+        String stripped = vanillaName.replaceFirst("^(§[0-9a-fk-or])+", "");
+        return "§" + colorChar + stripped;
     }
 }
