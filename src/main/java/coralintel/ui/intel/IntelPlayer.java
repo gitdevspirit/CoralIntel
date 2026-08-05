@@ -71,7 +71,7 @@ public class IntelPlayer {
         if (basis.contains("confirmed")) return "CC";
         if (basis.contains("closet"))    return "C";
         if (basis.contains("sniper"))    return "S";
-        if (basis.contains("caution"))   return "!";
+        if (basis.contains("caution"))   return "R"; // replay needed — reviewed manually before flagging further
 
         // Flagged by Coral but none of the known severity words matched —
         // still show a code rather than a static placeholder.
@@ -85,7 +85,7 @@ public class IntelPlayer {
             case "BC": return 0xFFFF3344; // blatant — red
             case "CC": return 0xFFDD44DD; // confirmed — magenta
             case "S":  return 0xFFFF1122; // sniper — bright red
-            case "!":  return 0xFFFFCC44; // caution — amber
+            case "R":  return 0xFFFF69B4; // caution / replay needed — pink
             case "C":  return 0xFFFF8844; // closet / unclassified — orange
             default:   return 0xFFAAAAAA;
         }
