@@ -36,6 +36,7 @@ public class IntelHudSettingsGui extends GuiScreen {
     private static final int S_MAX_P = 3;
     private static final int S_BG_OP = 4;
     private static final int S_BORDER = 5;
+    private static final int S_COLUMN_LINE = 6;
 
     private int scrollOffset = 0;
     private int maxScroll = 0;
@@ -98,6 +99,12 @@ public class IntelHudSettingsGui extends GuiScreen {
 
             case S_BORDER:
                 hudOverlay.setBorderOpacity(
+                        pixelToVal(mouseX, barX, barWidth, 0, 255)
+                );
+                break;
+
+            case S_COLUMN_LINE:
+                hudOverlay.setColumnLineOpacity(
                         pixelToVal(mouseX, barX, barWidth, 0, 255)
                 );
                 break;
@@ -246,6 +253,15 @@ public class IntelHudSettingsGui extends GuiScreen {
                 hudOverlay.getBorderOpacity(),
                 0, 255,
                 S_BORDER,
+                mouseX, mouseY
+        );
+
+        y = slider(
+                innerX, y, innerWidth,
+                "Column Line Opacity",
+                hudOverlay.getColumnLineOpacity(),
+                0, 255,
+                S_COLUMN_LINE,
                 mouseX, mouseY
         );
 
