@@ -1,5 +1,6 @@
 package coralintel.ui.intel;
 
+import coralintel.CoralIntel;
 import coralintel.ui.clickgui.GuiColors;
 import coralintel.ui.clickgui.RoundedUtils;
 import net.minecraft.client.Minecraft;
