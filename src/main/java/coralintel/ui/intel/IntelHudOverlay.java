@@ -27,6 +27,7 @@ public class IntelHudOverlay {
 
     private int bgOpacity = 200;
     private int borderOpacity = 100;
+    private int columnLineOpacity = 26; // matches the original hardcoded 0x1A alpha
     private static final int ACCENT = GuiColors.ACCENT;
     private static final int TEXT_BRIGHT = 0xFFDDDDEE;
     private static final int TEXT_DIM = 0xFF888899;
@@ -121,6 +122,10 @@ public class IntelHudOverlay {
         this.borderOpacity = Math.max(0, Math.min(255, opacity));
     }
 
+    public void setColumnLineOpacity(int opacity) {
+        this.columnLineOpacity = Math.max(0, Math.min(255, opacity));
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -187,6 +192,10 @@ public class IntelHudOverlay {
 
     public int getBorderOpacity() {
         return borderOpacity;
+    }
+
+    public int getColumnLineOpacity() {
+        return columnLineOpacity;
     }
 
     public void handleClick(int mx, int my) {
@@ -371,7 +380,8 @@ public class IntelHudOverlay {
             columnBoundaries.remove(columnBoundaries.size() - 1);
 
             for (int boundaryX : columnBoundaries) {
-                fillRect(boundaryX - 3, dividerY + 2, 1, totalHeight - HEADER_HEIGHT - 4, 0x1AFFFFFF);
+                int columnLineColor = (columnLineOpacity << 24) | 0xFFFFFF;
+                fillRect(boundaryX - 3, dividerY + 2, 1, totalHeight - HEADER_HEIGHT - 4, columnLineColor);
             }
         }
 
