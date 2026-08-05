@@ -26,6 +26,7 @@ public class IntelHudOverlay {
     private static final int BORDER_RADIUS = 4;
 
     private int bgOpacity = 200;
+    private int borderOpacity = 100;
     private static final int ACCENT = GuiColors.ACCENT;
     private static final int TEXT_BRIGHT = 0xFFDDDDEE;
     private static final int TEXT_DIM = 0xFF888899;
@@ -117,7 +118,7 @@ public class IntelHudOverlay {
     }
 
     public void setBorderOpacity(int opacity) {
-        this.bgOpacity = opacity;
+        this.borderOpacity = Math.max(0, Math.min(255, opacity));
     }
 
     public boolean isEnabled() {
@@ -185,7 +186,7 @@ public class IntelHudOverlay {
     }
 
     public int getBorderOpacity() {
-        return bgOpacity;
+        return borderOpacity;
     }
 
     public void handleClick(int mx, int my) {
@@ -279,17 +280,6 @@ public class IntelHudOverlay {
 
         int bgColor = (bgOpacity << 24) | 0x07070E;
 
-        // Border — drawn as a slightly larger rounded rect behind the fill,
-        // creating a 1px ring around the panel.
-        drawRoundedRect(
-                scaledX - 1,
-                scaledY - 1,
-                scaledX + width + 1,
-                scaledY + totalHeight + 1,
-                BORDER_RADIUS + 1,
-                0x55FFFFFF
-        );
-
         drawRoundedRect(
                 scaledX,
                 scaledY,
@@ -297,6 +287,20 @@ public class IntelHudOverlay {
                 scaledY + totalHeight,
                 BORDER_RADIUS,
                 bgColor
+        );
+
+        // Border — drawn as an actual outline on top of the fill, so it wraps
+        // every edge of the panel (including the bottom) evenly, using the
+        // real borderOpacity setting instead of a hardcoded alpha.
+        int borderColor = (borderOpacity << 24) | 0xFFFFFF;
+        RoundedUtils.drawRoundedOutline(
+                scaledX,
+                scaledY,
+                width,
+                totalHeight,
+                BORDER_RADIUS,
+                1.5f,
+                borderColor
         );
 
         int dividerY = scaledY + HEADER_HEIGHT;
