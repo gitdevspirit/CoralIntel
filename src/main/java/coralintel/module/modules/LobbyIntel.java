@@ -11,6 +11,7 @@ import coralintel.module.Module;
 import coralintel.module.KeybindSetting;
 import coralintel.property.properties.*;
 import coralintel.ui.intel.IntelGui;
+import coralintel.ui.clickgui.ClickGui;
 import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
@@ -42,6 +43,8 @@ public class LobbyIntel extends Module {
             register(new KeybindSetting("HUD Toggle Key", Keyboard.KEY_H));
     public final KeybindSetting guiKeybind =
             register(new KeybindSetting("Open GUI Key", Keyboard.KEY_L));
+    public final KeybindSetting clickGuiKeybind =
+            register(new KeybindSetting("Open ClickGUI Key", Keyboard.KEY_RSHIFT));
 
     // .bw command — which fields to include in the chat output
     public final BooleanSetting bwShowStar =
@@ -75,6 +78,34 @@ public class LobbyIntel extends Module {
 
     public final BooleanSetting tabShowTag =
             register(new BooleanSetting("Tab: Show Cheater Tag", true));
+
+    // Tab list — cloned from the .bw field set above, same defaults.
+    public final BooleanSetting tabShowStar =
+            register(new BooleanSetting("Tab: Show Star", true));
+    public final BooleanSetting tabShowFkdr =
+            register(new BooleanSetting("Tab: Show FKDR", true));
+    public final BooleanSetting tabShowWlr =
+            register(new BooleanSetting("Tab: Show WLR", true));
+    public final BooleanSetting tabShowBblr =
+            register(new BooleanSetting("Tab: Show BBLR", false));
+    public final BooleanSetting tabShowFinalKills =
+            register(new BooleanSetting("Tab: Show Final Kills", false));
+    public final BooleanSetting tabShowFinalDeaths =
+            register(new BooleanSetting("Tab: Show Final Deaths", false));
+    public final BooleanSetting tabShowKills =
+            register(new BooleanSetting("Tab: Show Kills", false));
+    public final BooleanSetting tabShowDeaths =
+            register(new BooleanSetting("Tab: Show Deaths", false));
+    public final BooleanSetting tabShowBedsBroken =
+            register(new BooleanSetting("Tab: Show Beds Broken", false));
+    public final BooleanSetting tabShowBedsLost =
+            register(new BooleanSetting("Tab: Show Beds Lost", false));
+    public final BooleanSetting tabShowWinstreak =
+            register(new BooleanSetting("Tab: Show Winstreak", false));
+    public final BooleanSetting tabShowWins =
+            register(new BooleanSetting("Tab: Show Wins", false));
+    public final BooleanSetting tabShowLosses =
+            register(new BooleanSetting("Tab: Show Losses", false));
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);
     public final IntProperty hudPosX = new IntProperty("hud-x", 10, 0, 3840);
@@ -255,6 +286,15 @@ public class LobbyIntel extends Module {
                     gui.setPlayers(IntelManager.getInstance().getPlayers());
                 }
                 mc.displayGuiScreen(gui);
+            }
+            return;
+        }
+
+        if (key == clickGuiKeybind.getKeyCode()) {
+            if (mc.currentScreen instanceof ClickGui) {
+                mc.displayGuiScreen(null);
+            } else if (mc.currentScreen == null) {
+                mc.displayGuiScreen(new ClickGui());
             }
         }
     }
