@@ -1,0 +1,11 @@
+[
+  {
+    "name": "CoralIntel",
+    "version": "${version}",
+    "description": "Standalone lobby-scouting / stats-overlay mod: LobbyIntel, tab overlay, HUD overlay, .coralkey, .intelkey, .bw",
+    "mcversion": "1.8.9",
+    "authorList": [
+      "you"
+    ]
+  }
+]
