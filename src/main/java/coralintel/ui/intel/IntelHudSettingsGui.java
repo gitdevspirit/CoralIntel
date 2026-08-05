@@ -531,6 +531,9 @@ public class IntelHudSettingsGui extends GuiScreen {
         if (tryDrag(mouseX, mouseY, innerX, innerWidth, y, S_BORDER, 255)) return;
         y += SLIDER_H;
 
+        if (tryDrag(mouseX, mouseY, innerX, innerWidth, y, S_COLUMN_LINE, 255)) return;
+        y += SLIDER_H;
+
         y += 6 + 12 + 16 + 20;
 
         if (hit(mouseX, mouseY, innerX, y, innerWidth, TOGGLE_H)) {
