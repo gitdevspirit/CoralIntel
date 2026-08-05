@@ -9,19 +9,22 @@ import coralintel.util.KeyBindUtil;
 import org.lwjgl.input.Keyboard;
 
 /**
- * .bind hud <key>   — set the key that shows/hides the HUD overlay
- * .bind gui <key>   — set the key that opens/closes the LobbyIntel GUI
- * .bind tag <key>   — set the key that toggles the BedWarsTag module on/off
- * .bind list        — show current binds
+ * .bind hud <key>     — set the key that shows/hides the HUD overlay
+ * .bind gui <key>     — set the key that opens/closes the LobbyIntel GUI
+ * .bind clickgui <key>— set the key that opens/closes the ClickGUI
+ * .bind tag <key>     — set the key that toggles the BedWarsTag module on/off
+ * .bind list          — show current binds
  *
  * Key names match LWJGL's Keyboard constants without the "KEY_" prefix,
- * e.g. H, L, F, GRAVE, LSHIFT, RETURN, SPACE, F6, NUMPAD0 ...
+ * e.g. H, L, F, GRAVE, LSHIFT, RETURN, SPACE, F6, NUMPAD0, RSHIFT ...
  */
 public class BindCommand extends Command {
 
+    private static final String[] TARGETS = {"hud", "gui", "clickgui", "tag"};
+
     public BindCommand() {
         super("bind");
-        setDescription("Rebind CoralIntel keys. Usage: .bind <hud|gui|tag> <key>  or  .bind list");
+        setDescription("Rebind CoralIntel keys. Usage: .bind <hud|gui|clickgui|tag> <key>  or  .bind list");
     }
 
     @Override
@@ -46,8 +49,11 @@ public class BindCommand extends Command {
             return;
         }
 
-        if (!sub.equals("hud") && !sub.equals("gui") && !sub.equals("tag")) {
-            reply("&cUnknown bind target &f'" + args[0] + "'&c. Use &fhud&c, &fgui&c, or &ftag&c.");
+        boolean known = false;
+        for (String t : TARGETS) if (t.equals(sub)) known = true;
+
+        if (!known) {
+            reply("&cUnknown bind target &f'" + args[0] + "'&c. Use &fhud&c, &fgui&c, &fclickgui&c, or &ftag&c.");
             return;
         }
 
@@ -75,10 +81,12 @@ public class BindCommand extends Command {
             return;
         }
 
-        KeybindSetting target = sub.equals("hud") ? lobbyIntel.hudKeybind : lobbyIntel.guiKeybind;
+        KeybindSetting target = sub.equals("hud") ? lobbyIntel.hudKeybind
+                : sub.equals("gui") ? lobbyIntel.guiKeybind
+                : lobbyIntel.clickGuiKeybind;
         target.setKeyCode(keyCode);
 
-        String label = sub.equals("hud") ? "HUD toggle" : "Open GUI";
+        String label = sub.equals("hud") ? "HUD toggle" : sub.equals("gui") ? "Open GUI" : "Open ClickGUI";
         reply("&a[Intel] " + label + " key set to &f" + KeyBindUtil.getKeyName(keyCode));
     }
 
@@ -86,7 +94,8 @@ public class BindCommand extends Command {
         reply("&7[Intel] Current binds:");
         reply("  &fHUD toggle: &d" + KeyBindUtil.getKeyName(lobbyIntel.hudKeybind.getKeyCode()));
         reply("  &fOpen GUI:   &d" + KeyBindUtil.getKeyName(lobbyIntel.guiKeybind.getKeyCode()));
+        reply("  &fClickGUI:   &d" + KeyBindUtil.getKeyName(lobbyIntel.clickGuiKeybind.getKeyCode()));
         reply("  &fBedWarsTag: &d" + (bedwarsTag == null ? "n/a" : KeyBindUtil.getKeyName(bedwarsTag.getKey())));
-        reply("&7Usage: &f.bind <hud|gui|tag> <key>");
+        reply("&7Usage: &f.bind <hud|gui|clickgui|tag> <key>");
     }
 }
