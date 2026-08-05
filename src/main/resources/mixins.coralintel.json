@@ -10,7 +10,8 @@
     "MixinMinecraft",
     "MixinGuiIngameForge",
     "MixinNetworkManager",
-    "MixinGuiPlayerTabOverlay"
+    "MixinGuiPlayerTabOverlay",
+    "IAccessorRenderManager"
   ],
   "server": []
 }
