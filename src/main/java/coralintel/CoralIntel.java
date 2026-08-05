@@ -4,6 +4,7 @@ import coralintel.command.CommandManager;
 import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.BindCommand;
+import coralintel.command.commands.ClickGuiCommand;
 import coralintel.command.commands.IntelDebugCommand;
 import coralintel.command.commands.IntelKeyCommand;
 import coralintel.command.commands.IntelPathCommand;
@@ -52,6 +53,7 @@ public class CoralIntel {
 
         commandManager = new CommandManager();
         commandManager.register(new BindCommand());
+        commandManager.register(new ClickGuiCommand());
         commandManager.register(new UrchinKeyCommand());
         commandManager.register(new IntelKeyCommand());
         commandManager.register(new AddIntelPlayerCommand());
