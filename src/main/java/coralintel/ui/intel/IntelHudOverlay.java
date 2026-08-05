@@ -313,7 +313,8 @@ public class IntelHudOverlay {
         );
 
         int dividerY = scaledY + HEADER_HEIGHT;
-        fillRect(scaledX + 2, dividerY, width - 4, 1, 0x33FFFFFF);
+        int headerLineColor = (columnLineOpacity << 24) | 0xFFFFFF;
+        fillRect(scaledX + 2, dividerY, width - 4, 1, headerLineColor);
 
         int headerY = scaledY + 3;
         int x = scaledX + PADDING;
