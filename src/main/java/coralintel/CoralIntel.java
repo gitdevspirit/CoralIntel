@@ -15,6 +15,9 @@ import coralintel.event.EventManager;
 import coralintel.module.Module;
 import coralintel.module.ModuleManager;
 import coralintel.module.modules.LobbyIntel;
+import coralintel.module.modules.BedwarsTag;
+import coralintel.render.RenderEventBridge;
+import net.minecraftforge.common.MinecraftForge;
 import coralintel.property.Property;
 import coralintel.property.PropertyManager;
 
@@ -60,8 +63,10 @@ public class CoralIntel {
         EventManager.register(commandManager);
         EventManager.register(moduleManager);
 
-        // Only one module in this standalone build.
+        // Only two modules in this standalone build.
         moduleManager.modules.put(LobbyIntel.class, new LobbyIntel());
+        moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
+        MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
         // and register it with the PropertyManager, same as the original client did.
