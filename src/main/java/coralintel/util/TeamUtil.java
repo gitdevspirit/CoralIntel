@@ -2,15 +2,17 @@ package coralintel.util;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.scoreboard.ScorePlayerTeam;
 
 import java.awt.*;
 
 /**
- * Trimmed from the original client's TeamUtil — only keeps getTeamColor(),
- * which is all BedwarsTag needs. The friend/target/bot/shop detection helpers
- * from the original (tied to combat modules) have been left out.
+ * Trimmed from the original client's TeamUtil — only keeps getTeamColor()
+ * and isSameTeam(), which is all BedwarsTag/AntiCheat need. The friend/
+ * target/bot/shop detection helpers from the original (tied to combat
+ * modules) have been left out.
  */
 public class TeamUtil {
     private static final Minecraft mc = Minecraft.getMinecraft();
@@ -25,5 +27,31 @@ public class TeamUtil {
             }
         }
         return new Color(colorCode & 0xFFFFFF | (int) (alpha * 255) << 24, true);
+    }
+
+    public static boolean isSameTeam(EntityPlayer player) {
+        if (player == mc.thePlayer) {
+            return true;
+        }
+        if (mc.getNetHandler() == null || mc.thePlayer == null) {
+            return false;
+        }
+        NetworkPlayerInfo selfInfo = mc.getNetHandler().getPlayerInfo(mc.thePlayer.getUniqueID());
+        if (selfInfo == null) {
+            return false;
+        }
+        ScorePlayerTeam selfTeam = selfInfo.getPlayerTeam();
+        if (selfTeam == null) {
+            return false;
+        }
+        NetworkPlayerInfo targetInfo = mc.getNetHandler().getPlayerInfo(player.getUniqueID());
+        if (targetInfo == null) {
+            return false;
+        }
+        ScorePlayerTeam targetTeam = targetInfo.getPlayerTeam();
+        if (targetTeam == null) {
+            return false;
+        }
+        return selfTeam.getColorPrefix().equals(targetTeam.getColorPrefix());
     }
 }
