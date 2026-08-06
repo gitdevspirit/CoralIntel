@@ -9,6 +9,7 @@ import coralintel.module.Setting;
 import coralintel.module.SliderSetting;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.ui.intel.IntelHudOverlay;
+import coralintel.ui.intel.IntelManager;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
@@ -105,6 +106,28 @@ public class ClickGui extends GuiScreen {
         }
     }
 
+    /** Read-only row showing one recent cheater-flag notification. */
+    private class FlagLogRow extends Row {
+        final IntelManager.FlagRecord flag;
+
+        FlagLogRow(IntelManager.FlagRecord flag) {
+            this.flag = flag;
+            this.h = 22;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            mc.fontRendererObj.drawString(flag.name, x, y, TEXT_ON, false);
+
+            String message = flag.message;
+            while (message.length() > 3 && mc.fontRendererObj.getStringWidth(message + "\u2026") > w) {
+                message = message.substring(0, message.length() - 1);
+            }
+            if (!message.equals(flag.message)) message += "\u2026";
+
+            mc.fontRendererObj.drawString(message, x, y + 10, flag.color, false);
+        }
+    }
+
     private class ToggleRow extends Row {
         final String label;
         final BooleanSupplier get;
@@ -181,6 +204,13 @@ public class ClickGui extends GuiScreen {
         }
 
         boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            // Computed directly from the passed-in geometry rather than relying
+            // on fields render() sets — mouseClicked() rebuilds a fresh Row list
+            // that's never actually rendered, so those fields would still be 0.
+            barX = x;
+            barY = y + 11;
+            barW = w;
+
             if (mouseX >= barX && mouseX <= barX + barW && mouseY >= barY - 2 && mouseY < barY + 8) {
                 apply(mouseX);
                 draggingGenericSlider = this;
@@ -243,6 +273,10 @@ public class ClickGui extends GuiScreen {
         }
 
         boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            barX = x;
+            barY = y + 11;
+            barW = w;
+
             if (mouseX >= barX && mouseX <= barX + barW && mouseY >= barY - 2 && mouseY < barY + 8) {
                 apply(mouseX);
                 draggingSlider = this;
@@ -357,6 +391,24 @@ public class ClickGui extends GuiScreen {
 
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
+            rows.addAll(notificationRows());
+        }
+
+        return rows;
+    }
+
+    private List<Row> notificationRows() {
+        List<Row> rows = new ArrayList<>();
+        List<IntelManager.FlagRecord> flags = IntelManager.getInstance().getRecentFlags();
+
+        rows.add(new SectionLabelRow("RECENT FLAGS"));
+
+        if (flags.isEmpty()) {
+            rows.add(new SectionLabelRow("None yet this session"));
+        } else {
+            for (IntelManager.FlagRecord flag : flags) {
+                rows.add(new FlagLogRow(flag));
+            }
         }
 
         return rows;
