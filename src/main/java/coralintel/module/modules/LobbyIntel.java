@@ -151,6 +151,7 @@ public class LobbyIntel extends Module {
     private final IntelGui gui = new IntelGui();
     private final IntelHudOverlay hudOverlay = new IntelHudOverlay();
     private boolean scannedThisSession = false;
+    private boolean finalWhoSent = false;
 
     public LobbyIntel() {
         super("LobbyIntel", true);
@@ -337,6 +338,7 @@ public class LobbyIntel extends Module {
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
         scannedThisSession = false;
+        finalWhoSent = false;
         IntelManager.getInstance().clearAll();
 
         if (autoKey.getValue()) {
@@ -434,6 +436,33 @@ public class LobbyIntel extends Module {
             });
         }
 
+        // A second /who right as the match actually begins — team
+        // assignments are only finalized by this point, so this catches
+        // anyone the 10-second scan's roster missed or had stale team data
+        // for. Delayed by 1s after the message so it fires just after the
+        // world/team state has actually settled, not mid-transition.
+        if (autoScan.getValue()
+                && !finalWhoSent
+                && message.contains("The game starts in 1 second")) {
+
+            finalWhoSent = true;
+            IntelManager.dbg("[Intel] Final countdown detected — requesting /who in 1s.");
+
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ignored) {
+                    return;
+                }
+
+                mc.addScheduledTask(() -> {
+                    if (mc.thePlayer != null) {
+                        mc.thePlayer.sendChatMessage("/who");
+                    }
+                });
+            }).start();
+        }
+
         if (message.contains("FINAL KILL!")) {
             Pattern killPattern = Pattern.compile(
                     "^([A-Za-z0-9_]+) (?:was |fell |drowned|died|hit |got )"
@@ -465,6 +494,7 @@ public class LobbyIntel extends Module {
             if (!realNames.isEmpty()) {
                 IntelManager manager = IntelManager.getInstance();
                 manager.getPlayers().clear();
+                manager.clearManualPlayers();
 
                 for (String name : realNames) {
                     String self = mc.thePlayer != null ? mc.thePlayer.getName() : "";
