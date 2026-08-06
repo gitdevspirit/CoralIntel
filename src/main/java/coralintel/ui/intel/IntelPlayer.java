@@ -85,9 +85,27 @@ public class IntelPlayer {
             case "BC": return 0xFFFF3344; // blatant — red
             case "CC": return 0xFFDD44DD; // confirmed — magenta
             case "S":  return 0xFFFF1122; // sniper — bright red
-            case "R":  return 0xFFFF69B4; // caution / replay needed — pink
+            case "R":  return 0xFF55FF55; // caution / replay needed — green
             case "C":  return 0xFFFF8844; // closet / unclassified — orange
             default:   return 0xFFAAAAAA;
+        }
+    }
+
+    /**
+     * Short, human-readable explanation matching {@link #getTagBadge()}'s
+     * classification — used anywhere a tag is shown to the person (tooltip,
+     * .bw command, chat notification), instead of whatever raw text the
+     * Coral/Ghost Intel API happened to return (which is often just a
+     * detection-method name like "AutoBlock" regardless of severity).
+     */
+    public String getTagMessage() {
+        switch (getTagBadge()) {
+            case "BC": return "Blatant cheater, be wary — might be hopping";
+            case "CC": return "Confirmed cheater, be wary — might be hopping";
+            case "C":  return "Using closet cheats, be wary";
+            case "S":  return "Sniper, stay alert — probably hopping!";
+            case "R":  return "Replay needed — flagged for manual review";
+            default:   return "";
         }
     }
 
@@ -132,11 +150,13 @@ public class IntelPlayer {
 
     public void computeThreat() {
         double statsScore = 0;
-        statsScore += Math.min(40, fkdr * 6.0);
-        statsScore += Math.min(20, wlr * 5.0);
-        statsScore += Math.min(20, winstreak * 0.8);
-        statsScore += Math.min(10, level / 100.0 * 10);
-        statsScore += Math.min(10, finalKills / 1000.0 * 10);
+        // FKDR is weighted well above the other stats — it's the strongest
+        // single signal for how dangerous a player actually is.
+        statsScore += Math.min(55, fkdr * 9.0);
+        statsScore += Math.min(15, wlr * 4.0);
+        statsScore += Math.min(15, winstreak * 0.6);
+        statsScore += Math.min(8, level / 100.0 * 8);
+        statsScore += Math.min(7, finalKills / 1000.0 * 7);
         statsScore = Math.min(100, statsScore);
 
         if (cheater) {
@@ -145,8 +165,8 @@ public class IntelPlayer {
             if (urchinType != null) {
                 if (urchinType.contains("blatant")) typeBase = 80;
                 else if (urchinType.contains("confirmed")) typeBase = 65;
+                else if (urchinType.contains("sniper")) typeBase = 90;
                 else if (urchinType.contains("closet")) typeBase = 50;
-                else if (urchinType.contains("sniper")) typeBase = 45;
                 else if (urchinType.contains("account")) typeBase = 35;
                 else if (urchinType.contains("caution")) typeBase = 30;
                 else if (urchinType.contains("info")) typeBase = 20;
@@ -183,6 +203,14 @@ public class IntelPlayer {
 
                 average /= found.size();
                 cheatScore = average * 0.7 + typeBase * 0.3;
+            }
+
+            // Sniper is treated as an especially dangerous classification —
+            // hold it near 90 regardless of what the keyword blend above
+            // landed on, rather than letting a low-scoring reason keyword
+            // (e.g. "reach") water it down.
+            if (urchinType != null && urchinType.contains("sniper")) {
+                cheatScore = Math.max(cheatScore, 88);
             }
 
             cheatScore = Math.max(cheatScore, 20);
