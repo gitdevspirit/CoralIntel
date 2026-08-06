@@ -54,7 +54,7 @@ public class ClickGui extends GuiScreen {
 
     private static class PanelState {
         float x, y;
-        boolean collapsed = false;
+        boolean collapsed = true;
         boolean dragging = false;
         float dragOffX, dragOffY;
 
@@ -65,11 +65,18 @@ public class ClickGui extends GuiScreen {
     }
 
     public ClickGui() {
+        // Side-by-side columns rather than a vertical stack — that way,
+        // expanding one panel can never overlap the next one regardless of
+        // how tall its settings list turns out to be. Panels start collapsed
+        // so opening the GUI shows a clean row of headers; click one to
+        // expand it, drag by the header to reposition.
         int startX = 20;
         int startY = 20;
+        int columnGap = PANEL_W + 20;
+
         for (Module module : CoralIntel.moduleManager.modules.values()) {
             panels.put(module, new PanelState(startX, startY));
-            startY += 30; // collapsed headers stack downward until dragged apart
+            startX += columnGap;
         }
     }
 
@@ -107,17 +114,27 @@ public class ClickGui extends GuiScreen {
 
         void render(int x, int y, int w, int mouseX, int mouseY) {
             boolean hovered = hit(mouseX, mouseY, x, y, w, h);
-            mc.fontRendererObj.drawString(label, x, y + 6, hovered ? TEXT_ON : TEXT_DIM, false);
-
             boolean value = get.getAsBoolean();
-            int boxSize = 12;
-            int boxX = x + w - boxSize;
-            int boxY = y + 4;
 
-            RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3,
-                    value ? ACCENT : 0x33FFFFFF);
-            if (!value) {
-                RoundedUtils.drawRoundedOutline(boxX, boxY, boxSize, boxSize, 3, 1f, 0x55FFFFFF);
+            // Label brightens when the setting is ON, not just on hover —
+            // gives an at-a-glance read of every row's state, not just the
+            // one under the cursor.
+            int labelColor = value ? TEXT_ON : (hovered ? TEXT_ON : TEXT_DIM);
+            mc.fontRendererObj.drawString(label, x, y + 6, labelColor, false);
+
+            int boxSize = 14;
+            int boxX = x + w - boxSize;
+            int boxY = y + 3;
+
+            if (value) {
+                // Solid filled box + checkmark — unambiguous "on" state.
+                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3, ACCENT);
+                mc.fontRendererObj.drawString("\u2713", boxX + 3, boxY + 2, 0xFF1A1A1A, false);
+            } else {
+                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3,
+                        hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+                RoundedUtils.drawRoundedOutline(boxX, boxY, boxSize, boxSize, 3, 1f,
+                        hovered ? 0x88FFFFFF : 0x55FFFFFF);
             }
         }
 
@@ -367,7 +384,16 @@ public class ClickGui extends GuiScreen {
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, HEADER_H, 5, BG_HEADER);
 
         boolean masterOn = module.isEnabled();
-        mc.fontRendererObj.drawString(module.getName(), x + PAD, y + 8,
+
+        int dotSize = 8;
+        int dotX = x + PAD;
+        int dotY = y + (HEADER_H - dotSize) / 2;
+        RoundedUtils.drawRoundedRect(dotX, dotY, dotSize, dotSize, 2, masterOn ? ACCENT : 0x33FFFFFF);
+        if (!masterOn) {
+            RoundedUtils.drawRoundedOutline(dotX, dotY, dotSize, dotSize, 2, 1f, 0x55FFFFFF);
+        }
+
+        mc.fontRendererObj.drawString(module.getName(), x + PAD + dotSize + 6, y + 8,
                 masterOn ? ACCENT : TEXT_DIM, false);
 
         String arrow = state.collapsed ? "\u25B6" : "\u25BC";
@@ -396,8 +422,12 @@ public class ClickGui extends GuiScreen {
                 int y = (int) state.y;
 
                 if (hit(mouseX, mouseY, x, y, PANEL_W, HEADER_H)) {
-                    // Right-most 16px of the header toggles collapse; the rest drags the panel.
-                    if (mouseX >= x + PANEL_W - 20) {
+                    // Left ~20px (the on/off dot) toggles the module itself.
+                    // Right-most 16px (the arrow) toggles collapse. Anything
+                    // else in the header drags the panel.
+                    if (mouseX < x + PAD + 8 + 6) {
+                        entry.getKey().toggle();
+                    } else if (mouseX >= x + PANEL_W - 20) {
                         state.collapsed = !state.collapsed;
                     } else {
                         state.dragging = true;
