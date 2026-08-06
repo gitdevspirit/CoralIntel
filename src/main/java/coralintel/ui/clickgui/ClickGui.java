@@ -12,6 +12,8 @@ import coralintel.ui.intel.IntelHudOverlay;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +59,8 @@ public class ClickGui extends GuiScreen {
         boolean collapsed = true;
         boolean dragging = false;
         float dragOffX, dragOffY;
+        int scrollOffset = 0;
+        int maxScroll = 0;
 
         PanelState(float x, float y) {
             this.x = x;
@@ -370,6 +374,8 @@ public class ClickGui extends GuiScreen {
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
+    private static final int MAX_VISIBLE_CONTENT = 400; // caps a panel's height before it scrolls
+
     private void drawPanel(Module module, PanelState state, int mouseX, int mouseY) {
         int x = (int) state.x;
         int y = (int) state.y;
@@ -378,7 +384,11 @@ public class ClickGui extends GuiScreen {
         int contentHeight = 0;
         for (Row r : rows) contentHeight += r.h + 4;
 
-        int panelH = HEADER_H + (state.collapsed ? 0 : contentHeight + PAD);
+        int visibleContentHeight = Math.min(contentHeight, MAX_VISIBLE_CONTENT);
+        state.maxScroll = Math.max(0, contentHeight - visibleContentHeight);
+        state.scrollOffset = Math.max(0, Math.min(state.scrollOffset, state.maxScroll));
+
+        int panelH = HEADER_H + (state.collapsed ? 0 : visibleContentHeight + PAD);
 
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, panelH, 5, BG_PANEL);
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, HEADER_H, 5, BG_HEADER);
@@ -403,11 +413,38 @@ public class ClickGui extends GuiScreen {
 
         int rx = x + PAD;
         int rw = PANEL_W - PAD * 2;
-        int ry = y + HEADER_H + 6;
+        int contentTop = y + HEADER_H + 6;
+
+        ScaledResolution sr = new ScaledResolution(mc);
+        int scaleFactor = sr.getScaleFactor();
+        int scaledHeight = sr.getScaledHeight();
+
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(
+                x * scaleFactor,
+                (scaledHeight - contentTop - visibleContentHeight) * scaleFactor,
+                PANEL_W * scaleFactor,
+                visibleContentHeight * scaleFactor
+        );
+
+        int ry = contentTop - state.scrollOffset;
 
         for (Row row : rows) {
-            row.render(rx, ry, rw, mouseX, mouseY);
+            if (ry + row.h >= contentTop && ry <= contentTop + visibleContentHeight) {
+                row.render(rx, ry, rw, mouseX, mouseY);
+            }
             ry += row.h + 4;
+        }
+
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+
+        // Scroll indicator
+        if (state.maxScroll > 0) {
+            int trackH = visibleContentHeight;
+            int thumbH = Math.max(16, trackH * visibleContentHeight / contentHeight);
+            int thumbY = contentTop + (int) ((float) state.scrollOffset / state.maxScroll * (trackH - thumbH));
+            drawRect(x + PANEL_W - 4, contentTop, x + PANEL_W - 2, contentTop + trackH, 0x22FFFFFF);
+            drawRect(x + PANEL_W - 4, thumbY, x + PANEL_W - 2, thumbY + thumbH, ACCENT);
         }
     }
 
@@ -442,10 +479,16 @@ public class ClickGui extends GuiScreen {
                 List<Row> rows = buildRows(entry.getKey());
                 int rx = x + PAD;
                 int rw = PANEL_W - PAD * 2;
-                int ry = y + HEADER_H + 6;
+                int contentTop = y + HEADER_H + 6;
+                int visibleContentHeight = Math.min(sumHeight(rows), MAX_VISIBLE_CONTENT);
+                int ry = contentTop - state.scrollOffset;
 
                 for (Row row : rows) {
-                    if (row.click(rx, ry, rw, mouseX, mouseY)) {
+                    // Only rows actually visible within the scrolled/clipped
+                    // viewport are clickable — otherwise a row scrolled out
+                    // of view could still eat a click meant for the panel below it.
+                    boolean visible = ry + row.h >= contentTop && ry <= contentTop + visibleContentHeight;
+                    if (visible && row.click(rx, ry, rw, mouseX, mouseY)) {
                         return;
                     }
                     ry += row.h + 4;
@@ -483,6 +526,34 @@ public class ClickGui extends GuiScreen {
     }
 
     @Override
+    public void handleMouseInput() throws IOException {
+        super.handleMouseInput();
+
+        int scroll = Mouse.getEventDWheel();
+        if (scroll == 0) return;
+
+        // Scroll whichever expanded panel the cursor is currently over.
+        int scaledMouseX = Mouse.getEventX() * width / mc.displayWidth;
+        int scaledMouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
+
+        for (Map.Entry<Module, PanelState> entry : panels.entrySet()) {
+            PanelState state = entry.getValue();
+            if (state.collapsed) continue;
+
+            int x = (int) state.x;
+            int y = (int) state.y;
+            int visibleContentHeight = Math.min(sumHeight(buildRows(entry.getKey())), MAX_VISIBLE_CONTENT);
+            int panelBottom = y + HEADER_H + visibleContentHeight + PAD;
+
+            if (scaledMouseX >= x && scaledMouseX < x + PANEL_W && scaledMouseY >= y && scaledMouseY < panelBottom) {
+                state.scrollOffset -= scroll > 0 ? 20 : -20;
+                state.scrollOffset = Math.max(0, Math.min(state.scrollOffset, state.maxScroll));
+                break;
+            }
+        }
+    }
+
+    @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
         if (listeningKeybind != null) {
             // ESC cancels the rebind instead of closing the GUI.
@@ -492,6 +563,12 @@ public class ClickGui extends GuiScreen {
             return;
         }
         super.keyTyped(typedChar, keyCode);
+    }
+
+    private int sumHeight(List<Row> rows) {
+        int total = 0;
+        for (Row r : rows) total += r.h + 4;
+        return total;
     }
 
     private boolean hit(int mouseX, int mouseY, int x, int y, int w, int h) {
