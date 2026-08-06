@@ -102,6 +102,7 @@ public class BedwarsTag extends Module {
             String starPart   = parts[0]; // e.g. "☆8"
             String urchinPart = parts[2]; // e.g. "CC" or ""
             String healthPart = buildHealthText(player); // e.g. " 20" or " 10.0" or " 20"(tab)
+            String fkdrPart   = buildFkdrText(intel);
 
             // In an active Bedwars match (team scoreboard assigned by the
             // server) — color the name by team instead of showing rank.
@@ -122,14 +123,17 @@ public class BedwarsTag extends Module {
             int starColor   = getStarColor(intel);
             int urchinColor = getUrchinColor(intel);
             int healthColor = getHealthColor(player);
+            int fkdrColor   = getFkdrColor(intel);
 
             int gap = 3;
             int starW   = mc.fontRendererObj.getStringWidth(starPart);
             int nameW   = mc.fontRendererObj.getStringWidth(namePart);
             int healthW = healthPart.isEmpty() ? 0 : mc.fontRendererObj.getStringWidth(healthPart);
+            int fkdrW   = fkdrPart.isEmpty() ? 0 : mc.fontRendererObj.getStringWidth(fkdrPart);
             int urchinW = urchinPart.isEmpty() ? 0 : mc.fontRendererObj.getStringWidth(urchinPart);
             int totalW  = starW + gap + nameW
                     + (healthW > 0 ? gap + healthW : 0)
+                    + (fkdrW > 0 ? gap + fkdrW : 0)
                     + (urchinW > 0 ? gap + urchinW : 0);
 
             float ty = -(float) mc.fontRendererObj.FONT_HEIGHT;
@@ -152,6 +156,11 @@ public class BedwarsTag extends Module {
                 cursor += gap;
                 mc.fontRendererObj.drawString(healthPart, cursor, ty, healthColor, true);
                 cursor += healthW;
+            }
+            if (!fkdrPart.isEmpty()) {
+                cursor += gap;
+                mc.fontRendererObj.drawString(fkdrPart, cursor, ty, fkdrColor, true);
+                cursor += fkdrW;
             }
             if (!urchinPart.isEmpty()) {
                 cursor += gap;
@@ -206,6 +215,19 @@ public class BedwarsTag extends Module {
         float max        = player.getMaxHealth();
         float percent    = Math.min(Math.max((health + absorption) / max, 0.0F), 1.0F);
         return ColorUtil.getHealthBlend(percent).getRGB();
+    }
+
+    // Builds the "FKDR X.X" suffix when the Show FKDR setting is on — was
+    // registered as a setting in the original client but never actually
+    // wired into rendering, so toggling it never did anything.
+    private String buildFkdrText(IntelPlayer intel) {
+        if (!showFkdr.getValue() || intel == null || intel.loading) return "";
+        return String.format(java.util.Locale.ROOT, "FKDR %.1f", intel.fkdr);
+    }
+
+    private int getFkdrColor(IntelPlayer intel) {
+        if (intel == null || intel.loading) return 0xFFAAAAAA;
+        return coralintel.ui.intel.IntelColors.getStatColor(intel.fkdr, 3, 6);
     }
 
     // Returns [starText, name, urchinTag] — rendered separately with different colors
