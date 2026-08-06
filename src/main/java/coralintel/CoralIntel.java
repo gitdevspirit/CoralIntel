@@ -4,6 +4,8 @@ import coralintel.command.CommandManager;
 import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.BindCommand;
+import coralintel.command.commands.BlacklistCommand;
+import coralintel.command.commands.UnblacklistCommand;
 import coralintel.command.commands.ClickGuiCommand;
 import coralintel.command.commands.IntelDebugCommand;
 import coralintel.command.commands.IntelKeyCommand;
@@ -17,6 +19,7 @@ import coralintel.module.Module;
 import coralintel.module.ModuleManager;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.BedwarsTag;
+import coralintel.module.modules.AntiCheat;
 import coralintel.render.RenderEventBridge;
 import net.minecraftforge.common.MinecraftForge;
 import coralintel.property.Property;
@@ -62,12 +65,16 @@ public class CoralIntel {
         commandManager.register(new IntelPathCommand());
         commandManager.register(new RoleCommand());
         commandManager.register(new BedwarsStatsCommand());
+        commandManager.register(new BlacklistCommand());
+        commandManager.register(new UnblacklistCommand());
         EventManager.register(commandManager);
         EventManager.register(moduleManager);
 
         // Only two modules in this standalone build.
+        // Three modules in this standalone build.
         moduleManager.modules.put(LobbyIntel.class, new LobbyIntel());
         moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
+        moduleManager.modules.put(AntiCheat.class, new AntiCheat());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
