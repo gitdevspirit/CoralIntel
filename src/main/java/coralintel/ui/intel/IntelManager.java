@@ -227,37 +227,56 @@ public class IntelManager {
                 dbg("[Intel] UUID fetch failed for " + player.name
                         + ": " + exception);
             } finally {
-                List<IntelPlayer> refreshed = combined();
+                pushUpdate();
+            }
+        });
 
-                if (gui != null) {
-                    gui.setPlayers(refreshed);
-                }
-
-                if (hudOverlay != null) {
-                    hudOverlay.setPlayers(refreshed);
-                }
+        // Cheat-tag lookup and the actual Hypixel stats fetch run as fully
+        // independent tasks now (matching scanLobby()'s pattern) — they
+        // used to be chained in one try block, so a Coral/Urchin API
+        // hiccup (rate limit, timeout, bad response) would silently abort
+        // before the Hypixel stats fetch ever ran, permanently leaving
+        // this player's star/FKDR/etc. unpopulated.
+        pool.submit(() -> {
+            try {
+                fetchUrchinBatch(java.util.Collections.singletonList(player));
+            } catch (Exception exception) {
+                dbg("[Intel] Coral fetch failed for " + player.name + ": " + exception);
+            } finally {
+                pushUpdate();
             }
         });
 
         pool.submit(() -> {
             try {
-                fetchUrchinBatch(java.util.Collections.singletonList(player));
                 fetchHypixel(player);
                 player.computeThreat();
             } catch (Exception exception) {
                 player.loading = false;
-                dbg("[Intel] add-player fetch failed for " + player.name
+                dbg("[Intel] stats fetch failed for " + player.name
                         + ": " + exception);
             } finally {
-                List<IntelPlayer> refreshed = combined();
+                pushUpdate();
+            }
+        });
+    }
 
-                if (gui != null) {
-                    gui.setPlayers(refreshed);
-                }
+    /**
+     * Chat/GUI/HUD state must only ever be touched from the main client
+     * thread — this hops back via addScheduledTask so background fetch
+     * callbacks (which run on the pool's worker threads) don't race the
+     * render thread.
+     */
+    private void pushUpdate() {
+        Minecraft.getMinecraft().addScheduledTask(() -> {
+            List<IntelPlayer> refreshed = combined();
 
-                if (hudOverlay != null) {
-                    hudOverlay.setPlayers(refreshed);
-                }
+            if (gui != null) {
+                gui.setPlayers(refreshed);
+            }
+
+            if (hudOverlay != null) {
+                hudOverlay.setPlayers(refreshed);
             }
         });
     }
@@ -480,6 +499,7 @@ public class IntelManager {
 
     public void clearAll() {
         players.clear();
+        manualPlayers.clear();
 
         if (gui != null) {
             gui.setPlayers(new ArrayList<>());
@@ -488,6 +508,16 @@ public class IntelManager {
         if (hudOverlay != null) {
             hudOverlay.setPlayers(new ArrayList<>());
         }
+    }
+
+    /**
+     * Wipes only the manually-added roster (players added via /who or the
+     * add-player command), leaving the tab-scanned list untouched. Used by
+     * /who's handler, which replaces its own results wholesale each time it
+     * runs rather than accumulating duplicates across multiple /who calls.
+     */
+    public void clearManualPlayers() {
+        manualPlayers.clear();
     }
 
     public void resetInvalidKeyFlag() {
@@ -799,8 +829,8 @@ public class IntelManager {
             return;
         }
 
-        try {
-            for (IntelPlayer player : batch) {
+        for (IntelPlayer player : batch) {
+            try {
                 String uuid = fetchAndCacheUuid(player.name);
 
                 if (uuid == null) {
@@ -871,8 +901,15 @@ public class IntelManager {
                 player.urchinType = classifyBasis;
                 player.urchinReason = reason.toLowerCase();
                 player.computeThreat();
+            } catch (Exception exception) {
+                // Per-player isolation — one bad UUID lookup or malformed
+                // response used to abort the WHOLE batch (the try/catch used
+                // to wrap the entire for-loop), silently skipping every
+                // player after the failing one, including their unrelated
+                // Hypixel stats fetch downstream. Now it only skips that
+                // one player's cheat-tag lookup.
+                dbg("[Coral] " + player.name + " error: " + exception.getMessage());
             }
-        } catch (Exception ignored) {
         }
     }
 
