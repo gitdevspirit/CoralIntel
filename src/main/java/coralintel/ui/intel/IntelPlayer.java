@@ -40,6 +40,10 @@ public class IntelPlayer {
     // Spirit Client Role
     public PlayerRole role = null;
 
+    // Personal blacklist — .blacklist / .unblacklist, persisted across restarts
+    public boolean blacklisted     = false;
+    public String  blacklistReason = null;
+
     // Computed
     public double threatScore = 0;
 
@@ -47,6 +51,8 @@ public class IntelPlayer {
         this.name = name;
         this.team = team;
         this.role = RoleManager.getInstance().getRole(name);
+        this.blacklistReason = BlacklistManager.getInstance().getReason(name);
+        this.blacklisted = this.blacklistReason != null;
     }
 
     /**
@@ -59,6 +65,10 @@ public class IntelPlayer {
      * word only shows up in one of them for a given tag source.
      */
     public String getTagBadge() {
+        // Personal blacklist takes priority over everything else — it's a
+        // deliberate call the person made themselves, not an API guess.
+        if (blacklisted) return "B";
+
         if (!cheater) return "";
 
         String basis = (
@@ -82,6 +92,7 @@ public class IntelPlayer {
     public int getTagColor() {
         String badge = getTagBadge();
         switch (badge) {
+            case "B":  return 0xFF4499FF; // blacklisted — blue
             case "BC": return 0xFFFF3344; // blatant — red
             case "CC": return 0xFFDD44DD; // confirmed — magenta
             case "S":  return 0xFFFF1122; // sniper — bright red
@@ -100,6 +111,7 @@ public class IntelPlayer {
      */
     public String getTagMessage() {
         switch (getTagBadge()) {
+            case "B":  return "Blacklisted: " + (blacklistReason != null ? blacklistReason : "No reason given");
             case "BC": return "Blatant cheater, be wary — might be hopping";
             case "CC": return "Confirmed cheater, be wary — might be hopping";
             case "C":  return "Using closet cheats, be wary";
@@ -107,6 +119,29 @@ public class IntelPlayer {
             case "R":  return "Replay needed — flagged for manual review";
             default:   return "";
         }
+    }
+
+    /**
+     * Same as {@link #getTagMessage()}, but also appends what Coral itself
+     * actually tagged the player for (its raw classification text) — so the
+     * friendly explanation doesn't hide the underlying source. Blacklist
+     * ("B") has no Coral classification behind it, so it's left as-is.
+     */
+    public String getFullTagMessage() {
+        String friendly = getTagMessage();
+        String badge = getTagBadge();
+
+        if (badge.equals("B") || badge.isEmpty()) {
+            return friendly;
+        }
+
+        String raw = urchinTag != null ? urchinTag : urchinType;
+
+        if (raw == null || raw.isEmpty() || raw.equalsIgnoreCase(friendly)) {
+            return friendly;
+        }
+
+        return friendly.isEmpty() ? raw : friendly + " (Coral: " + raw + ")";
     }
 
     private static final Object[][] KEYWORD_SCORES = {
@@ -217,6 +252,13 @@ public class IntelPlayer {
             threatScore = Math.max(cheatScore, statsScore);
         } else {
             threatScore = statsScore;
+        }
+
+        // Personal blacklist overrides everything above it — the person
+        // decided this player is dangerous themselves, so it floors threat
+        // high regardless of what stats/Coral would otherwise say.
+        if (blacklisted) {
+            threatScore = Math.max(threatScore, 85);
         }
 
         loading = false;
