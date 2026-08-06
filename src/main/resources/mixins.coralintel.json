@@ -11,6 +11,7 @@
     "MixinGuiIngameForge",
     "MixinNetworkManager",
     "MixinGuiPlayerTabOverlay",
+    "MixinRendererLivingEntity",
     "IAccessorRenderManager"
   ],
   "server": []
