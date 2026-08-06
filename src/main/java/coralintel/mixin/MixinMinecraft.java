@@ -5,6 +5,8 @@ import coralintel.init.Initializer;
 import coralintel.event.EventManager;
 import coralintel.events.KeyEvent;
 import coralintel.events.LoadWorldEvent;
+import coralintel.events.TickEvent;
+import coralintel.event.types.EventType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.GuiScreen;
@@ -62,6 +64,26 @@ public abstract class MixinMinecraft {
     )
     private void loadWorld(WorldClient worldClient, String string, CallbackInfo callbackInfo) {
         EventManager.call(new LoadWorldEvent());
+    }
+
+    @Inject(
+            method = {"runTick"},
+            at = {@At("HEAD")}
+    )
+    private void runTick(CallbackInfo callbackInfo) {
+        if (this.theWorld != null && this.thePlayer != null) {
+            EventManager.call(new TickEvent(EventType.PRE));
+        }
+    }
+
+    @Inject(
+            method = {"runTick"},
+            at = {@At("RETURN")}
+    )
+    private void postRunTick(CallbackInfo callbackInfo) {
+        if (this.theWorld != null && this.thePlayer != null) {
+            EventManager.call(new TickEvent(EventType.POST));
+        }
     }
 
     @Redirect(
