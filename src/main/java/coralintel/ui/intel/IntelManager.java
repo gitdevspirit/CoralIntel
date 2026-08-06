@@ -17,9 +17,34 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IntelManager {
+
+    /** One entry in the recent-flags log, shown in the ClickGUI's LobbyIntel panel. */
+    public static class FlagRecord {
+        public final String name;
+        public final String message;
+        public final int color;
+        public final long time;
+
+        public FlagRecord(String name, String message, int color, long time) {
+            this.name = name;
+            this.message = message;
+            this.color = color;
+            this.time = time;
+        }
+    }
+
+    private static final int MAX_RECENT_FLAGS = 8;
+    private final List<FlagRecord> recentFlags = new CopyOnWriteArrayList<>();
+
+    /** Most recent flags first — read by the ClickGUI's notification section. */
+    public List<FlagRecord> getRecentFlags() {
+        return recentFlags;
+    }
+
 
     public static final List<String> debugLog = new ArrayList<>();
 
@@ -892,9 +917,22 @@ public class IntelManager {
             }
 
             if (!source.isEmpty()) {
+                String message = player.getTagMessage();
+                String suffix = message.isEmpty() ? "" : " &7— " + message;
+
                 coralintel.util.ChatUtil.sendFormatted(
-                        "&d⚑ &f" + player.name + " &7flagged by &d" + source
+                        "&d⚑ &f" + player.name + " &7flagged by &d" + source + suffix
                 );
+
+                recentFlags.add(0, new FlagRecord(
+                        player.name,
+                        message.isEmpty() ? "Flagged by " + source : message,
+                        player.getTagColor(),
+                        System.currentTimeMillis()
+                ));
+                while (recentFlags.size() > MAX_RECENT_FLAGS) {
+                    recentFlags.remove(recentFlags.size() - 1);
+                }
             }
         } catch (Exception ignored) {
         }
