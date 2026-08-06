@@ -439,7 +439,21 @@ public class IntelHudOverlay {
             nameColor = ACCENT;
         }
 
-        drawText(player.name, currentX, y + 4, nameColor);
+        // In an active match (team assigned) — color the name by team,
+        // same as BedWarsTag and the tab list do. In the lobby (no team
+        // yet) — prefix the Hypixel rank instead, since there's no team to
+        // show. Cheater/high-threat coloring still takes priority either way.
+        String displayName = player.name;
+
+        if (player.team != null && !player.team.isEmpty()) {
+            if (showTeamColor && !player.cheater && player.threatScore < 75) {
+                nameColor = getTeamColor(player.team);
+            }
+        } else if (player.rankPrefix != null && !player.rankPrefix.isEmpty()) {
+            displayName = stripColorCodes(player.rankPrefix) + " " + player.name;
+        }
+
+        drawText(displayName, currentX, y + 4, nameColor);
         currentX += 120;
 
         if (showStar) {
@@ -515,7 +529,7 @@ public class IntelHudOverlay {
             String displayText = "";
             int displayColor = TEXT_DIM;
 
-            if (player.cheater) {
+            if (player.cheater || player.blacklisted) {
                 displayText = player.getTagBadge();
                 displayColor = player.getTagColor();
             }
@@ -678,6 +692,15 @@ public class IntelHudOverlay {
         GlStateManager.enableTexture2D();
         GlStateManager.enableBlend();
         mc.fontRendererObj.drawString(text, x, y, color, true);
+    }
+
+    /**
+     * Strips embedded §-formatting codes from a string. Used for the rank
+     * prefix in the name column so its own color codes don't bleed into
+     * (and override) the cheater/high-threat highlight color that follows it.
+     */
+    private String stripColorCodes(String text) {
+        return text.replaceAll("(?i)\u00A7[0-9A-FK-OR]", "");
     }
 
     private void fillRect(int x, int y, int width, int height, int color) {
