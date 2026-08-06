@@ -10,17 +10,28 @@ import coralintel.ui.intel.IntelPlayer;
  * disk (survives restarts). Shows as a blue "B" tag with the highest threat
  * priority in the tab list, HUD overlay, and .bw output. If you run into
  * them again in a later lobby, LobbyIntel notifies you with the reason.
+ * .blacklist list — shows everyone currently on it.
  */
 public class BlacklistCommand extends Command {
 
     public BlacklistCommand() {
         super("blacklist", "kos");
-        setDescription("Blacklist a player. Usage: .blacklist <player> [reason]");
+        setDescription("Blacklist a player. Usage: .blacklist <player> [reason]  or  .blacklist list");
     }
 
     @Override
     public void execute(String[] args) {
-        if (args.length == 0 || !args[0].matches("[A-Za-z0-9_]{1,16}")) {
+        if (args.length == 0) {
+            reply("&cUsage: &f.blacklist <player> [reason]  &7or&c  .blacklist list");
+            return;
+        }
+
+        if (args[0].equalsIgnoreCase("list")) {
+            printList();
+            return;
+        }
+
+        if (!args[0].matches("[A-Za-z0-9_]{1,16}")) {
             reply("&cUsage: &f.blacklist <player> [reason]");
             return;
         }
@@ -46,6 +57,20 @@ public class BlacklistCommand extends Command {
             reply("&aUpdated blacklist reason for &f" + name + "&a: &7" + reason);
         } else {
             reply("&aBlacklisted &f" + name + " &7— " + reason);
+        }
+    }
+
+    private void printList() {
+        java.util.Map<String, String> all = BlacklistManager.getInstance().getAll();
+
+        if (all.isEmpty()) {
+            reply("&7Blacklist is empty.");
+            return;
+        }
+
+        reply("&7Blacklisted players (&f" + all.size() + "&7):");
+        for (java.util.Map.Entry<String, String> entry : all.entrySet()) {
+            reply("  &9" + entry.getKey() + " &8— &7" + entry.getValue());
         }
     }
 }
