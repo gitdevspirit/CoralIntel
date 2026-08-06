@@ -131,9 +131,10 @@ public class ClickGui extends GuiScreen {
             int boxY = y + 3;
 
             if (value) {
-                // Solid filled box + checkmark — unambiguous "on" state.
-                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3, ACCENT);
-                mc.fontRendererObj.drawString("\u2713", boxX + 3, boxY + 2, 0xFF1A1A1A, false);
+                // Dark box with a pink arrow — the "on" indicator.
+                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3, 0xFF1A1A22);
+                RoundedUtils.drawRoundedOutline(boxX, boxY, boxSize, boxSize, 3, 1f, ACCENT);
+                mc.fontRendererObj.drawString("\u25B6", boxX + 3, boxY + 3, ACCENT, false);
             } else {
                 RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3,
                         hovered ? 0x33FFFFFF : 0x1AFFFFFF);
