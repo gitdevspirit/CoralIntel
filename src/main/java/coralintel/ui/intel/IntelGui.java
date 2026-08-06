@@ -283,8 +283,8 @@ public class IntelGui extends GuiScreen {
         int nameX = cx + 10 + HEAD_SIZE + 7;
 
         // Name line
-        int nameCol = p.cheater ? COL_RED : COL_BRIGHT;
-        String namePrefix = p.cheater ? "\u26D4 " : "";
+        int nameCol = (p.cheater || p.blacklisted) ? COL_RED : COL_BRIGHT;
+        String namePrefix = (p.cheater || p.blacklisted) ? "\u26D4 " : "";
         mc.fontRendererObj.drawString(namePrefix + p.name, nameX, cy + 8, nameCol, false);
 
         // Star below name — uses the Bedwars star count (not network level)
@@ -296,14 +296,14 @@ public class IntelGui extends GuiScreen {
         );
 
         // Urchin tag badge below level with icon - using letter codes
-        if (p.urchinTag != null) {
+        if (p.urchinTag != null || p.blacklisted) {
             String icon = p.getTagBadge();
             int iconColor = p.getTagColor();
 
             // Show the classification-specific message instead of the raw
             // API text (which is often just a detection-method name like
             // "AutoBlock" regardless of how severe the tag actually is).
-            String message = p.getTagMessage();
+            String message = p.getFullTagMessage();
             String tag = !message.isEmpty() ? message : p.urchinTag;
             if (mc.fontRendererObj.getStringWidth(tag) > 120) { // Slightly shorter to fit icon
                 while (tag.length() > 3 && mc.fontRendererObj.getStringWidth(tag + "\u2026") > 120)
@@ -382,7 +382,7 @@ public class IntelGui extends GuiScreen {
         GlStateManager.pushMatrix();
         GlStateManager.translate(x + 44, y + 2, 0);
         GlStateManager.scale(1.3f, 1.3f, 1f);
-        mc.fontRendererObj.drawString(p.name, 0, 0, p.cheater ? COL_RED : COL_BRIGHT, false);
+        mc.fontRendererObj.drawString(p.name, 0, 0, (p.cheater || p.blacklisted) ? COL_RED : COL_BRIGHT, false);
         GlStateManager.popMatrix();
 
         // Star + team
@@ -391,8 +391,8 @@ public class IntelGui extends GuiScreen {
         y += 48;
 
         // Urchin tag — wrapped lines inside a background box
-        if (p.urchinTag != null) {
-            String message = p.getTagMessage();
+        if (p.urchinTag != null || p.blacklisted) {
+            String message = p.getFullTagMessage();
             String tagText = !message.isEmpty() ? message : p.urchinTag;
             List<String> tagLines = wrap("\u26D4  " + tagText, innerW - 10);
             int boxH = tagLines.size() * 11 + 6;
