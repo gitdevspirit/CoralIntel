@@ -13,6 +13,7 @@ import org.lwjgl.input.Keyboard;
  * .bind gui <key>     — set the key that opens/closes the LobbyIntel GUI
  * .bind clickgui <key>— set the key that opens/closes the ClickGUI
  * .bind tag <key>     — set the key that toggles the BedWarsTag module on/off
+ * .bind ac <key>      — set the key that toggles the AntiCheat module on/off
  * .bind list          — show current binds
  *
  * Key names match LWJGL's Keyboard constants without the "KEY_" prefix,
@@ -20,17 +21,18 @@ import org.lwjgl.input.Keyboard;
  */
 public class BindCommand extends Command {
 
-    private static final String[] TARGETS = {"hud", "gui", "clickgui", "tag"};
+    private static final String[] TARGETS = {"hud", "gui", "clickgui", "tag", "ac"};
 
     public BindCommand() {
         super("bind");
-        setDescription("Rebind CoralIntel keys. Usage: .bind <hud|gui|clickgui|tag> <key>  or  .bind list");
+        setDescription("Rebind CoralIntel keys. Usage: .bind <hud|gui|clickgui|tag|ac> <key>  or  .bind list");
     }
 
     @Override
     public void execute(String[] args) {
         LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
         Module bedwarsTag = CoralIntel.moduleManager.getModule("BedWarsTag");
+        Module antiCheat = CoralIntel.moduleManager.getModule("AntiCheat");
 
         if (lobbyIntel == null) {
             reply("&cLobbyIntel module not found.");
@@ -38,14 +40,14 @@ public class BindCommand extends Command {
         }
 
         if (args.length == 0) {
-            printUsage(lobbyIntel, bedwarsTag);
+            printUsage(lobbyIntel, bedwarsTag, antiCheat);
             return;
         }
 
         String sub = args[0].toLowerCase();
 
         if (sub.equals("list")) {
-            printUsage(lobbyIntel, bedwarsTag);
+            printUsage(lobbyIntel, bedwarsTag, antiCheat);
             return;
         }
 
@@ -53,7 +55,7 @@ public class BindCommand extends Command {
         for (String t : TARGETS) if (t.equals(sub)) known = true;
 
         if (!known) {
-            reply("&cUnknown bind target &f'" + args[0] + "'&c. Use &fhud&c, &fgui&c, &fclickgui&c, or &ftag&c.");
+            reply("&cUnknown bind target &f'" + args[0] + "'&c. Use &fhud&c, &fgui&c, &fclickgui&c, &ftag&c, or &fac&c.");
             return;
         }
 
@@ -70,14 +72,17 @@ public class BindCommand extends Command {
             return;
         }
 
-        if (sub.equals("tag")) {
-            if (bedwarsTag == null) {
-                reply("&cBedWarsTag module not found.");
+        if (sub.equals("tag") || sub.equals("ac")) {
+            Module target = sub.equals("tag") ? bedwarsTag : antiCheat;
+            String moduleName = sub.equals("tag") ? "BedWarsTag" : "AntiCheat";
+
+            if (target == null) {
+                reply("&c" + moduleName + " module not found.");
                 return;
             }
-            bedwarsTag.setKey(keyCode);
-            reply("&a[Intel] BedWarsTag toggle key set to &f" + KeyBindUtil.getKeyName(keyCode)
-                    + " &7(press it in-game to turn the tag on/off)");
+            target.setKey(keyCode);
+            reply("&a[Intel] " + moduleName + " toggle key set to &f" + KeyBindUtil.getKeyName(keyCode)
+                    + " &7(press it in-game to turn it on/off)");
             return;
         }
 
@@ -90,12 +95,13 @@ public class BindCommand extends Command {
         reply("&a[Intel] " + label + " key set to &f" + KeyBindUtil.getKeyName(keyCode));
     }
 
-    private void printUsage(LobbyIntel lobbyIntel, Module bedwarsTag) {
+    private void printUsage(LobbyIntel lobbyIntel, Module bedwarsTag, Module antiCheat) {
         reply("&7[Intel] Current binds:");
         reply("  &fHUD toggle: &d" + KeyBindUtil.getKeyName(lobbyIntel.hudKeybind.getKeyCode()));
         reply("  &fOpen GUI:   &d" + KeyBindUtil.getKeyName(lobbyIntel.guiKeybind.getKeyCode()));
         reply("  &fClickGUI:   &d" + KeyBindUtil.getKeyName(lobbyIntel.clickGuiKeybind.getKeyCode()));
         reply("  &fBedWarsTag: &d" + (bedwarsTag == null ? "n/a" : KeyBindUtil.getKeyName(bedwarsTag.getKey())));
-        reply("&7Usage: &f.bind <hud|gui|clickgui|tag> <key>");
+        reply("  &fAntiCheat:  &d" + (antiCheat == null ? "n/a" : KeyBindUtil.getKeyName(antiCheat.getKey())));
+        reply("&7Usage: &f.bind <hud|gui|clickgui|tag|ac> <key>");
     }
 }
