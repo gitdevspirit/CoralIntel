@@ -45,6 +45,19 @@ public class IntelManager {
         return recentFlags;
     }
 
+    /**
+     * Lets other flag sources (e.g. the AntiCheat module's real-time
+     * movement/combat checks) feed into the same notification log the
+     * Coral and blacklist flags use, so everything shows up in one place
+     * in the ClickGUI regardless of where it came from.
+     */
+    public void addRecentFlag(String name, String message, int color) {
+        recentFlags.add(0, new FlagRecord(name, message, color, System.currentTimeMillis()));
+        while (recentFlags.size() > MAX_RECENT_FLAGS) {
+            recentFlags.remove(recentFlags.size() - 1);
+        }
+    }
+
 
     public static final List<String> debugLog = new ArrayList<>();
 
@@ -339,6 +352,10 @@ public class IntelManager {
             } else {
                 player = new IntelPlayer(name, team);
                 needsFetch.add(player);
+
+                if (player.blacklisted) {
+                    notifyBlacklisted(player);
+                }
             }
 
             player.rankPrefix = extractRankPrefix(info, name);
@@ -386,24 +403,33 @@ public class IntelManager {
                 try {
                     fetchUrchinBatch(batch);
                     fetchGhostBatch(batch);
-
-                    for (IntelPlayer player : batch) {
-                        if (player.cheater || player.ghostTagged) {
-                            notifyCheater(player);
-                        }
-                    }
                 } catch (Exception exception) {
                     dbg("[Intel] tag batch failed: " + exception);
                 } finally {
-                    List<IntelPlayer> refreshed = new ArrayList<>(players);
+                    // Chat messages and GUI/HUD state must only ever be
+                    // touched from the main client thread — calling them
+                    // directly from this background pool thread races with
+                    // the render thread iterating the same chat/player
+                    // lists and was causing intermittent crashes/errors
+                    // that looked timing-dependent (worse the slower or
+                    // more concurrent the network fetches were).
+                    Minecraft.getMinecraft().addScheduledTask(() -> {
+                        for (IntelPlayer player : batch) {
+                            if (player.cheater || player.ghostTagged) {
+                                notifyCheater(player);
+                            }
+                        }
 
-                    if (gui != null) {
-                        gui.setPlayers(refreshed);
-                    }
+                        List<IntelPlayer> refreshed = new ArrayList<>(players);
 
-                    if (hudOverlay != null) {
-                        hudOverlay.setPlayers(refreshed);
-                    }
+                        if (gui != null) {
+                            gui.setPlayers(refreshed);
+                        }
+
+                        if (hudOverlay != null) {
+                            hudOverlay.setPlayers(refreshed);
+                        }
+                    });
                 }
             });
         }
@@ -420,15 +446,17 @@ public class IntelManager {
                     dbg("[Intel] stats fetch failed for " + current.name
                             + ": " + exception);
                 } finally {
-                    List<IntelPlayer> refreshed = new ArrayList<>(players);
+                    Minecraft.getMinecraft().addScheduledTask(() -> {
+                        List<IntelPlayer> refreshed = new ArrayList<>(players);
 
-                    if (gui != null) {
-                        gui.setPlayers(refreshed);
-                    }
+                        if (gui != null) {
+                            gui.setPlayers(refreshed);
+                        }
 
-                    if (hudOverlay != null) {
-                        hudOverlay.setPlayers(refreshed);
-                    }
+                        if (hudOverlay != null) {
+                            hudOverlay.setPlayers(refreshed);
+                        }
+                    });
                 }
             });
         }
@@ -896,6 +924,32 @@ public class IntelManager {
         }
     }
 
+    /**
+     * Fires the instant you queue into a lobby with someone on your
+     * blacklist — this is local/synchronous (no API call needed, unlike
+     * notifyCheater), so it doesn't wait on the Coral/Ghost Intel fetch.
+     */
+    private void notifyBlacklisted(IntelPlayer player) {
+        try {
+            String reason = player.blacklistReason != null ? player.blacklistReason : "No reason given";
+
+            coralintel.util.ChatUtil.sendFormatted(
+                    "&9⚑ &f" + player.name + " &7is on your blacklist &7— " + reason
+            );
+
+            recentFlags.add(0, new FlagRecord(
+                    player.name,
+                    "Blacklisted: " + reason,
+                    player.getTagColor(),
+                    System.currentTimeMillis()
+            ));
+            while (recentFlags.size() > MAX_RECENT_FLAGS) {
+                recentFlags.remove(recentFlags.size() - 1);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private void notifyCheater(IntelPlayer player) {
         try {
             coralintel.module.modules.LobbyIntel lobbyIntel =
@@ -917,7 +971,7 @@ public class IntelManager {
             }
 
             if (!source.isEmpty()) {
-                String message = player.getTagMessage();
+                String message = player.getFullTagMessage();
                 String suffix = message.isEmpty() ? "" : " &7— " + message;
 
                 coralintel.util.ChatUtil.sendFormatted(
