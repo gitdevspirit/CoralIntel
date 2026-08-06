@@ -299,9 +299,12 @@ public class IntelGui extends GuiScreen {
         if (p.urchinTag != null) {
             String icon = p.getTagBadge();
             int iconColor = p.getTagColor();
-            
-            // Truncate long tag for card display
-            String tag = p.urchinTag;
+
+            // Show the classification-specific message instead of the raw
+            // API text (which is often just a detection-method name like
+            // "AutoBlock" regardless of how severe the tag actually is).
+            String message = p.getTagMessage();
+            String tag = !message.isEmpty() ? message : p.urchinTag;
             if (mc.fontRendererObj.getStringWidth(tag) > 120) { // Slightly shorter to fit icon
                 while (tag.length() > 3 && mc.fontRendererObj.getStringWidth(tag + "\u2026") > 120)
                     tag = tag.substring(0, tag.length() - 1);
@@ -389,7 +392,9 @@ public class IntelGui extends GuiScreen {
 
         // Urchin tag — wrapped lines inside a background box
         if (p.urchinTag != null) {
-            List<String> tagLines = wrap("\u26D4  " + p.urchinTag, innerW - 10);
+            String message = p.getTagMessage();
+            String tagText = !message.isEmpty() ? message : p.urchinTag;
+            List<String> tagLines = wrap("\u26D4  " + tagText, innerW - 10);
             int boxH = tagLines.size() * 11 + 6;
             RoundedUtils.drawRoundedRect(x, y, innerW, boxH, 3, 0x33FF2244);
             RoundedUtils.drawRoundedOutline(x, y, innerW, boxH, 3, 1f, 0x55FF2244);
