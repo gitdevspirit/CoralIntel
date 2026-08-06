@@ -5,6 +5,7 @@ import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.BindCommand;
 import coralintel.command.commands.BlacklistCommand;
+import coralintel.command.commands.ConfigCommand;
 import coralintel.command.commands.UnblacklistCommand;
 import coralintel.command.commands.ClickGuiCommand;
 import coralintel.command.commands.IntelDebugCommand;
@@ -66,6 +67,7 @@ public class CoralIntel {
         commandManager.register(new RoleCommand());
         commandManager.register(new BedwarsStatsCommand());
         commandManager.register(new BlacklistCommand());
+        commandManager.register(new ConfigCommand());
         commandManager.register(new UnblacklistCommand());
         EventManager.register(commandManager);
         EventManager.register(moduleManager);
