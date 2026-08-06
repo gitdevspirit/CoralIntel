@@ -7,6 +7,7 @@ import coralintel.config.Config;
  * .c s [name]  — save current settings to a config file (default: "default")
  * .c l [name]  — load settings from a config file (default: "default")
  * .c list      — list saved config files
+ * help
  */
 public class ConfigCommand extends Command {
 
