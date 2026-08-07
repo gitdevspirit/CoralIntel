@@ -51,6 +51,33 @@ public class BedwarsTag extends Module {
 
     public BedwarsTag() { super("BedWarsTag", false); }
 
+    /**
+     * True if this module will actually draw its own custom tag above this
+     * player this frame — used by MixinRendererLivingEntity to decide
+     * whether to suppress the vanilla nametag. This has to mirror
+     * onRender3D()'s skip conditions exactly (self/dead/distance/intel-only),
+     * not just "is the module enabled" — otherwise a player skipped by one
+     * of those filters would end up with neither tag at all: the vanilla one
+     * suppressed unconditionally, and the custom one never drawn.
+     */
+    public boolean willRenderTagFor(EntityPlayer player) {
+        if (!isEnabled()) return false;
+        if (!selfTag.getValue() && player == mc.thePlayer) return false;
+        if (player.deathTime > 0) return false;
+        if (mc.getRenderViewEntity() == null
+                || mc.getRenderViewEntity().getDistanceToEntity(player) > 64f) return false;
+
+        if (onlyIntel.getValue()) {
+            IntelPlayer intel = null;
+            for (IntelPlayer p : IntelManager.getInstance().getPlayers()) {
+                if (p.name.equalsIgnoreCase(player.getName())) { intel = p; break; }
+            }
+            if (intel == null || intel.loading) return false;
+        }
+
+        return true;
+    }
+
     @EventTarget
     public void onRender3D(Render3DEvent event) {
         if (!isEnabled() || mc.theWorld == null || mc.thePlayer == null) return;
