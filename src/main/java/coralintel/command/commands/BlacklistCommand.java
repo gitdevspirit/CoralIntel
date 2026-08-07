@@ -15,7 +15,7 @@ import coralintel.ui.intel.IntelPlayer;
 public class BlacklistCommand extends Command {
 
     public BlacklistCommand() {
-        super("blacklist", "kos");
+        super("blacklist", "kos", "bl");
         setDescription("Blacklist a player. Usage: .blacklist <player> [reason]  or  .blacklist list");
     }
 
