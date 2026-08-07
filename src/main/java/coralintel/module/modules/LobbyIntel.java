@@ -4,6 +4,7 @@ import coralintel.event.EventTarget;
 import coralintel.event.types.EventType;
 import coralintel.events.KeyEvent;
 import coralintel.events.LoadWorldEvent;
+import coralintel.events.TickEvent;
 import coralintel.events.PacketEvent;
 import coralintel.events.Render2DEvent;
 import coralintel.module.BooleanSetting;
@@ -15,6 +16,7 @@ import coralintel.ui.clickgui.ClickGui;
 import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
+import coralintel.ui.intel.SafelistManager;
 import coralintel.util.ChatUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.play.server.S02PacketChat;
@@ -152,6 +154,7 @@ public class LobbyIntel extends Module {
     private final IntelHudOverlay hudOverlay = new IntelHudOverlay();
     private boolean scannedThisSession = false;
     private boolean finalWhoSent = false;
+    private int retryTickCounter = 0;
 
     public LobbyIntel() {
         super("LobbyIntel", true);
@@ -339,10 +342,25 @@ public class LobbyIntel extends Module {
     public void onLoadWorld(LoadWorldEvent event) {
         scannedThisSession = false;
         finalWhoSent = false;
+        retryTickCounter = 0;
         IntelManager.getInstance().clearAll();
 
         if (autoKey.getValue()) {
             tryAutoDetectKey();
+        }
+    }
+
+    @EventTarget
+    public void onTick(TickEvent event) {
+        if (event.getType() != EventType.PRE) return;
+        if (mc.theWorld == null || mc.thePlayer == null) return;
+
+        retryTickCounter++;
+
+        // 20 ticks/sec — every 200 ticks is 10 seconds.
+        if (retryTickCounter >= 200) {
+            retryTickCounter = 0;
+            IntelManager.getInstance().retryFailedFetches();
         }
     }
 
@@ -474,6 +492,32 @@ public class LobbyIntel extends Module {
                 String killedPlayer = matcher.group(1);
                 removePlayerFromOverlay(killedPlayer);
                 IntelManager.dbg("[Intel] Final kill: " + killedPlayer);
+
+                // If it was YOU who got the final kill, auto-safelist the
+                // player you just eliminated.
+                if (mc.thePlayer != null) {
+                    Pattern killerPattern = Pattern.compile("by ([A-Za-z0-9_]{1,16})");
+                    Matcher killerMatcher = killerPattern.matcher(message);
+                    String myName = mc.thePlayer.getName();
+
+                    if (killerMatcher.find() && killerMatcher.group(1).equalsIgnoreCase(myName)) {
+                        String reason = "Final killed by you";
+                        boolean alreadySafelisted = SafelistManager.getInstance().isSafelisted(killedPlayer);
+                        SafelistManager.getInstance().safelist(killedPlayer, reason);
+
+                        IntelPlayer live = IntelManager.getInstance().getPlayer(killedPlayer);
+                        if (live != null) {
+                            live.safelisted = true;
+                            live.safelistReason = reason;
+                            live.computeThreat();
+                        }
+
+                        if (!alreadySafelisted) {
+                            ChatUtil.sendFormatted("&a[Intel] Auto-safelisted &f" + killedPlayer
+                                    + " &7— final killed by you");
+                        }
+                    }
+                }
             }
         }
 
