@@ -28,6 +28,14 @@ public class IntelPlayer {
 
     // Coral / Urchin
     public boolean cheater      = false;
+    // True when Hypixel found the account but its Bedwars stats specifically
+    // are hidden via API Settings — distinct from "player not found at all".
+    // Correlates strongly with players trying to evade stat-checkers.
+    public boolean statsHidden  = false;
+    // Set when a stats fetch throws (network hiccup, timeout, etc.) — used
+    // by LobbyIntel's periodic retry so these players get another attempt
+    // instead of being stuck unpopulated for the rest of the lobby.
+    public boolean statsFetchFailed = false;
     public String  urchinTag    = null;
     public String  urchinType   = null;
     public String  urchinReason = null;
@@ -44,6 +52,10 @@ public class IntelPlayer {
     public boolean blacklisted     = false;
     public String  blacklistReason = null;
 
+    // Personal safelist — .safelist / .unsafelist, persisted across restarts
+    public boolean safelisted      = false;
+    public String  safelistReason  = null;
+
     // Computed
     public double threatScore = 0;
 
@@ -53,6 +65,8 @@ public class IntelPlayer {
         this.role = RoleManager.getInstance().getRole(name);
         this.blacklistReason = BlacklistManager.getInstance().getReason(name);
         this.blacklisted = this.blacklistReason != null;
+        this.safelistReason = SafelistManager.getInstance().getReason(name);
+        this.safelisted = this.safelistReason != null;
     }
 
     /**
@@ -68,6 +82,10 @@ public class IntelPlayer {
         // Personal blacklist takes priority over everything else — it's a
         // deliberate call the person made themselves, not an API guess.
         if (blacklisted) return "B";
+
+        // Safelist suppresses Coral's own classification — you've vouched
+        // for this player. Blacklist above still wins if somehow both apply.
+        if (safelisted) return "";
 
         if (!cheater) return "";
 
@@ -194,7 +212,7 @@ public class IntelPlayer {
         statsScore += Math.min(7, finalKills / 1000.0 * 7);
         statsScore = Math.min(100, statsScore);
 
-        if (cheater) {
+        if (cheater && !safelisted) {
             double typeBase = 40;
 
             if (urchinType != null) {
