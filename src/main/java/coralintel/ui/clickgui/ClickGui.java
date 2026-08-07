@@ -51,7 +51,8 @@ public class ClickGui extends GuiScreen {
     private static final int TEXT_ON = 0xFFDDDDEE;
     private static final int TEXT_DIM = 0xFF888899;
 
-    private final Map<Module, PanelState> panels = new LinkedHashMap<>();
+    private final Map<Object, PanelState> panels = new LinkedHashMap<>();
+    private static final String BLACKLIST_SAFELIST = "Blacklist/Safelist";
     private SliderRow draggingSlider = null;
     private KeybindSetting listeningKeybind = null;
 
@@ -83,6 +84,8 @@ public class ClickGui extends GuiScreen {
             panels.put(module, new PanelState(startX, startY));
             startX += columnGap;
         }
+
+        panels.put(BLACKLIST_SAFELIST, new PanelState(startX, startY));
     }
 
     @Override
@@ -168,6 +171,54 @@ public class ClickGui extends GuiScreen {
                 if (live != null) {
                     live.safelisted = false;
                     live.safelistReason = null;
+                    live.computeThreat();
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** One entry in the blacklist section — click the × to remove. */
+    private class BlacklistRow extends Row {
+        final String name;
+        final String reason;
+        int removeX, removeY;
+
+        BlacklistRow(String name, String reason) {
+            this.name = name;
+            this.reason = reason;
+            this.h = 22;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            removeX = x + w - 12;
+            removeY = y;
+
+            boolean removeHovered = hit(mouseX, mouseY, removeX - 2, removeY, 14, 20);
+
+            mc.fontRendererObj.drawString(name, x, y, 0xFF6699FF, false);
+            mc.fontRendererObj.drawString("\u2715", removeX, removeY,
+                    removeHovered ? 0xFFFF5555 : TEXT_DIM, false);
+
+            String shown = reason;
+            int maxW = w - 16;
+            while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown + "\u2026") > maxW) {
+                shown = shown.substring(0, shown.length() - 1);
+            }
+            if (!shown.equals(reason)) shown += "\u2026";
+
+            mc.fontRendererObj.drawString(shown, x, y + 10, TEXT_DIM, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, removeX - 2, removeY, 14, 20)) {
+                coralintel.ui.intel.BlacklistManager.getInstance().unblacklist(name);
+
+                coralintel.ui.intel.IntelPlayer live = IntelManager.getInstance().getPlayer(name);
+                if (live != null) {
+                    live.blacklisted = false;
+                    live.blacklistReason = null;
                     live.computeThreat();
                 }
                 return true;
@@ -420,7 +471,15 @@ public class ClickGui extends GuiScreen {
         return rows;
     }
 
-    private List<Row> buildRows(Module module) {
+    private List<Row> buildRows(Object panelKey) {
+        if (panelKey == BLACKLIST_SAFELIST) {
+            List<Row> rows = new ArrayList<>();
+            rows.addAll(blacklistRows());
+            rows.addAll(safelistRows());
+            return rows;
+        }
+
+        Module module = (Module) panelKey;
         List<Row> rows = new ArrayList<>();
 
         for (Setting setting : module.getSettings()) {
@@ -439,7 +498,6 @@ public class ClickGui extends GuiScreen {
 
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
-            rows.addAll(safelistRows());
             rows.addAll(notificationRows());
         }
 
@@ -457,6 +515,23 @@ public class ClickGui extends GuiScreen {
         } else {
             for (IntelManager.FlagRecord flag : flags) {
                 rows.add(new FlagLogRow(flag));
+            }
+        }
+
+        return rows;
+    }
+
+    private List<Row> blacklistRows() {
+        List<Row> rows = new ArrayList<>();
+        java.util.Map<String, String> entries = coralintel.ui.intel.BlacklistManager.getInstance().getAll();
+
+        rows.add(new SectionLabelRow("BLACKLIST (" + entries.size() + ")"));
+
+        if (entries.isEmpty()) {
+            rows.add(new SectionLabelRow("Empty — .blacklist <player> to add"));
+        } else {
+            for (java.util.Map.Entry<String, String> entry : entries.entrySet()) {
+                rows.add(new BlacklistRow(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -486,7 +561,7 @@ public class ClickGui extends GuiScreen {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawRect(0, 0, width, height, 0x88000000);
 
-        for (Map.Entry<Module, PanelState> entry : panels.entrySet()) {
+        for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
             drawPanel(entry.getKey(), entry.getValue(), mouseX, mouseY);
         }
 
@@ -495,11 +570,11 @@ public class ClickGui extends GuiScreen {
 
     private static final int MAX_VISIBLE_CONTENT = 400; // caps a panel's height before it scrolls
 
-    private void drawPanel(Module module, PanelState state, int mouseX, int mouseY) {
+    private void drawPanel(Object panelKey, PanelState state, int mouseX, int mouseY) {
         int x = (int) state.x;
         int y = (int) state.y;
 
-        List<Row> rows = state.collapsed ? new ArrayList<>() : buildRows(module);
+        List<Row> rows = state.collapsed ? new ArrayList<>() : buildRows(panelKey);
         int contentHeight = 0;
         for (Row r : rows) contentHeight += r.h + 4;
 
@@ -512,18 +587,27 @@ public class ClickGui extends GuiScreen {
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, panelH, 5, BG_PANEL);
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, HEADER_H, 5, BG_HEADER);
 
-        boolean masterOn = module.isEnabled();
+        boolean isModule = panelKey instanceof Module;
+        String panelName = isModule ? ((Module) panelKey).getName() : (String) panelKey;
+        boolean masterOn = isModule && ((Module) panelKey).isEnabled();
 
-        int dotSize = 8;
-        int dotX = x + PAD;
-        int dotY = y + (HEADER_H - dotSize) / 2;
-        RoundedUtils.drawRoundedRect(dotX, dotY, dotSize, dotSize, 2, masterOn ? ACCENT : 0x33FFFFFF);
-        if (!masterOn) {
-            RoundedUtils.drawRoundedOutline(dotX, dotY, dotSize, dotSize, 2, 1f, 0x55FFFFFF);
+        int nameX = x + PAD;
+
+        // The on/off dot only makes sense for an actual toggleable module —
+        // Blacklist/Safelist is just a data manager, always "active".
+        if (isModule) {
+            int dotSize = 8;
+            int dotX = x + PAD;
+            int dotY = y + (HEADER_H - dotSize) / 2;
+            RoundedUtils.drawRoundedRect(dotX, dotY, dotSize, dotSize, 2, masterOn ? ACCENT : 0x33FFFFFF);
+            if (!masterOn) {
+                RoundedUtils.drawRoundedOutline(dotX, dotY, dotSize, dotSize, 2, 1f, 0x55FFFFFF);
+            }
+            nameX = dotX + dotSize + 6;
         }
 
-        mc.fontRendererObj.drawString(module.getName(), x + PAD + dotSize + 6, y + 8,
-                masterOn ? ACCENT : TEXT_DIM, false);
+        mc.fontRendererObj.drawString(panelName, nameX, y + 8,
+                !isModule ? ACCENT : (masterOn ? ACCENT : TEXT_DIM), false);
 
         String arrow = state.collapsed ? "\u25B6" : "\u25BC";
         mc.fontRendererObj.drawString(arrow, x + PANEL_W - 16, y + 8, TEXT_DIM, false);
@@ -572,17 +656,18 @@ public class ClickGui extends GuiScreen {
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
         if (button == 0) {
-            for (Map.Entry<Module, PanelState> entry : panels.entrySet()) {
+            for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
                 PanelState state = entry.getValue();
                 int x = (int) state.x;
                 int y = (int) state.y;
 
                 if (hit(mouseX, mouseY, x, y, PANEL_W, HEADER_H)) {
-                    // Left ~20px (the on/off dot) toggles the module itself.
+                    // Left ~20px (the on/off dot) toggles the module itself
+                    // — only applies to actual modules, not Blacklist/Safelist.
                     // Right-most 16px (the arrow) toggles collapse. Anything
                     // else in the header drags the panel.
-                    if (mouseX < x + PAD + 8 + 6) {
-                        entry.getKey().toggle();
+                    if (entry.getKey() instanceof Module && mouseX < x + PAD + 8 + 6) {
+                        ((Module) entry.getKey()).toggle();
                     } else if (mouseX >= x + PANEL_W - 20) {
                         state.collapsed = !state.collapsed;
                     } else {
@@ -655,7 +740,7 @@ public class ClickGui extends GuiScreen {
         int scaledMouseX = Mouse.getEventX() * width / mc.displayWidth;
         int scaledMouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
 
-        for (Map.Entry<Module, PanelState> entry : panels.entrySet()) {
+        for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
             PanelState state = entry.getValue();
             if (state.collapsed) continue;
 
