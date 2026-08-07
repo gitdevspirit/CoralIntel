@@ -128,6 +128,54 @@ public class ClickGui extends GuiScreen {
         }
     }
 
+    /** One entry in the safelist section — click the × to remove. */
+    private class SafelistRow extends Row {
+        final String name;
+        final String reason;
+        int removeX, removeY;
+
+        SafelistRow(String name, String reason) {
+            this.name = name;
+            this.reason = reason;
+            this.h = 22;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            removeX = x + w - 12;
+            removeY = y;
+
+            boolean removeHovered = hit(mouseX, mouseY, removeX - 2, removeY, 14, 20);
+
+            mc.fontRendererObj.drawString(name, x, y, TEXT_ON, false);
+            mc.fontRendererObj.drawString("\u2715", removeX, removeY,
+                    removeHovered ? 0xFFFF5555 : TEXT_DIM, false);
+
+            String shown = reason;
+            int maxW = w - 16;
+            while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown + "\u2026") > maxW) {
+                shown = shown.substring(0, shown.length() - 1);
+            }
+            if (!shown.equals(reason)) shown += "\u2026";
+
+            mc.fontRendererObj.drawString(shown, x, y + 10, TEXT_DIM, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, removeX - 2, removeY, 14, 20)) {
+                coralintel.ui.intel.SafelistManager.getInstance().unsafelist(name);
+
+                coralintel.ui.intel.IntelPlayer live = IntelManager.getInstance().getPlayer(name);
+                if (live != null) {
+                    live.safelisted = false;
+                    live.safelistReason = null;
+                    live.computeThreat();
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
     private class ToggleRow extends Row {
         final String label;
         final BooleanSupplier get;
@@ -391,6 +439,7 @@ public class ClickGui extends GuiScreen {
 
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
+            rows.addAll(safelistRows());
             rows.addAll(notificationRows());
         }
 
@@ -408,6 +457,23 @@ public class ClickGui extends GuiScreen {
         } else {
             for (IntelManager.FlagRecord flag : flags) {
                 rows.add(new FlagLogRow(flag));
+            }
+        }
+
+        return rows;
+    }
+
+    private List<Row> safelistRows() {
+        List<Row> rows = new ArrayList<>();
+        java.util.Map<String, String> entries = coralintel.ui.intel.SafelistManager.getInstance().getAll();
+
+        rows.add(new SectionLabelRow("SAFELIST (" + entries.size() + ")"));
+
+        if (entries.isEmpty()) {
+            rows.add(new SectionLabelRow("Empty — .safelist <player> to add"));
+        } else {
+            for (java.util.Map.Entry<String, String> entry : entries.entrySet()) {
+                rows.add(new SafelistRow(entry.getKey(), entry.getValue()));
             }
         }
 
