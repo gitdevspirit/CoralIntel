@@ -9,7 +9,7 @@ import coralintel.ui.intel.IntelPlayer;
 public class UnblacklistCommand extends Command {
 
     public UnblacklistCommand() {
-        super("unblacklist", "unkos");
+        super("unblacklist", "unkos", "unbl");
         setDescription("Removes a player from the blacklist. Usage: .unblacklist <player>");
     }
 
