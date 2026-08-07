@@ -45,14 +45,23 @@ public class BedwarsStatsCommand extends Command {
         LobbyIntel intel = (LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
 
         if (!hasAnyData) {
-            reply("&cNo Bedwars stats found for &f" + ign
-                    + "&c (nicked, never played, or API unreachable).");
+            if (player.statsHidden) {
+                // Account exists, they've just hidden Bedwars stats via API
+                // Settings — a common move for players trying to dodge
+                // stat-checkers. Say so plainly, and still surface the tag.
+                reply("&e" + ign + " &7has hidden their Bedwars stats via API Settings.");
+            } else {
+                reply("&cNo Bedwars stats found for &f" + ign
+                        + "&c (nicked, never played, or API unreachable).");
+            }
 
             if (!player.getTagBadge().isEmpty() && intel != null && intel.bwShowTag.getValue()) {
                 String badge = player.getTagBadge();
                 String message = player.getFullTagMessage();
                 String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
-                reply("&d[" + badge + "] &7" + detail);
+                String tagCode = badge.equals("C") ? "§6"
+                        : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
+                reply(tagCode + "[" + badge + "] &7" + detail);
             }
 
             return;
