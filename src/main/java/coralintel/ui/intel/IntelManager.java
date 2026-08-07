@@ -58,6 +58,45 @@ public class IntelManager {
         }
     }
 
+    /**
+     * Re-attempts the stats fetch for anyone still showing no data — covers
+     * both explicit fetch failures (network hiccup, timeout) and the quieter
+     * case of a fetch that completed without error but still found nothing
+     * (e.g. a transient Mojang UUID lookup miss). Skips players where "no
+     * stats" is actually the correct, stable answer (hidden via API
+     * Settings, or nicked) since retrying those can't help.
+     */
+    public void retryFailedFetches() {
+        for (IntelPlayer player : combined()) {
+            if (player.loading || player.statsHidden || player.isNicked) {
+                continue;
+            }
+
+            boolean noData = player.star == 0 && player.finalKills == 0
+                    && player.wins == 0 && player.fkdr == 0 && player.wlr == 0;
+
+            if (!noData && !player.statsFetchFailed) {
+                continue;
+            }
+
+            player.loading = true;
+
+            pool.submit(() -> {
+                try {
+                    fetchHypixel(player);
+                    player.computeThreat();
+                    player.statsFetchFailed = false;
+                } catch (Exception exception) {
+                    player.loading = false;
+                    player.statsFetchFailed = true;
+                    dbg("[Intel] retry failed for " + player.name + ": " + exception);
+                } finally {
+                    pushUpdate();
+                }
+            });
+        }
+    }
+
 
     public static final List<String> debugLog = new ArrayList<>();
 
@@ -251,8 +290,10 @@ public class IntelManager {
             try {
                 fetchHypixel(player);
                 player.computeThreat();
+                player.statsFetchFailed = false;
             } catch (Exception exception) {
                 player.loading = false;
+                player.statsFetchFailed = true;
                 dbg("[Intel] stats fetch failed for " + player.name
                         + ": " + exception);
             } finally {
@@ -434,7 +475,7 @@ public class IntelManager {
                     // more concurrent the network fetches were).
                     Minecraft.getMinecraft().addScheduledTask(() -> {
                         for (IntelPlayer player : batch) {
-                            if (player.cheater || player.ghostTagged) {
+                            if ((player.cheater || player.ghostTagged) && !player.safelisted) {
                                 notifyCheater(player);
                             }
                         }
@@ -460,8 +501,10 @@ public class IntelManager {
                 try {
                     fetchHypixel(current);
                     current.computeThreat();
+                    current.statsFetchFailed = false;
                 } catch (Exception exception) {
                     current.loading = false;
+                    current.statsFetchFailed = true;
                     dbg("[Intel] stats fetch failed for " + current.name
                             + ": " + exception);
                 } finally {
@@ -674,7 +717,10 @@ public class IntelManager {
             }
 
             if (bedwars == null) {
-                player.star = 0;
+                // Don't zero out player.star here — if this is reached as a
+                // fallback after fetchHypixelApi already populated it (e.g.
+                // from the achievements endpoint), overwriting it with 0
+                // was silently destroying legitimately-fetched data.
                 return false;
             }
 
@@ -788,7 +834,14 @@ public class IntelManager {
             }
 
             if (bedwars == null) {
-                return false;
+                // Account exists, but this player has hidden their Bedwars
+                // stats via Hypixel's API Settings — not the same as "not
+                // found". Whatever we already got (star, from achievements)
+                // stays; don't fall through to Slothpixel, since it proxies
+                // the same underlying data and would hit the identical
+                // privacy restriction.
+                player.statsHidden = true;
+                return true;
             }
 
             int finalKills = bwInt(bedwars, "final_kills_bedwars");
