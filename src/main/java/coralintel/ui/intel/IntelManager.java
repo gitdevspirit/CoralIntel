@@ -781,11 +781,23 @@ public class IntelManager {
                 return false;
             }
 
-            String json = get(
-                    "https://api.hypixel.net/v2/player?uuid=" + uuid,
-                    "API-Key",
-                    hypixelApiKey
-            );
+            String json;
+            try {
+                json = get(
+                        "https://api.hypixel.net/v2/player?uuid=" + uuid,
+                        "API-Key",
+                        hypixelApiKey
+                );
+            } catch (RateLimitedException e) {
+                // Extra backoff on top of the normal spacing — push the next
+                // request further out so we don't immediately hit the limit
+                // again, then let this propagate as a retryable failure
+                // (statsFetchFailed=true) instead of silently returning
+                // false like every other kind of failure.
+                lastHypixelRequest.set(System.currentTimeMillis() + 4000);
+                dbg("[Intel] Hypixel API rate limited on " + player.name + " — backing off.");
+                throw e;
+            }
 
             if (json == null) {
                 return false;
@@ -1082,6 +1094,22 @@ public class IntelManager {
         }
     }
 
+    /**
+     * Thrown when the API responds 429 (rate limited) — distinct from a
+     * genuine "not found" (which silently returning null already models
+     * fine). Previously a 429 was indistinguishable from "player not found",
+     * which under load (a full 16-player lobby hitting the API in a burst)
+     * silently killed stats for whoever got rate-limited, with no retry.
+     * Callers catch this the same as any other Exception, which now
+     * correctly marks statsFetchFailed=true so the 10-second retry loop
+     * picks it back up, instead of the failure just being invisible.
+     */
+    private static class RateLimitedException extends RuntimeException {
+        RateLimitedException(String url) {
+            super("Rate limited: " + url);
+        }
+    }
+
     private String get(String url, String headerKey, String headerValue) {
         try {
             HttpURLConnection connection =
@@ -1096,11 +1124,19 @@ public class IntelManager {
                 connection.setRequestProperty(headerKey, headerValue);
             }
 
-            if (connection.getResponseCode() != 200) {
+            int code = connection.getResponseCode();
+
+            if (code == 429) {
+                throw new RateLimitedException(url);
+            }
+
+            if (code != 200) {
                 return null;
             }
 
             return readStream(connection.getInputStream());
+        } catch (RateLimitedException e) {
+            throw e;
         } catch (Exception ignored) {
             return null;
         }
