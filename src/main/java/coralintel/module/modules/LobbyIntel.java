@@ -31,6 +31,7 @@ public class LobbyIntel extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
     public final BooleanSetting autoScan = register(new BooleanSetting("Auto Scan on Join", true));
+    public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
     public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
     public final coralintel.module.SliderSetting focusCount =
             register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
@@ -108,6 +109,8 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Show Wins", false));
     public final BooleanSetting tabShowLosses =
             register(new BooleanSetting("Tab: Show Losses", false));
+    public final BooleanSetting seraphStyle =
+            register(new BooleanSetting("Tab: Seraph Style", false));
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);
     public final IntProperty hudPosX = new IntProperty("hud-x", 10, 0, 3840);
@@ -154,6 +157,7 @@ public class LobbyIntel extends Module {
     private final IntelHudOverlay hudOverlay = new IntelHudOverlay();
     private boolean scannedThisSession = false;
     private boolean finalWhoSent = false;
+    private boolean pendingArenaWho = false;
     private int retryTickCounter = 0;
 
     public LobbyIntel() {
@@ -340,6 +344,20 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
+        // The message-based "starts in 1 second" /who races the actual
+        // world transition into the arena — Hypixel loads a new world right
+        // around the same moment the match begins, and if that world-load's
+        // clearAll() below lands after the /who response already populated
+        // the roster, it wipes it straight back out. That race is the real
+        // cause of "/who doesn't load stats at the start of the game".
+        //
+        // This is the reliable fix: if we were mid-countdown in the previous
+        // world (pendingArenaWho), treat THIS world load as "we just entered
+        // the arena" and fire /who anchored to it instead — scheduled AFTER
+        // clearAll() below has already run, so there's no race left to lose.
+        boolean shouldSendArenaWho = pendingArenaWho && autoScan.getValue() && autoWho.getValue();
+        pendingArenaWho = false;
+
         scannedThisSession = false;
         finalWhoSent = false;
         retryTickCounter = 0;
@@ -347,6 +365,33 @@ public class LobbyIntel extends Module {
 
         if (autoKey.getValue()) {
             tryAutoDetectKey();
+        }
+
+        if (shouldSendArenaWho) {
+            IntelManager.dbg("[Intel] Arena world loaded — rescanning + requesting /who in 1.5s.");
+
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1500);
+                } catch (InterruptedException ignored) {
+                    return;
+                }
+
+                mc.addScheduledTask(() -> {
+                    // Team assignments are only visible in the tab list once
+                    // the match has actually started — scanLobby() is the
+                    // only place that refreshes IntelPlayer.team for already-
+                    // tracked players, so this is what actually fixes team
+                    // colors in the overlay/tab, not just the /who call below
+                    // (which only ever creates new entries with team=null
+                    // and never touches existing ones).
+                    IntelManager.getInstance().scanLobby();
+
+                    if (mc.thePlayer != null) {
+                        mc.thePlayer.sendChatMessage("/who");
+                    }
+                });
+            }).start();
         }
     }
 
@@ -361,6 +406,15 @@ public class LobbyIntel extends Module {
         if (retryTickCounter >= 200) {
             retryTickCounter = 0;
             IntelManager.getInstance().retryFailedFetches();
+
+            // Keeps IntelPlayer.team current throughout the match (not just
+            // once at game-start) — scanLobby() safely updates existing
+            // players' team without re-fetching their stats, so this is
+            // cheap and keeps overlay/tab team colors accurate if anything
+            // changes mid-game.
+            if (autoScan.getValue()) {
+                IntelManager.getInstance().scanLobby();
+            }
         }
     }
 
@@ -448,7 +502,7 @@ public class LobbyIntel extends Module {
                 IntelManager.getInstance().clearAll();
                 IntelManager.getInstance().scanLobby();
 
-                if (mc.thePlayer != null) {
+                if (autoWho.getValue() && mc.thePlayer != null) {
                     mc.thePlayer.sendChatMessage("/who");
                 }
             });
@@ -460,10 +514,12 @@ public class LobbyIntel extends Module {
         // for. Delayed by 1s after the message so it fires just after the
         // world/team state has actually settled, not mid-transition.
         if (autoScan.getValue()
+                && autoWho.getValue()
                 && !finalWhoSent
                 && message.contains("The game starts in 1 second")) {
 
             finalWhoSent = true;
+            pendingArenaWho = true;
             IntelManager.dbg("[Intel] Final countdown detected — requesting /who in 1s.");
 
             new Thread(() -> {
