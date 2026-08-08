@@ -2,6 +2,7 @@ package coralintel.mixin;
 
 import coralintel.CoralIntel;
 import coralintel.module.modules.LobbyIntel;
+import coralintel.ui.intel.IntelColors;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import net.minecraft.client.gui.FontRenderer;
@@ -12,6 +13,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import java.util.Locale;
 
 /** Adds LobbyIntel's cached stats to the vanilla tab list without replacing it. */
 @Mixin(GuiPlayerTabOverlay.class)
@@ -45,30 +48,142 @@ public abstract class MixinGuiPlayerTabOverlay {
             return coloredName;
         }
 
-        String starCode = coralintel.ui.intel.IntelColors.nearestCode(
-                coralintel.ui.intel.IntelColors.getPrestigeColor(player.star));
-        String fkdrCode = coralintel.ui.intel.IntelColors.nearestCode(
-                coralintel.ui.intel.IntelColors.getStatColor(player.fkdr, 3, 6));
-        String wlrCode = coralintel.ui.intel.IntelColors.nearestCode(
-                coralintel.ui.intel.IntelColors.getStatColor(player.wlr, 2, 4));
+        String stats = lobbyIntel.seraphStyle.getValue()
+                ? buildSeraphStatsSuffix(info, player)
+                : buildStatsSuffix(lobbyIntel, player);
+        return coloredName + stats;
+    }
 
-        StringBuilder stats = new StringBuilder(" §8| ").append(starCode).append("\u272A")
-                .append(player.star)
-                .append(" §7FKDR ").append(fkdrCode)
-                .append(String.format(java.util.Locale.ROOT, "%.1f", player.fkdr))
-                .append(" §7WLR ").append(wlrCode)
-                .append(String.format(java.util.Locale.ROOT, "%.1f", player.wlr));
+    /**
+     * Builds the " §8| ..." stats suffix for the tab list, field-by-field,
+     * driven by the same per-field toggles the .bw command uses (cloned
+     * onto the module as tabShow* settings) — so the tab list can show
+     * exactly the same set of fields as .bw, independently configured.
+     */
+    private String buildStatsSuffix(LobbyIntel intel, IntelPlayer player) {
+        StringBuilder stats = new StringBuilder();
+        boolean wroteAny = false;
 
-        String tag = player.getTagBadge();
-        if (!tag.isEmpty() && lobbyIntel.tabShowTag.getValue()) {
-            // Closet cheater specifically renders gold in the tab list;
-            // everything else uses the nearest code to its usual color.
-            String tagCode = tag.equals("C") ? "§6"
-                    : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
-            stats.append(" ").append(tagCode).append(tag);
+        if (intel.tabShowStar.getValue()) {
+            String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
+            stats.append(starCode).append("\u272A").append(player.star).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowFkdr.getValue()) {
+            String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
+            stats.append("§7FKDR ").append(fkdrCode).append(fmt(player.fkdr)).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowWlr.getValue()) {
+            String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
+            stats.append("§7WLR ").append(wlrCode).append(fmt(player.wlr)).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowBblr.getValue()) {
+            double bblr = player.bedsLost == 0
+                    ? player.bedsBroken
+                    : (double) player.bedsBroken / player.bedsLost;
+            stats.append("§7BBLR §f").append(fmt(bblr)).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowFinalKills.getValue()) {
+            stats.append("§7FK §f").append(player.finalKills).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowFinalDeaths.getValue()) {
+            stats.append("§7FD §f").append(player.finalDeaths).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowKills.getValue()) {
+            stats.append("§7K §f").append(player.kills).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowDeaths.getValue()) {
+            stats.append("§7D §f").append(player.deaths).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowBedsBroken.getValue()) {
+            stats.append("§7Beds §f").append(player.bedsBroken).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowBedsLost.getValue()) {
+            stats.append("§7BedsL §f").append(player.bedsLost).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowWinstreak.getValue()) {
+            stats.append("§7WS §f").append(player.winstreak).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowWins.getValue()) {
+            stats.append("§7Wins §f").append(player.wins).append(" ");
+            wroteAny = true;
+        }
+        if (intel.tabShowLosses.getValue()) {
+            stats.append("§7Losses §f").append(player.losses).append(" ");
+            wroteAny = true;
         }
 
-        return coloredName + stats;
+        String tag = player.getTagBadge();
+        if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
+            // Closet cheater specifically renders gold in the tab list;
+            // everything else uses the nearest code to its usual color.
+            String tagCode = tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor());
+            stats.append(tagCode).append(tag).append(" ");
+            wroteAny = true;
+        }
+
+        if (!wroteAny) {
+            return "";
+        }
+
+        return " §8| " + stats.toString().trim();
+    }
+
+    /**
+     * "Seraph Style" — a padded, column-like layout similar to the reference
+     * client's tab list (Stars/HP/FKDR/etc. lined up as a grid), with our
+     * own tag badge substituted for its verification column. True pixel-
+     * perfect alignment isn't possible from a single per-player redirect
+     * like this (would need two passes across the whole roster), but digits
+     * are fixed-width in Minecraft's default font, so right-padding each
+     * numeric field to a fixed character count gets close in practice.
+     */
+    private String buildSeraphStatsSuffix(NetworkPlayerInfo info, IntelPlayer player) {
+        StringBuilder stats = new StringBuilder(" §8| ");
+
+        String hpStr = "-";
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        if (mc.theWorld != null && info.getGameProfile().getId() != null) {
+            net.minecraft.entity.player.EntityPlayer entity =
+                    mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
+            if (entity != null) {
+                hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
+            }
+        }
+        stats.append("§7HP §f").append(pad(hpStr, 3)).append(" ");
+
+        String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
+        stats.append(starCode).append("\u272A").append(pad(String.valueOf(player.star), 4)).append(" ");
+
+        String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
+        stats.append("§7FKDR ").append(fkdrCode).append(pad(fmt(player.fkdr), 5)).append(" ");
+
+        String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
+        stats.append("§7WLR ").append(wlrCode).append(pad(fmt(player.wlr), 5)).append(" ");
+
+        String tag = player.getTagBadge();
+        String tagCode = tag.isEmpty() ? "§7" : (tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
+        stats.append("§7Tags ").append(tagCode).append(pad(tag.isEmpty() ? "-" : tag, 3));
+
+        return stats.toString();
+    }
+
+    /** Right-aligns a string within a fixed character width by left-padding with spaces. */
+    private String pad(String s, int width) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = s.length(); i < width; i++) sb.append(' ');
+        sb.append(s);
+        return sb.toString();
     }
 
     /**
@@ -91,5 +206,9 @@ public abstract class MixinGuiPlayerTabOverlay {
         char colorChar = colorPrefix.charAt(1);
         String stripped = vanillaName.replaceFirst("^(§[0-9a-fk-or])+", "");
         return "§" + colorChar + stripped;
+    }
+
+    private String fmt(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 }
