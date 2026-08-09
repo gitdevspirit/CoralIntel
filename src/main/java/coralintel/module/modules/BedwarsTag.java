@@ -166,6 +166,14 @@ public class BedwarsTag extends Module {
             float ty = -(float) mc.fontRendererObj.FONT_HEIGHT;
             float tx = -totalW / 2f;
 
+            // Depth WRITES off, depth TEST left alone (still on, from the
+            // earlier walls-occlusion fix). This is exactly what vanilla's
+            // own nametag rendering does — depth test enabled so terrain
+            // still hides the tag, but not writing to the depth buffer
+            // avoids z-fighting against the player model sitting right next
+            // to it, which was causing the tag to flicker in and out.
+            GlStateManager.depthMask(false);
+
             // Background — no longer disables depth, so it's occluded by walls too.
             if (background.getValue()) {
                 RenderUtil.enableRenderState();
@@ -194,6 +202,7 @@ public class BedwarsTag extends Module {
                 mc.fontRendererObj.drawString(urchinPart, cursor, ty, urchinColor, true);
             }
 
+            GlStateManager.depthMask(true);
             GlStateManager.popMatrix();
         }
     }
