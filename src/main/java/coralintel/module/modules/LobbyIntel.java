@@ -82,6 +82,8 @@ public class LobbyIntel extends Module {
 
     public final BooleanSetting tabShowTag =
             register(new BooleanSetting("Tab: Show Cheater Tag", true));
+    public final BooleanSetting tabShowHp =
+            register(new BooleanSetting("Tab: Show HP", true));
 
     // Tab list — cloned from the .bw field set above, same defaults.
     public final BooleanSetting tabShowStar =
@@ -129,6 +131,16 @@ public class LobbyIntel extends Module {
             register(new DropdownSetting("HUD: Border Color", 0, COLOR_PALETTE_NAMES));
     public final DropdownSetting columnColorChoice =
             register(new DropdownSetting("HUD: Column Color", 0, COLOR_PALETTE_NAMES));
+
+    /** Public so the tab mixin (different package) can read it directly. */
+    public static final int[] TAB_BG_PALETTE = COLOR_PALETTE_BG;
+
+    public final DropdownSetting tabBgColorChoice =
+            register(new DropdownSetting("Tab: Background Color", 0, COLOR_PALETTE_NAMES));
+    // Defaults to 33 (0x21) — matches vanilla's own hardcoded tab row alpha
+    // exactly, so out of the box this changes nothing until adjusted.
+    public final coralintel.module.SliderSetting tabBgOpacity =
+            register(new coralintel.module.SliderSetting("Tab: Background Opacity", 33, 0, 255, 1));
 
     /** Applies the current color-dropdown selections to the overlay — called every frame, cheap. */
     private void syncOverlayColors() {
