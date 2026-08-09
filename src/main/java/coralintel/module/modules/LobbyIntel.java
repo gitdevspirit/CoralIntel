@@ -8,6 +8,7 @@ import coralintel.events.TickEvent;
 import coralintel.events.PacketEvent;
 import coralintel.events.Render2DEvent;
 import coralintel.module.BooleanSetting;
+import coralintel.module.DropdownSetting;
 import coralintel.module.Module;
 import coralintel.module.KeybindSetting;
 import coralintel.property.properties.*;
@@ -111,6 +112,35 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Show Losses", false));
     public final BooleanSetting seraphStyle =
             register(new BooleanSetting("Tab: Seraph Style", false));
+
+    private static final String[] COLOR_PALETTE_NAMES = {
+            "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White"
+    };
+    private static final int[] COLOR_PALETTE_BG = {
+            0x07070E, 0x000000, 0x0A0A2A, 0x2A0A1A, 0x2A0A0A, 0x0A2A0F, 0x1A0A2A, 0x1A1A1A
+    };
+    private static final int[] COLOR_PALETTE_ACCENT = {
+            0xFFFFFF, 0x000000, 0x4488FF, 0xE991B8, 0xFF5555, 0x55FF55, 0xAA55FF, 0xFFFFFF
+    };
+
+    public final DropdownSetting bgColorChoice =
+            register(new DropdownSetting("HUD: Background Color", 0, COLOR_PALETTE_NAMES));
+    public final DropdownSetting borderColorChoice =
+            register(new DropdownSetting("HUD: Border Color", 0, COLOR_PALETTE_NAMES));
+    public final DropdownSetting columnColorChoice =
+            register(new DropdownSetting("HUD: Column Color", 0, COLOR_PALETTE_NAMES));
+
+    /** Applies the current color-dropdown selections to the overlay — called every frame, cheap. */
+    private void syncOverlayColors() {
+        int bgIndex = bgColorChoice.getIndex();
+        hudOverlay.setBgColorRgb(COLOR_PALETTE_BG[bgIndex]);
+
+        int borderIndex = borderColorChoice.getIndex();
+        hudOverlay.setBorderColorRgb(COLOR_PALETTE_ACCENT[borderIndex]);
+
+        int columnIndex = columnColorChoice.getIndex();
+        hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
+    }
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);
     public final IntProperty hudPosX = new IntProperty("hud-x", 10, 0, 3840);
@@ -310,6 +340,7 @@ public class LobbyIntel extends Module {
     @EventTarget
     public void onRender2D(Render2DEvent event) {
         if (mc.currentScreen == null && hudOverlay.isEnabled()) {
+            syncOverlayColors();
             hudOverlay.render();
         }
     }
