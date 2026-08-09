@@ -26,6 +26,30 @@ public abstract class MixinGuiPlayerTabOverlay {
             method = "renderPlayerlist",
             at = @At(
                     value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/Gui;drawRect(IIIII)V"
+            )
+    )
+    private void redirectTabBackground(int left, int top, int right, int bottom, int color) {
+        // Vanilla's own per-row tab background is a hardcoded translucent
+        // black (0x21000000). This is the least-verified piece of this
+        // change — I don't have decompiled 1.8.9 source to confirm this is
+        // the ONLY drawRect call inside renderPlayerlist, so if the tab
+        // list looks wrong after this, that's the first place to check.
+        LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
+
+        if (lobbyIntel != null && lobbyIntel.tabStats.getValue()) {
+            int rgb = LobbyIntel.TAB_BG_PALETTE[lobbyIntel.tabBgColorChoice.getIndex()];
+            int alpha = (int) lobbyIntel.tabBgOpacity.getValue();
+            color = (alpha << 24) | rgb;
+        }
+
+        net.minecraft.client.gui.Gui.drawRect(left, top, right, bottom, color);
+    }
+
+    @Redirect(
+            method = "renderPlayerlist",
+            at = @At(
+                    value = "INVOKE",
                     target = "Lnet/minecraft/client/gui/GuiPlayerTabOverlay;getPlayerName(Lnet/minecraft/client/network/NetworkPlayerInfo;)Ljava/lang/String;"
             )
     )
@@ -48,10 +72,36 @@ public abstract class MixinGuiPlayerTabOverlay {
             return coloredName;
         }
 
-        String stats = lobbyIntel.seraphStyle.getValue()
-                ? buildSeraphStatsSuffix(info, player)
-                : buildStatsSuffix(lobbyIntel, player);
+        String stats;
+        if (lobbyIntel.seraphStyle.getValue()) {
+            // True column alignment needs the name portion padded to a
+            // SHARED width across every row first — otherwise each row's
+            // stat columns start wherever that row's particular name length
+            // happens to end, which is exactly the ragged, non-tabular look
+            // from the reference screenshot. This is a two-pass approach:
+            // measure the widest name across the whole current tab list,
+            // then pad this row's name out to that width before appending
+            // the (already pixel-padded) stat fields.
+            int maxNameWidth = getMaxNameWidth();
+            coloredName = padPixelsLeft(coloredName, maxNameWidth + 6);
+            stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
+        } else {
+            stats = buildStatsSuffix(info, lobbyIntel, player);
+        }
         return coloredName + stats;
+    }
+
+    /** Widest rendered name currently in the tab list — used to align Seraph-style columns. */
+    private int getMaxNameWidth() {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        if (mc.getNetHandler() == null) return 0;
+
+        int max = 0;
+        for (NetworkPlayerInfo info : mc.getNetHandler().getPlayerInfoMap()) {
+            int width = mc.fontRendererObj.getStringWidth(this.getPlayerName(info));
+            if (width > max) max = width;
+        }
+        return max;
     }
 
     /**
@@ -60,10 +110,21 @@ public abstract class MixinGuiPlayerTabOverlay {
      * onto the module as tabShow* settings) — so the tab list can show
      * exactly the same set of fields as .bw, independently configured.
      */
-    private String buildStatsSuffix(LobbyIntel intel, IntelPlayer player) {
+    private String buildStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
         StringBuilder stats = new StringBuilder();
         boolean wroteAny = false;
 
+        if (intel.tabShowHp.getValue()) {
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+            if (mc.theWorld != null && info.getGameProfile().getId() != null) {
+                net.minecraft.entity.player.EntityPlayer entity =
+                        mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
+                if (entity != null) {
+                    stats.append("§7HP §f").append((int) Math.ceil(entity.getHealth())).append(" ");
+                    wroteAny = true;
+                }
+            }
+        }
         if (intel.tabShowStar.getValue()) {
             String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
             stats.append(starCode).append("\u272A").append(player.star).append(" ");
@@ -148,19 +209,21 @@ public abstract class MixinGuiPlayerTabOverlay {
      * are fixed-width in Minecraft's default font, so right-padding each
      * numeric field to a fixed character count gets close in practice.
      */
-    private String buildSeraphStatsSuffix(NetworkPlayerInfo info, IntelPlayer player) {
+    private String buildSeraphStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
         StringBuilder stats = new StringBuilder(" §8| ");
 
-        String hpStr = "-";
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        if (mc.theWorld != null && info.getGameProfile().getId() != null) {
-            net.minecraft.entity.player.EntityPlayer entity =
-                    mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
-            if (entity != null) {
-                hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
+        if (intel.tabShowHp.getValue()) {
+            String hpStr = "-";
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+            if (mc.theWorld != null && info.getGameProfile().getId() != null) {
+                net.minecraft.entity.player.EntityPlayer entity =
+                        mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
+                if (entity != null) {
+                    hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
+                }
             }
+            stats.append("§7HP §f").append(padPixels(hpStr, 18)).append(" ");
         }
-        stats.append("§7HP §f").append(padPixels(hpStr, 18)).append(" ");
 
         String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
         stats.append(starCode).append("\u272A").append(padPixels(String.valueOf(player.star), 24)).append(" ");
@@ -202,6 +265,21 @@ public abstract class MixinGuiPlayerTabOverlay {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < spaces; i++) sb.append(' ');
         sb.append(text);
+        return sb.toString();
+    }
+
+    /** Same idea as padPixels, but left-aligned — text stays put, trailing spaces added after it. */
+    private String padPixelsLeft(String text, int targetPixelWidth) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
+        if (spaceWidth <= 0) spaceWidth = 4;
+
+        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
+        if (deficit <= 0) return text;
+
+        int spaces = deficit / spaceWidth;
+        StringBuilder sb = new StringBuilder(text);
+        for (int i = 0; i < spaces; i++) sb.append(' ');
         return sb.toString();
     }
 
