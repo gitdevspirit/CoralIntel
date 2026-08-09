@@ -240,6 +240,18 @@ public class IntelManager {
                 ? null : minecraft.getNetHandler().getPlayerInfo(name);
         if (info != null && isNpc(info)) return;
 
+        // Check BOTH lists — this used to only check manualPlayers, so
+        // anyone already tracked from a tab scan (in `players`) would get a
+        // second, fully-duplicate IntelPlayer + stats fetch created here
+        // whenever /who also reported them. That doubled the API load for
+        // every player scanLobby() already had, which is exactly what was
+        // driving the rate-limit issue — not a per-player problem, a
+        // systematic 2x multiplier on every single fetch.
+        for (IntelPlayer player : players) {
+            if (player.name.equalsIgnoreCase(name)) {
+                return;
+            }
+        }
         for (IntelPlayer player : manualPlayers) {
             if (player.name.equalsIgnoreCase(name)) {
                 return;
