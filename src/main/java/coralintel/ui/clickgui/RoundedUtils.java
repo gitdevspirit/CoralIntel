@@ -21,6 +21,15 @@ public class RoundedUtils {
         GlStateManager.pushMatrix();
         GlStateManager.enableBlend();
         GlStateManager.disableTexture2D();
+        // The 3D world pass that runs right before this 2D overlay pass
+        // typically leaves GL_CULL_FACE enabled. This fan's winding order
+        // isn't guaranteed to match whatever front-face state was left
+        // active, so without explicitly disabling culling here the whole
+        // fill can get silently backface-culled — invisible, while the
+        // outline (drawn as GL_LINE_STRIP, which culling doesn't touch)
+        // still renders fine. That's exactly what "border shows but
+        // background doesn't" looks like.
+        GlStateManager.disableCull();
         GlStateManager.tryBlendFuncSeparate(
             GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
             GL11.GL_ONE, GL11.GL_ZERO
@@ -48,6 +57,7 @@ public class RoundedUtils {
         }
 
         GlStateManager.enableTexture2D();
+        GlStateManager.enableCull();
         GlStateManager.disableBlend();
         GL11.glColor4f(1f, 1f, 1f, 1f); // reset color
         GlStateManager.popMatrix();
