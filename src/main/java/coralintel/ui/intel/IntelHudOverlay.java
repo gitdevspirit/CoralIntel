@@ -28,6 +28,9 @@ public class IntelHudOverlay {
     private int bgOpacity = 200;
     private int borderOpacity = 100;
     private int columnLineOpacity = 26; // matches the original hardcoded 0x1A alpha
+    private int bgColorRgb = 0x07070E;
+    private int borderColorRgb = 0xFFFFFF;
+    private int columnColorRgb = 0xFFFFFF;
     private static final int ACCENT = GuiColors.ACCENT;
     private static final int TEXT_BRIGHT = 0xFFDDDDEE;
     private static final int TEXT_DIM = 0xFF888899;
@@ -198,6 +201,15 @@ public class IntelHudOverlay {
         return columnLineOpacity;
     }
 
+    public void setBgColorRgb(int rgb) { this.bgColorRgb = rgb & 0xFFFFFF; }
+    public int getBgColorRgb() { return bgColorRgb; }
+
+    public void setBorderColorRgb(int rgb) { this.borderColorRgb = rgb & 0xFFFFFF; }
+    public int getBorderColorRgb() { return borderColorRgb; }
+
+    public void setColumnColorRgb(int rgb) { this.columnColorRgb = rgb & 0xFFFFFF; }
+    public int getColumnColorRgb() { return columnColorRgb; }
+
     public void handleClick(int mx, int my) {
     }
 
@@ -287,7 +299,7 @@ public class IntelHudOverlay {
         int contentHeight = (LINE_HEIGHT * displayCount) + (PADDING * 2);
         int totalHeight = HEADER_HEIGHT + contentHeight;
 
-        int bgColor = (bgOpacity << 24) | 0x07070E;
+        int bgColor = (bgOpacity << 24) | bgColorRgb;
 
         drawRoundedRect(
                 scaledX,
@@ -301,7 +313,7 @@ public class IntelHudOverlay {
         // Border — drawn as an actual outline on top of the fill, so it wraps
         // every edge of the panel (including the bottom) evenly, using the
         // real borderOpacity setting instead of a hardcoded alpha.
-        int borderColor = (borderOpacity << 24) | 0xFFFFFF;
+        int borderColor = (borderOpacity << 24) | borderColorRgb;
         RoundedUtils.drawRoundedOutline(
                 scaledX,
                 scaledY,
@@ -313,7 +325,7 @@ public class IntelHudOverlay {
         );
 
         int dividerY = scaledY + HEADER_HEIGHT;
-        int headerLineColor = (columnLineOpacity << 24) | 0xFFFFFF;
+        int headerLineColor = (columnLineOpacity << 24) | columnColorRgb;
         fillRect(scaledX + 2, dividerY, width - 4, 1, headerLineColor);
 
         int headerY = scaledY + 3;
@@ -381,7 +393,7 @@ public class IntelHudOverlay {
             columnBoundaries.remove(columnBoundaries.size() - 1);
 
             for (int boundaryX : columnBoundaries) {
-                int columnLineColor = (columnLineOpacity << 24) | 0xFFFFFF;
+                int columnLineColor = (columnLineOpacity << 24) | columnColorRgb;
                 fillRect(boundaryX - 3, dividerY + 2, 1, totalHeight - HEADER_HEIGHT - 4, columnLineColor);
             }
         }
