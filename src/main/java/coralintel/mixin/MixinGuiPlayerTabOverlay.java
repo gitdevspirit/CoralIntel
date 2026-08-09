@@ -160,29 +160,48 @@ public abstract class MixinGuiPlayerTabOverlay {
                 hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
             }
         }
-        stats.append("§7HP §f").append(pad(hpStr, 3)).append(" ");
+        stats.append("§7HP §f").append(padPixels(hpStr, 18)).append(" ");
 
         String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-        stats.append(starCode).append("\u272A").append(pad(String.valueOf(player.star), 4)).append(" ");
+        stats.append(starCode).append("\u272A").append(padPixels(String.valueOf(player.star), 24)).append(" ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
-        stats.append("§7FKDR ").append(fkdrCode).append(pad(fmt(player.fkdr), 5)).append(" ");
+        stats.append("§7FKDR ").append(fkdrCode).append(padPixels(fmt(player.fkdr), 28)).append(" ");
 
         String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
-        stats.append("§7WLR ").append(wlrCode).append(pad(fmt(player.wlr), 5)).append(" ");
+        stats.append("§7WLR ").append(wlrCode).append(padPixels(fmt(player.wlr), 28)).append(" ");
 
         String tag = player.getTagBadge();
         String tagCode = tag.isEmpty() ? "§7" : (tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
-        stats.append("§7Tags ").append(tagCode).append(pad(tag.isEmpty() ? "-" : tag, 3));
+        stats.append("§7Tags ").append(tagCode).append(padPixels(tag.isEmpty() ? "-" : tag, 18));
 
         return stats.toString();
     }
 
     /** Right-aligns a string within a fixed character width by left-padding with spaces. */
-    private String pad(String s, int width) {
+    /**
+     * Right-aligns text within a fixed PIXEL width, not a character count.
+     * Minecraft's default font isn't monospace — even digits aside, the
+     * space character itself is narrower than a digit, and "-" is narrower
+     * still. Padding by character count (the old approach) meant every row
+     * with a different mix of those characters actually landed at a
+     * different real pixel offset, which is exactly the ragged/misaligned
+     * look in the reference screenshot. Measuring actual string width and
+     * padding with however many real spaces are needed to reach a target
+     * pixel width fixes it regardless of what characters appear.
+     */
+    private String padPixels(String text, int targetPixelWidth) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
+        if (spaceWidth <= 0) spaceWidth = 4;
+
+        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
+        if (deficit <= 0) return text;
+
+        int spaces = deficit / spaceWidth;
         StringBuilder sb = new StringBuilder();
-        for (int i = s.length(); i < width; i++) sb.append(' ');
-        sb.append(s);
+        for (int i = 0; i < spaces; i++) sb.append(' ');
+        sb.append(text);
         return sb.toString();
     }
 
