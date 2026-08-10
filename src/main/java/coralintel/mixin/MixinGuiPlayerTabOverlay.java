@@ -223,13 +223,18 @@ public abstract class MixinGuiPlayerTabOverlay {
         line.append(padPixelsLeft("§e§lPlayer", NAME_COL_WIDTH));
         line.append(" §8| ");
 
+        // Left-aligned (padPixelsLeft), not right-aligned like the row
+        // values below — the label sits at the start of the column instead
+        // of the end. Same column width as the rows either way, so the
+        // column boundaries still line up; only the text's justification
+        // within that space differs.
         if (intel.tabShowHp.getValue()) {
-            line.append(padPixels("§eHP", HP_COL_WIDTH)).append(" ");
+            line.append(padPixelsLeft("§eHP", HP_COL_WIDTH)).append(" ");
         }
-        line.append(padPixels("§eStar", STAR_COL_WIDTH)).append(" ");
-        line.append(padPixels("§eFKDR", FKDR_COL_WIDTH)).append(" ");
-        line.append(padPixels("§eWLR", WLR_COL_WIDTH)).append(" ");
-        line.append(padPixels("§eTags", TAGS_COL_WIDTH));
+        line.append(padPixelsLeft("§eStar", STAR_COL_WIDTH)).append(" ");
+        line.append(padPixelsLeft("§eFKDR", FKDR_COL_WIDTH)).append(" ");
+        line.append(padPixelsLeft("§eWLR", WLR_COL_WIDTH)).append(" ");
+        line.append(padPixelsLeft("§eTags", TAGS_COL_WIDTH));
 
         return line.toString();
     }
