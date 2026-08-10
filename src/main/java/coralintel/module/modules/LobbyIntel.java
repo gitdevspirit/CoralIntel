@@ -114,6 +114,16 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Show Losses", false));
     public final BooleanSetting seraphStyle =
             register(new BooleanSetting("Tab: Seraph Style", false));
+    // The tab header/footer text is centered as its own independent text
+    // block, positioned completely separately from how the player rows
+    // themselves get laid out into columns — there's no reliable way to
+    // compute the correct offset between them without decompiled source to
+    // read vanilla's exact row-layout math. This lets you nudge the
+    // injected header line left/right by eye until it actually lines up
+    // with your columns, since I can't calculate the right value blind.
+    // Positive = shift right, negative = shift left.
+    public final coralintel.module.SliderSetting seraphHeaderOffset =
+            register(new coralintel.module.SliderSetting("Tab: Seraph Header Offset", 0, -150, 150, 1));
 
     private static final String[] COLOR_PALETTE_NAMES = {
             "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White"
