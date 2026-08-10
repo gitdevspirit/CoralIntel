@@ -67,10 +67,33 @@ public abstract class MixinGuiPlayerTabOverlay {
             return header;
         }
 
-        String columnLine = buildSeraphHeaderLine(lobbyIntel);
+        String columnLine = applyHeaderOffset(buildSeraphHeaderLine(lobbyIntel), lobbyIntel);
         String existing = header != null ? header.getFormattedText() : "";
         String combined = existing.isEmpty() ? columnLine : existing + "\n" + columnLine;
         return new ChatComponentText(combined);
+    }
+
+    /**
+     * Since vanilla centers the whole header line as one block, the content
+     * inside it only shifts by HALF of whatever padding you add to one
+     * side — adding it symmetrically to the centering math cancels itself
+     * out. So a requested shift of N pixels needs 2N pixels of actual
+     * padding, on the leading side to move right, or the trailing side to
+     * move left.
+     */
+    private String applyHeaderOffset(String columnLine, LobbyIntel intel) {
+        int offset = (int) intel.seraphHeaderOffset.getValue();
+        if (offset == 0) return columnLine;
+
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
+        if (spaceWidth <= 0) spaceWidth = 4;
+
+        int spaceCount = (Math.abs(offset) * 2) / spaceWidth;
+        StringBuilder pad = new StringBuilder();
+        for (int i = 0; i < spaceCount; i++) pad.append(' ');
+
+        return offset > 0 ? (pad + columnLine) : (columnLine + pad);
     }
 
     @Redirect(
