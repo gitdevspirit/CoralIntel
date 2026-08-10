@@ -51,7 +51,17 @@ public class RoundedUtils {
             addArc(x + width - rad, y + rad,          rad, 270, 360);
             addArc(x + width - rad, y + height - rad, rad,   0,  90);
             addArc(x + rad,         y + height - rad, rad,  90, 180);
-            addArc(x + rad,         y + rad,           rad, 180, 271); // +1° to close the loop cleanly
+            addArc(x + rad,         y + rad,           rad, 180, 270);
+
+            // GL_TRIANGLE_FAN never auto-closes back to the first perimeter
+            // vertex — without this, the last triangle (hub -> last point ->
+            // first point) is simply never drawn. For a tall shape that's a
+            // barely-visible sliver, but for a wide/short one (like these
+            // panel headers) the first and last perimeter points both sit
+            // near the top edge at opposite horizontal ends, so the "missing
+            // triangle" is actually a huge wedge spanning nearly the whole
+            // width — exactly the V-shaped gap in the screenshot.
+            GL11.glVertex2f(x + width - rad, y);
 
             GL11.glEnd();
         }
