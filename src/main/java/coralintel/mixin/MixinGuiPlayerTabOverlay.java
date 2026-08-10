@@ -9,9 +9,12 @@ import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiPlayerTabOverlay;
 import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.scoreboard.ScorePlayerTeam;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.IChatComponent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 import java.util.Locale;
@@ -46,6 +49,30 @@ public abstract class MixinGuiPlayerTabOverlay {
         net.minecraft.client.gui.Gui.drawRect(left, top, right, bottom, color);
     }
 
+    /**
+     * Experimental — injects a column-title line ("Player | HP Star FKDR
+     * WLR Tags") into the tab list's header text when Seraph Style is on,
+     * using the exact same fixed column widths as buildSeraphStatsSuffix()
+     * so every row's values land directly under their label. This is the
+     * least-verified piece of everything here: "setHeader" taking a single
+     * IChatComponent is my best-confidence guess at the 1.8.9 method
+     * signature, but I don't have decompiled source to confirm it against.
+     * If this doesn't compile or the header just doesn't show up, this is
+     * the method to look at first.
+     */
+    @ModifyVariable(method = "setHeader", at = @At("HEAD"), argsOnly = true)
+    private IChatComponent injectSeraphHeader(IChatComponent header) {
+        LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
+        if (lobbyIntel == null || !lobbyIntel.tabStats.getValue() || !lobbyIntel.seraphStyle.getValue()) {
+            return header;
+        }
+
+        String columnLine = buildSeraphHeaderLine(lobbyIntel);
+        String existing = header != null ? header.getFormattedText() : "";
+        String combined = existing.isEmpty() ? columnLine : existing + "\n" + columnLine;
+        return new ChatComponentText(combined);
+    }
+
     @Redirect(
             method = "renderPlayerlist",
             at = @At(
@@ -74,34 +101,12 @@ public abstract class MixinGuiPlayerTabOverlay {
 
         String stats;
         if (lobbyIntel.seraphStyle.getValue()) {
-            // True column alignment needs the name portion padded to a
-            // SHARED width across every row first — otherwise each row's
-            // stat columns start wherever that row's particular name length
-            // happens to end, which is exactly the ragged, non-tabular look
-            // from the reference screenshot. This is a two-pass approach:
-            // measure the widest name across the whole current tab list,
-            // then pad this row's name out to that width before appending
-            // the (already pixel-padded) stat fields.
-            int maxNameWidth = getMaxNameWidth();
-            coloredName = padPixelsLeft(coloredName, maxNameWidth + 6);
+            coloredName = padPixelsLeft(coloredName, NAME_COL_WIDTH);
             stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
         } else {
             stats = buildStatsSuffix(info, lobbyIntel, player);
         }
         return coloredName + stats;
-    }
-
-    /** Widest rendered name currently in the tab list — used to align Seraph-style columns. */
-    private int getMaxNameWidth() {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        if (mc.getNetHandler() == null) return 0;
-
-        int max = 0;
-        for (NetworkPlayerInfo info : mc.getNetHandler().getPlayerInfoMap()) {
-            int width = mc.fontRendererObj.getStringWidth(this.getPlayerName(info));
-            if (width > max) max = width;
-        }
-        return max;
     }
 
     /**
@@ -200,14 +205,39 @@ public abstract class MixinGuiPlayerTabOverlay {
         return " §8| " + stats.toString().trim();
     }
 
+    // Shared between buildSeraphHeaderLine() and buildSeraphStatsSuffix() —
+    // both MUST use the exact same widths or the header and the values
+    // underneath it drift apart. Fixed rather than measured dynamically
+    // (e.g. off the longest current name) so the header — which is only
+    // rebuilt whenever the server refreshes header/footer text, not every
+    // frame — can never fall out of sync with what the rows are using.
+    private static final int NAME_COL_WIDTH = 90;
+    private static final int HP_COL_WIDTH = 26;
+    private static final int STAR_COL_WIDTH = 40;
+    private static final int FKDR_COL_WIDTH = 42;
+    private static final int WLR_COL_WIDTH = 38;
+    private static final int TAGS_COL_WIDTH = 34;
+
+    private String buildSeraphHeaderLine(LobbyIntel intel) {
+        StringBuilder line = new StringBuilder();
+        line.append(padPixelsLeft("§e§lPlayer", NAME_COL_WIDTH));
+        line.append(" §8| ");
+
+        if (intel.tabShowHp.getValue()) {
+            line.append(padPixels("§eHP", HP_COL_WIDTH)).append(" ");
+        }
+        line.append(padPixels("§eStar", STAR_COL_WIDTH)).append(" ");
+        line.append(padPixels("§eFKDR", FKDR_COL_WIDTH)).append(" ");
+        line.append(padPixels("§eWLR", WLR_COL_WIDTH)).append(" ");
+        line.append(padPixels("§eTags", TAGS_COL_WIDTH));
+
+        return line.toString();
+    }
+
     /**
-     * "Seraph Style" — a padded, column-like layout similar to the reference
-     * client's tab list (Stars/HP/FKDR/etc. lined up as a grid), with our
-     * own tag badge substituted for its verification column. True pixel-
-     * perfect alignment isn't possible from a single per-player redirect
-     * like this (would need two passes across the whole roster), but digits
-     * are fixed-width in Minecraft's default font, so right-padding each
-     * numeric field to a fixed character count gets close in practice.
+     * "Seraph Style" — raw values only (no repeated per-row field labels,
+     * those live in the header now), each right-aligned into a fixed pixel-
+     * width column shared with buildSeraphHeaderLine() above.
      */
     private String buildSeraphStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
         StringBuilder stats = new StringBuilder(" §8| ");
@@ -222,21 +252,21 @@ public abstract class MixinGuiPlayerTabOverlay {
                     hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
                 }
             }
-            stats.append("§7HP §f").append(padPixels(hpStr, 18)).append(" ");
+            stats.append("§f").append(padPixels(hpStr, HP_COL_WIDTH)).append(" ");
         }
 
         String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-        stats.append(starCode).append("\u272A").append(padPixels(String.valueOf(player.star), 24)).append(" ");
+        stats.append(starCode).append(padPixels("\u272A" + player.star, STAR_COL_WIDTH)).append(" ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
-        stats.append("§7FKDR ").append(fkdrCode).append(padPixels(fmt(player.fkdr), 28)).append(" ");
+        stats.append(fkdrCode).append(padPixels(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
 
         String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
-        stats.append("§7WLR ").append(wlrCode).append(padPixels(fmt(player.wlr), 28)).append(" ");
+        stats.append(wlrCode).append(padPixels(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
 
         String tag = player.getTagBadge();
         String tagCode = tag.isEmpty() ? "§7" : (tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
-        stats.append("§7Tags ").append(tagCode).append(padPixels(tag.isEmpty() ? "-" : tag, 18));
+        stats.append(tagCode).append(padPixels(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
 
         return stats.toString();
     }
