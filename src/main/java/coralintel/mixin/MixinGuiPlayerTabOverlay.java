@@ -137,7 +137,7 @@ public abstract class MixinGuiPlayerTabOverlay {
     }
 
     /**
-     * Builds the " §8| ..." stats suffix for the tab list, field-by-field,
+     * Builds the stats suffix for the tab list, field-by-field,
      * driven by the same per-field toggles the .bw command uses (cloned
      * onto the module as tabShow* settings) — so the tab list can show
      * exactly the same set of fields as .bw, independently configured.
@@ -229,7 +229,7 @@ public abstract class MixinGuiPlayerTabOverlay {
             return "";
         }
 
-        return " §8| " + stats.toString().trim();
+        return "  " + stats.toString().trim();
     }
 
     // Shared between buildSeraphHeaderLine() and buildSeraphStatsSuffix() —
@@ -248,7 +248,7 @@ public abstract class MixinGuiPlayerTabOverlay {
     private String buildSeraphHeaderLine(LobbyIntel intel) {
         StringBuilder line = new StringBuilder();
         line.append(padPixelsCenter("§e§lPlayer", NAME_COL_WIDTH));
-        line.append(" §8| ");
+        line.append("  ");
 
         // Centered within each column — same fixed widths as the rows use,
         // so the column boundaries still match; the labels just sit in the
@@ -270,7 +270,7 @@ public abstract class MixinGuiPlayerTabOverlay {
      * width column shared with buildSeraphHeaderLine() above.
      */
     private String buildSeraphStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
-        StringBuilder stats = new StringBuilder(" §8| ");
+        StringBuilder stats = new StringBuilder("  ");
 
         if (intel.tabShowHp.getValue()) {
             String hpStr = "-";
