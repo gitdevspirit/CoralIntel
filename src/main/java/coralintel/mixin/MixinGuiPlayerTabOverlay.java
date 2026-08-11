@@ -86,12 +86,16 @@ public abstract class MixinGuiPlayerTabOverlay {
         if (offset == 0) return columnLine;
 
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
-        if (spaceWidth <= 0) spaceWidth = 4;
+        int targetPadWidth = Math.abs(offset) * 2;
 
-        int spaceCount = (Math.abs(offset) * 2) / spaceWidth;
+        // Build the padding by measuring its own accumulated width via
+        // getStringWidth (never getCharWidth — mixing those two was the
+        // root cause of every alignment issue here), so it actually comes
+        // out to the requested pixel width instead of just an approximation.
         StringBuilder pad = new StringBuilder();
-        for (int i = 0; i < spaceCount; i++) pad.append(' ');
+        while (mc.fontRendererObj.getStringWidth(pad.toString()) < targetPadWidth) {
+            pad.append(' ');
+        }
 
         return offset > 0 ? (pad + columnLine) : (columnLine + pad);
     }
@@ -308,34 +312,51 @@ public abstract class MixinGuiPlayerTabOverlay {
      * look in the reference screenshot. Measuring actual string width and
      * padding with however many real spaces are needed to reach a target
      * pixel width fixes it regardless of what characters appear.
+     *
+     * Adds spaces one at a time, re-measuring the WHOLE string with
+     * getStringWidth() each time — never getCharWidth(). Those two report
+     * different things (getStringWidth includes Minecraft's standard +1px
+     * gap between every character, getCharWidth doesn't), so computing a
+     * space count via one and measuring the deficit via the other was
+     * quietly wrong by a few pixels on every single column, which is
+     * exactly the "still not aligned" result.
      */
     private String padPixels(String text, int targetPixelWidth) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
-        if (spaceWidth <= 0) spaceWidth = 4;
+        StringBuilder sb = new StringBuilder(text);
 
-        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
-        if (deficit <= 0) return text;
-
-        int spaces = deficit / spaceWidth;
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < spaces; i++) sb.append(' ');
-        sb.append(text);
+        while (mc.fontRendererObj.getStringWidth(sb.toString()) < targetPixelWidth) {
+            sb.insert(0, ' ');
+        }
+        // Last space may have overshot the target — drop it if removing it
+        // still leaves us at or under the target, whichever is the closer fit.
+        if (sb.length() > text.length()) {
+            String oneLess = sb.substring(1);
+            int overshoot = mc.fontRendererObj.getStringWidth(sb.toString()) - targetPixelWidth;
+            int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(oneLess);
+            if (undershoot >= 0 && undershoot <= overshoot) {
+                return oneLess;
+            }
+        }
         return sb.toString();
     }
 
     /** Same idea as padPixels, but left-aligned — text stays put, trailing spaces added after it. */
     private String padPixelsLeft(String text, int targetPixelWidth) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
-        if (spaceWidth <= 0) spaceWidth = 4;
-
-        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
-        if (deficit <= 0) return text;
-
-        int spaces = deficit / spaceWidth;
         StringBuilder sb = new StringBuilder(text);
-        for (int i = 0; i < spaces; i++) sb.append(' ');
+
+        while (mc.fontRendererObj.getStringWidth(sb.toString()) < targetPixelWidth) {
+            sb.append(' ');
+        }
+        if (sb.length() > text.length()) {
+            String oneLess = sb.substring(0, sb.length() - 1);
+            int overshoot = mc.fontRendererObj.getStringWidth(sb.toString()) - targetPixelWidth;
+            int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(oneLess);
+            if (undershoot >= 0 && undershoot <= overshoot) {
+                return oneLess;
+            }
+        }
         return sb.toString();
     }
 
@@ -358,50 +379,62 @@ public abstract class MixinGuiPlayerTabOverlay {
         }
 
         String ellipsis = "\u2026";
-        int budget = targetPixelWidth - mc.fontRendererObj.getStringWidth(ellipsis);
 
-        StringBuilder result = new StringBuilder();
-        int currentWidth = 0;
+        // Strip one visible character at a time and re-measure the WHOLE
+        // remaining string (plus ellipsis) via getStringWidth — same fix as
+        // above: measuring per-character via getCharWidth and summing
+        // doesn't match what getStringWidth reports for the same text, so
+        // that would under/overshoot the actual target width.
+        StringBuilder visible = new StringBuilder();
+        StringBuilder codes = new StringBuilder();
 
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-
             if (c == '\u00A7' && i + 1 < text.length()) {
-                // Formatting code — always keep, doesn't add visible width.
-                result.append(c).append(text.charAt(i + 1));
+                codes.append(c).append(text.charAt(i + 1));
                 i++;
-                continue;
+            } else {
+                visible.append(c);
             }
-
-            int charWidth = mc.fontRendererObj.getCharWidth(c);
-            if (currentWidth + charWidth > budget) break;
-
-            result.append(c);
-            currentWidth += charWidth;
         }
 
-        result.append(ellipsis);
-        return result.toString();
+        while (visible.length() > 0
+                && mc.fontRendererObj.getStringWidth(codes + visible.toString() + ellipsis) > targetPixelWidth) {
+            visible.deleteCharAt(visible.length() - 1);
+        }
+
+        return codes + visible.toString() + ellipsis;
     }
 
     /** Centers text within a fixed pixel width — spaces split evenly on both sides. */
     private String padPixelsCenter(String text, int targetPixelWidth) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
-        if (spaceWidth <= 0) spaceWidth = 4;
 
         int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
         if (deficit <= 0) return text;
 
-        int totalSpaces = deficit / spaceWidth;
-        int leftSpaces = totalSpaces / 2;
-        int rightSpaces = totalSpaces - leftSpaces;
+        // Alternate adding a space to each side and re-measure the WHOLE
+        // string every step, rather than pre-computing a space count from a
+        // different (inconsistent) width metric.
+        StringBuilder left = new StringBuilder();
+        StringBuilder right = new StringBuilder();
+        boolean addLeft = true;
 
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < leftSpaces; i++) sb.append(' ');
-        sb.append(text);
-        for (int i = 0; i < rightSpaces; i++) sb.append(' ');
-        return sb.toString();
+        while (mc.fontRendererObj.getStringWidth(left + text + right.toString()) < targetPixelWidth) {
+            if (addLeft) left.append(' '); else right.append(' ');
+            addLeft = !addLeft;
+        }
+
+        String result = left + text + right.toString();
+        // The last addition may have overshot — check if backing it off
+        // (from whichever side just grew) lands closer to the target.
+        String shrunk = !addLeft
+                ? left.substring(0, Math.max(0, left.length() - 1)) + text + right.toString()
+                : left + text + right.substring(0, Math.max(0, right.length() - 1));
+
+        int overshoot = mc.fontRendererObj.getStringWidth(result) - targetPixelWidth;
+        int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(shrunk);
+        return (undershoot >= 0 && undershoot <= overshoot) ? shrunk : result;
     }
 
     /**
