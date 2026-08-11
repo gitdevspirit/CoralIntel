@@ -278,21 +278,21 @@ public abstract class MixinGuiPlayerTabOverlay {
                     hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
                 }
             }
-            stats.append("§f").append(padPixels(hpStr, HP_COL_WIDTH)).append(" ");
+            stats.append("§f").append(padPixelsCenter(hpStr, HP_COL_WIDTH)).append(" ");
         }
 
         String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-        stats.append(starCode).append(padPixels("\u272A" + player.star, STAR_COL_WIDTH)).append(" ");
+        stats.append(starCode).append(padPixelsCenter("\u272A" + player.star, STAR_COL_WIDTH)).append(" ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
-        stats.append(fkdrCode).append(padPixels(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
+        stats.append(fkdrCode).append(padPixelsCenter(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
 
         String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
-        stats.append(wlrCode).append(padPixels(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
+        stats.append(wlrCode).append(padPixelsCenter(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
 
         String tag = player.getTagBadge();
         String tagCode = tag.isEmpty() ? "§7" : (tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
-        stats.append(tagCode).append(padPixels(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
+        stats.append(tagCode).append(padPixelsCenter(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
 
         return stats.toString();
     }
