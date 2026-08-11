@@ -124,7 +124,7 @@ public abstract class MixinGuiPlayerTabOverlay {
 
         String stats;
         if (lobbyIntel.seraphStyle.getValue()) {
-            coloredName = padPixelsLeft(coloredName, NAME_COL_WIDTH);
+            coloredName = fitPixelsLeft(coloredName, NAME_COL_WIDTH);
             stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
         } else {
             stats = buildStatsSuffix(info, lobbyIntel, player);
@@ -337,6 +337,51 @@ public abstract class MixinGuiPlayerTabOverlay {
         StringBuilder sb = new StringBuilder(text);
         for (int i = 0; i < spaces; i++) sb.append(' ');
         return sb.toString();
+    }
+
+    /**
+     * Like padPixelsLeft, but also handles the case padding alone can't:
+     * text WIDER than the target. Without this, a long name (like
+     * "XXXtencation_") just runs past the column with nothing added —
+     * padPixelsLeft only ever adds space, it can't shorten anything — which
+     * pushes that one row's entire stats block to the right of every other
+     * row's. This truncates with an ellipsis so every row's name column
+     * ends at exactly the same pixel width no matter how long the name is,
+     * which is what actually keeps every column aligned regardless of name
+     * length.
+     */
+    private String fitPixelsLeft(String text, int targetPixelWidth) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+
+        if (mc.fontRendererObj.getStringWidth(text) <= targetPixelWidth) {
+            return padPixelsLeft(text, targetPixelWidth);
+        }
+
+        String ellipsis = "\u2026";
+        int budget = targetPixelWidth - mc.fontRendererObj.getStringWidth(ellipsis);
+
+        StringBuilder result = new StringBuilder();
+        int currentWidth = 0;
+
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+
+            if (c == '\u00A7' && i + 1 < text.length()) {
+                // Formatting code — always keep, doesn't add visible width.
+                result.append(c).append(text.charAt(i + 1));
+                i++;
+                continue;
+            }
+
+            int charWidth = mc.fontRendererObj.getCharWidth(c);
+            if (currentWidth + charWidth > budget) break;
+
+            result.append(c);
+            currentWidth += charWidth;
+        }
+
+        result.append(ellipsis);
+        return result.toString();
     }
 
     /** Centers text within a fixed pixel width — spaces split evenly on both sides. */
