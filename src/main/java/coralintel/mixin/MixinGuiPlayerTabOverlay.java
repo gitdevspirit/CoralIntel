@@ -234,30 +234,28 @@ public abstract class MixinGuiPlayerTabOverlay {
     // (e.g. off the longest current name) so the header — which is only
     // rebuilt whenever the server refreshes header/footer text, not every
     // frame — can never fall out of sync with what the rows are using.
-    private static final int NAME_COL_WIDTH = 90;
-    private static final int HP_COL_WIDTH = 26;
-    private static final int STAR_COL_WIDTH = 40;
-    private static final int FKDR_COL_WIDTH = 42;
-    private static final int WLR_COL_WIDTH = 38;
-    private static final int TAGS_COL_WIDTH = 34;
+    private static final int NAME_COL_WIDTH = 100;
+    private static final int HP_COL_WIDTH = 34;
+    private static final int STAR_COL_WIDTH = 50;
+    private static final int FKDR_COL_WIDTH = 52;
+    private static final int WLR_COL_WIDTH = 48;
+    private static final int TAGS_COL_WIDTH = 44;
 
     private String buildSeraphHeaderLine(LobbyIntel intel) {
         StringBuilder line = new StringBuilder();
-        line.append(padPixelsLeft("§e§lPlayer", NAME_COL_WIDTH));
+        line.append(padPixelsCenter("§e§lPlayer", NAME_COL_WIDTH));
         line.append(" §8| ");
 
-        // Left-aligned (padPixelsLeft), not right-aligned like the row
-        // values below — the label sits at the start of the column instead
-        // of the end. Same column width as the rows either way, so the
-        // column boundaries still line up; only the text's justification
-        // within that space differs.
+        // Centered within each column — same fixed widths as the rows use,
+        // so the column boundaries still match; the labels just sit in the
+        // middle of that space now instead of at either edge.
         if (intel.tabShowHp.getValue()) {
-            line.append(padPixelsLeft("§eHP", HP_COL_WIDTH)).append(" ");
+            line.append(padPixelsCenter("§eHP", HP_COL_WIDTH)).append(" ");
         }
-        line.append(padPixelsLeft("§eStar", STAR_COL_WIDTH)).append(" ");
-        line.append(padPixelsLeft("§eFKDR", FKDR_COL_WIDTH)).append(" ");
-        line.append(padPixelsLeft("§eWLR", WLR_COL_WIDTH)).append(" ");
-        line.append(padPixelsLeft("§eTags", TAGS_COL_WIDTH));
+        line.append(padPixelsCenter("§eStar", STAR_COL_WIDTH)).append(" ");
+        line.append(padPixelsCenter("§eFKDR", FKDR_COL_WIDTH)).append(" ");
+        line.append(padPixelsCenter("§eWLR", WLR_COL_WIDTH)).append(" ");
+        line.append(padPixelsCenter("§eTags", TAGS_COL_WIDTH));
 
         return line.toString();
     }
@@ -338,6 +336,26 @@ public abstract class MixinGuiPlayerTabOverlay {
         int spaces = deficit / spaceWidth;
         StringBuilder sb = new StringBuilder(text);
         for (int i = 0; i < spaces; i++) sb.append(' ');
+        return sb.toString();
+    }
+
+    /** Centers text within a fixed pixel width — spaces split evenly on both sides. */
+    private String padPixelsCenter(String text, int targetPixelWidth) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        int spaceWidth = mc.fontRendererObj.getCharWidth(' ');
+        if (spaceWidth <= 0) spaceWidth = 4;
+
+        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
+        if (deficit <= 0) return text;
+
+        int totalSpaces = deficit / spaceWidth;
+        int leftSpaces = totalSpaces / 2;
+        int rightSpaces = totalSpaces - leftSpaces;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < leftSpaces; i++) sb.append(' ');
+        sb.append(text);
+        for (int i = 0; i < rightSpaces; i++) sb.append(' ');
         return sb.toString();
     }
 
