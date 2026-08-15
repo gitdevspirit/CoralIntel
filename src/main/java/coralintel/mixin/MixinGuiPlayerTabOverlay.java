@@ -238,7 +238,7 @@ public abstract class MixinGuiPlayerTabOverlay {
     // (e.g. off the longest current name) so the header — which is only
     // rebuilt whenever the server refreshes header/footer text, not every
     // frame — can never fall out of sync with what the rows are using.
-    private static final int NAME_COL_WIDTH = 100;
+    private static final int NAME_COL_WIDTH = 130;
     private static final int HP_COL_WIDTH = 34;
     private static final int STAR_COL_WIDTH = 50;
     private static final int FKDR_COL_WIDTH = 52;
@@ -286,7 +286,16 @@ public abstract class MixinGuiPlayerTabOverlay {
         }
 
         String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-        stats.append(starCode).append(padPixelsCenter("\u272A" + player.star, STAR_COL_WIDTH)).append(" ");
+        // Splitting the glyph and the number into their own fixed-width
+        // sub-slots (instead of centering "✩19" as one glued unit) fixes a
+        // real remaining issue: a 2-digit number pushes more content after
+        // the glyph than a 1-digit one, so even with the OUTER column
+        // perfectly centered, the star icon itself still lands at a
+        // different X per row depending on how many digits follow it.
+        int starIconWidth = 16;
+        int starNumWidth = Math.max(10, STAR_COL_WIDTH - starIconWidth);
+        stats.append(starCode).append(padPixelsCenter("\u272A", starIconWidth));
+        stats.append(padPixelsCenter(String.valueOf(player.star), starNumWidth)).append(" ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
         stats.append(fkdrCode).append(padPixelsCenter(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
