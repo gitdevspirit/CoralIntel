@@ -159,7 +159,7 @@ public abstract class MixinGuiPlayerTabOverlay {
         }
         if (intel.tabShowStar.getValue()) {
             String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-            stats.append(starCode).append("\u272A").append(player.star).append(" ");
+            stats.append("§8[").append(starCode).append("\u272A").append(player.star).append("§8] ");
             wroteAny = true;
         }
         if (intel.tabShowFkdr.getValue()) {
@@ -220,7 +220,7 @@ public abstract class MixinGuiPlayerTabOverlay {
         if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
             // Closet cheater specifically renders gold in the tab list;
             // everything else uses the nearest code to its usual color.
-            String tagCode = tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor());
+            String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor());
             stats.append(tagCode).append(tag).append(" ");
             wroteAny = true;
         }
@@ -312,7 +312,7 @@ public abstract class MixinGuiPlayerTabOverlay {
         stats.append(wlrCode).append(padPixelsCenter(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
 
         String tag = player.getTagBadge();
-        String tagCode = tag.isEmpty() ? "§7" : (tag.equals("C") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
+        String tagCode = tag.isEmpty() ? "§7" : (tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
         stats.append(tagCode).append(padPixelsCenter(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
 
         return stats.toString();
