@@ -126,21 +126,54 @@ public abstract class MixinGuiPlayerTabOverlay {
             return coloredName;
         }
 
+        String prefix = "";
         String stats;
         if (lobbyIntel.seraphStyle.getValue()) {
             coloredName = fitPixelsLeft(coloredName, NAME_COL_WIDTH);
             stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
         } else {
+            // Star and the cheater-tag badge sit to the LEFT of the name;
+            // every other stat (HP, FKDR, WLR, etc.) stays on the right,
+            // same as before.
+            prefix = buildStatsPrefix(lobbyIntel, player);
             stats = buildStatsSuffix(info, lobbyIntel, player);
         }
-        return coloredName + stats;
+        return prefix + coloredName + stats;
     }
 
     /**
-     * Builds the stats suffix for the tab list, field-by-field,
-     * driven by the same per-field toggles the .bw command uses (cloned
-     * onto the module as tabShow* settings) — so the tab list can show
-     * exactly the same set of fields as .bw, independently configured.
+     * Star + cheater-tag badge — rendered to the LEFT of the player's name
+     * in the default (non-Seraph) tab format.
+     */
+    private String buildStatsPrefix(LobbyIntel intel, IntelPlayer player) {
+        StringBuilder prefix = new StringBuilder();
+        boolean wroteAny = false;
+
+        if (intel.tabShowStar.getValue()) {
+            String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
+            prefix.append("§8[").append(starCode).append("\u272A").append(player.star).append("§8] ");
+            wroteAny = true;
+        }
+
+        String tag = player.getTagBadge();
+        if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
+            // Closet cheater specifically renders gold in the tab list;
+            // everything else uses the nearest code to its usual color.
+            String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor());
+            prefix.append(tagCode).append(tag).append(" ");
+            wroteAny = true;
+        }
+
+        return wroteAny ? prefix.toString() : "";
+    }
+
+    /**
+     * Builds the RIGHT-side stats (everything except star and the cheater
+     * tag, which now render to the LEFT of the name via buildStatsPrefix()),
+     * field-by-field, driven by the same per-field toggles the .bw command
+     * uses (cloned onto the module as tabShow* settings) — so the tab list
+     * can show exactly the same set of fields as .bw, independently
+     * configured.
      */
     private String buildStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
         StringBuilder stats = new StringBuilder();
@@ -156,11 +189,6 @@ public abstract class MixinGuiPlayerTabOverlay {
                     wroteAny = true;
                 }
             }
-        }
-        if (intel.tabShowStar.getValue()) {
-            String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-            stats.append("§8[").append(starCode).append("\u272A").append(player.star).append("§8] ");
-            wroteAny = true;
         }
         if (intel.tabShowFkdr.getValue()) {
             String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
@@ -213,15 +241,6 @@ public abstract class MixinGuiPlayerTabOverlay {
         }
         if (intel.tabShowLosses.getValue()) {
             stats.append("§7Losses §f").append(player.losses).append(" ");
-            wroteAny = true;
-        }
-
-        String tag = player.getTagBadge();
-        if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
-            // Closet cheater specifically renders gold in the tab list;
-            // everything else uses the nearest code to its usual color.
-            String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor());
-            stats.append(tagCode).append(tag).append(" ");
             wroteAny = true;
         }
 
