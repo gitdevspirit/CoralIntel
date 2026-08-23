@@ -96,27 +96,27 @@ public class IntelPlayer {
         ).toLowerCase();
 
         if (basis.contains("blatant"))   return "BC";
-        if (basis.contains("confirmed")) return "CC";
-        if (basis.contains("closet"))    return "C";
+        if (basis.contains("confirmed")) return "CCC";
+        if (basis.contains("closet"))    return "CC";
         if (basis.contains("sniper"))    return "S";
         if (basis.contains("caution"))   return "R"; // replay needed — reviewed manually before flagging further
 
         // Flagged by Coral but none of the known severity words matched —
         // still show a code rather than a static placeholder.
-        return "C";
+        return "CC";
     }
 
     /** ARGB color matching {@link #getTagBadge()}'s classification. */
     public int getTagColor() {
         String badge = getTagBadge();
         switch (badge) {
-            case "B":  return 0xFF4499FF; // blacklisted — blue
-            case "BC": return 0xFFFF3344; // blatant — red
-            case "CC": return 0xFFDD44DD; // confirmed — magenta
-            case "S":  return 0xFFFF1122; // sniper — bright red
-            case "R":  return 0xFF55FF55; // caution / replay needed — green
-            case "C":  return 0xFFFF8844; // closet / unclassified — orange
-            default:   return 0xFFAAAAAA;
+            case "B":   return 0xFF4499FF; // blacklisted — blue
+            case "BC":  return 0xFFFF3344; // blatant — red
+            case "CCC": return 0xFF9932CC; // confirmed — dark purple
+            case "S":   return 0xFFFF1122; // sniper — bright red
+            case "R":   return 0xFF55FF55; // caution / replay needed — green
+            case "CC":  return 0xFFFF8844; // closet / unclassified — orange
+            default:    return 0xFFAAAAAA;
         }
     }
 
@@ -129,13 +129,13 @@ public class IntelPlayer {
      */
     public String getTagMessage() {
         switch (getTagBadge()) {
-            case "B":  return "Blacklisted: " + (blacklistReason != null ? blacklistReason : "No reason given");
-            case "BC": return "Blatant cheater, be wary — might be hopping";
-            case "CC": return "Confirmed cheater, be wary — might be hopping";
-            case "C":  return "Using closet cheats, be wary";
-            case "S":  return "Sniper, stay alert — probably hopping!";
-            case "R":  return "Replay needed — flagged for manual review";
-            default:   return "";
+            case "B":   return "Blacklisted: " + (blacklistReason != null ? blacklistReason : "No reason given");
+            case "BC":  return "Blatant cheater, be wary — might be hopping";
+            case "CCC": return "Confirmed cheater, be wary — might be hopping";
+            case "CC":  return "Using closet cheats, be wary";
+            case "S":   return "Sniper, stay alert — probably hopping!";
+            case "R":   return "Replay needed — flagged for manual review";
+            default:    return "";
         }
     }
 
