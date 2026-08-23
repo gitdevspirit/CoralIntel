@@ -270,11 +270,11 @@ public abstract class MixinGuiPlayerTabOverlay {
      * width column shared with buildSeraphHeaderLine() above.
      */
     private String buildSeraphStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
         StringBuilder stats = new StringBuilder("  ");
 
         if (intel.tabShowHp.getValue()) {
             String hpStr = "-";
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
             if (mc.theWorld != null && info.getGameProfile().getId() != null) {
                 net.minecraft.entity.player.EntityPlayer entity =
                         mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
@@ -292,10 +292,18 @@ public abstract class MixinGuiPlayerTabOverlay {
         // the glyph than a 1-digit one, so even with the OUTER column
         // perfectly centered, the star icon itself still lands at a
         // different X per row depending on how many digits follow it.
-        int starIconWidth = 16;
+        // Icon pinned tight to the column start (its own natural width, no
+        // extra centering padding), number right-aligned to the column end.
+        // Both ends are now anchored consistently regardless of digit
+        // count, without the previous version's mistake of independently
+        // centering both the icon AND the number in their own sub-slots —
+        // that stacked padding from both sides of each and created a big
+        // artificial gap in the middle instead of a tight icon+number pair.
+        String starIcon = "\u272A";
+        int starIconWidth = mc.fontRendererObj.getStringWidth(starIcon) + 1;
         int starNumWidth = Math.max(10, STAR_COL_WIDTH - starIconWidth);
-        stats.append(starCode).append(padPixelsCenter("\u272A", starIconWidth));
-        stats.append(padPixelsCenter(String.valueOf(player.star), starNumWidth)).append(" ");
+        stats.append(starCode).append(starIcon);
+        stats.append(padPixels(String.valueOf(player.star), starNumWidth)).append(" ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
         stats.append(fkdrCode).append(padPixelsCenter(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
