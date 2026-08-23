@@ -59,7 +59,7 @@ public class BedwarsStatsCommand extends Command {
                 String badge = player.getTagBadge();
                 String message = player.getFullTagMessage();
                 String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
-                String tagCode = badge.equals("C") ? "§6"
+                String tagCode = badge.equals("CC") ? "§6"
                         : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
                 reply(tagCode + "[" + badge + "] &7" + detail);
             }
@@ -145,7 +145,7 @@ public class BedwarsStatsCommand extends Command {
             String badge = player.getTagBadge();
             String message = player.getFullTagMessage();
                 String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
-            String tagCode = badge.equals("C") ? "§6"
+            String tagCode = badge.equals("CC") ? "§6"
                     : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
             reply(tagCode + "[" + badge + "] &7" + detail);
         }
