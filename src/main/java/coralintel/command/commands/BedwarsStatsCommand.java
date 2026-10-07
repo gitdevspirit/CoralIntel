@@ -45,7 +45,9 @@ public class BedwarsStatsCommand extends Command {
         LobbyIntel intel = (LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
 
         if (!hasAnyData) {
-            if (player.statsHidden) {
+            if (player.isNicked) {
+                reply("&5[NICK] &f" + ign + " &7appears to be nicked.");
+            } else if (player.statsHidden) {
                 // Account exists, they've just hidden Bedwars stats via API
                 // Settings — a common move for players trying to dodge
                 // stat-checkers. Say so plainly, and still surface the tag.
@@ -73,9 +75,7 @@ public class BedwarsStatsCommand extends Command {
         boolean wroteAny = false;
 
         if (enabled(intel, intel == null ? null : intel.bwShowStar)) {
-            String starCode = coralintel.ui.intel.IntelColors.nearestCode(
-                    coralintel.ui.intel.IntelColors.getPrestigeColor(player.star));
-            line.append(starCode).append(player.star).append("&7\u272A  ");
+            line.append(coralintel.util.PrestigeUtil.format(player.star)).append("\u00A7r  ");
             wroteAny = true;
         }
         if (enabled(intel, intel == null ? null : intel.bwShowFkdr)) {
