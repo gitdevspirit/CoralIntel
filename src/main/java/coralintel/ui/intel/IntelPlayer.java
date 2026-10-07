@@ -36,6 +36,17 @@ public class IntelPlayer {
     // by LobbyIntel's periodic retry so these players get another attempt
     // instead of being stuck unpopulated for the rest of the lobby.
     public boolean statsFetchFailed = false;
+    // How many fetch rounds have come back with no usable stats (failed, or
+    // finished with nothing). After IntelManager.MAX_FETCH_ATTEMPTS the stats
+    // are simply set to 0 and the player counts as "fully loaded".
+    public int     fetchAttempts = 0;
+    // True once this player needs no more fetching: stats loaded, stats
+    // hidden, nicked, or gave up after MAX_FETCH_ATTEMPTS. Rescans and the
+    // periodic retry only touch players where this is still false.
+    public boolean statsFinal = false;
+    // True for yourself when "Skip Own Stats" is on: no fetch, row stays
+    // in its "-" / plain-name loading look.
+    public boolean statsSkipped = false;
     public String  urchinTag    = null;
     public String  urchinType   = null;
     public String  urchinReason = null;
