@@ -82,6 +82,8 @@ public class LobbyIntel extends Module {
 
     public final BooleanSetting tabShowTag =
             register(new BooleanSetting("Tab: Show Cheater Tag", true));
+    public final BooleanSetting tabShowNick =
+            register(new BooleanSetting("Tab: Show [NICK] Tag", true));
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 
