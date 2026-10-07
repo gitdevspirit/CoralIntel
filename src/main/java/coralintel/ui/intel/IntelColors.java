@@ -70,63 +70,20 @@ public final class IntelColors {
         return 0xFF44DD66;
     }
 
-    /** Hypixel Bedwars star prestige color, matching the game's own tier colors. */
+    /** ARGB for a legacy color code char ('0'-'9', 'a'-'f'). */
+    public static int codeToArgb(char code) {
+        for (int i = 0; i < CODE_CHAR.length; i++) {
+            if (CODE_CHAR[i] == code) return CODE_RGB[i];
+        }
+        return 0xFFFFFFFF;
+    }
+
+    /**
+     * Single-color stand-in for a star's prestige (the tier's main color), for
+     * surfaces that can only draw one color. Backed by PrestigeUtil (Nevada's
+     * prestige table) so it can never disagree with the multi-color renderers.
+     */
     public static int getPrestigeColor(int star) {
-        if (star >= 5000) return 0xFF00FFFF;
-        if (star >= 4900) return 0xFFFF0000;
-        if (star >= 4800) return 0xFFFF00FF;
-        if (star >= 4700) return 0xFF00AA00;
-        if (star >= 4600) return 0xFF00AAAA;
-        if (star >= 4500) return 0xFF0000AA;
-        if (star >= 4400) return 0xFFAA0000;
-        if (star >= 4300) return 0xFF555555;
-        if (star >= 4200) return 0xFFAAAAAA;
-        if (star >= 4100) return 0xFFFFFFFF;
-        if (star >= 4000) return 0xFF55FF55;
-
-        if (star >= 3900) return 0xFF00FFFF;
-        if (star >= 3800) return 0xFFFF0000;
-        if (star >= 3700) return 0xFFFF00FF;
-        if (star >= 3600) return 0xFF00AA00;
-        if (star >= 3500) return 0xFF00AAAA;
-        if (star >= 3400) return 0xFF0000AA;
-        if (star >= 3300) return 0xFFAA0000;
-        if (star >= 3200) return 0xFF555555;
-        if (star >= 3100) return 0xFFAAAAAA;
-        if (star >= 3000) return 0xFFFFFFFF;
-
-        if (star >= 2900) return 0xFF00FFFF;
-        if (star >= 2800) return 0xFFFF0000;
-        if (star >= 2700) return 0xFFFF00FF;
-        if (star >= 2600) return 0xFF00AA00;
-        if (star >= 2500) return 0xFF00AAAA;
-        if (star >= 2400) return 0xFF0000AA;
-        if (star >= 2300) return 0xFFAA0000;
-        if (star >= 2200) return 0xFF555555;
-        if (star >= 2100) return 0xFFAAAAAA;
-        if (star >= 2000) return 0xFFFFFFFF;
-
-        if (star >= 1900) return 0xFF00FFFF;
-        if (star >= 1800) return 0xFFFF0000;
-        if (star >= 1700) return 0xFFFF00FF;
-        if (star >= 1600) return 0xFF00AA00;
-        if (star >= 1500) return 0xFF00AAAA;
-        if (star >= 1400) return 0xFF0000AA;
-        if (star >= 1300) return 0xFFAA0000;
-        if (star >= 1200) return 0xFF555555;
-        if (star >= 1100) return 0xFFAAAAAA;
-        if (star >= 1000) return 0xFFFFFFFF;
-
-        if (star >= 900) return 0xFFFF00FF;
-        if (star >= 800) return 0xFF5555FF;
-        if (star >= 700) return 0xFF55FFFF;
-        if (star >= 600) return 0xFF55FF55;
-        if (star >= 500) return 0xFFFF5555;
-        if (star >= 400) return 0xFF0000AA;
-        if (star >= 300) return 0xFF00AAAA;
-        if (star >= 200) return 0xFFFFAA00;
-        if (star >= 100) return 0xFFFFFFFF;
-
-        return 0xFFAAAAAA;
+        return codeToArgb(coralintel.util.PrestigeUtil.mainCode(star));
     }
 }
