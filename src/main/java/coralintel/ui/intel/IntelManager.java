@@ -755,17 +755,24 @@ public class IntelManager {
 
     private void fetchHypixel(IntelPlayer player) {
         boolean gotStats = false;
+        boolean bordicTried = false;
 
-        if (!hypixelApiKey.isEmpty()) {
+        // Optional: Bordic first (keyless). Skipped for nicked players: a nick's
+        // name can coincide with a real account's, so a by-name lookup would
+        // attach that stranger's stats.
+        if (!player.isNicked && isBordicPrimary()) {
+            bordicTried = true;
+            gotStats = fetchBordic(player);
+        }
+
+        if (!gotStats && !hypixelApiKey.isEmpty()) {
             gotStats = fetchHypixelApi(player);
         }
 
         // Fallback chain once the Hypixel API path fails (no key, invalid key,
-        // rate limited...): Vega (keyless, opt-in) -> Slothpixel (keyless).
-        // Skipped for nicked players: a nick's name can coincide with a real
-        // account's, so a by-name lookup would attach that stranger's stats.
-        if (!gotStats && !player.isNicked && isVegaEnabled()) {
-            gotStats = fetchVega(player);
+        // rate limited...): Bordic (keyless, opt-in) -> Slothpixel (keyless).
+        if (!gotStats && !player.isNicked && !bordicTried && isBordicFallbackEnabled()) {
+            gotStats = fetchBordic(player);
         }
 
         if (!gotStats && !player.isNicked) {
@@ -775,48 +782,81 @@ public class IntelManager {
         player.loading = false;
     }
 
-    // ── Vega (keyless Bedwars stats) ─────────────────────────────────────
-    // NOT FILLED IN YET: the Vega docs page blocks automated fetching, so the
-    // endpoint and response format still need to be copied in from it.
-    // Everything around this (setting, fallback order, nick handling) is wired.
-    // To finish it: set VEGA_STATS_URL to the player-stats URL (use %s where
-    // the player name/UUID goes) and map the response in parseVega().
-    private static final String VEGA_STATS_URL = "";
+    // ── Bordic (keyless Bedwars stats) ───────────────────────────────────
+    // Same method Mellow (Roxiun/Mellow) uses: GET the Hypixel cache by UUID, no
+    // API key. The response is the normal Hypixel player JSON
+    // ({"success":true,"player":{...}}), so it goes through applyHypixelProfile()
+    // exactly like a real Hypixel API response. Raw responses are cached for
+    // 120s (successes only), like Mellow's BordicApi.
+    private static final String BORDIC_URL = "https://api.bordic.xyz/v3/cache/hypixel?uuid=";
+    private static final long BORDIC_CACHE_TTL_MS = 120_000L;
+    private final java.util.Map<String, Object[]> bordicCache = new java.util.HashMap<>();
 
-    private boolean isVegaEnabled() {
+    private boolean isBordicFallbackEnabled() {
         try {
             coralintel.module.modules.LobbyIntel lobbyIntel =
                     (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
-            return lobbyIntel != null && lobbyIntel.vegaFallback.getValue();
+            return lobbyIntel != null && lobbyIntel.bordicFallback.getValue();
         } catch (Exception e) {
             return false;
         }
     }
 
-    private boolean fetchVega(IntelPlayer player) {
-        if (VEGA_STATS_URL.isEmpty()) {
-            dbg("[Intel] Vega fallback enabled but VEGA_STATS_URL isn't set — skipping.");
-            return false;
-        }
-
+    private boolean isBordicPrimary() {
         try {
-            String json = get(String.format(VEGA_STATS_URL, player.name), null, null);
-            if (json == null) {
-                return false;
-            }
-
-            JsonObject root = new JsonParser().parse(json).getAsJsonObject();
-            return parseVega(root, player);
-        } catch (Exception exception) {
-            dbg("[Intel] Vega fetch failed for " + player.name + ": " + exception);
+            coralintel.module.modules.LobbyIntel lobbyIntel =
+                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
+            return lobbyIntel != null && lobbyIntel.bordicPrimary.getValue();
+        } catch (Exception e) {
             return false;
         }
     }
 
-    /** Map Vega's response onto the player (star, finalKills, finalDeaths, bedsBroken, bedsLost, kills, deaths, wins, losses, winstreak; then fkdr/wlr). */
-    private boolean parseVega(JsonObject root, IntelPlayer player) {
-        // TODO: fill in from the Vega docs' response format.
-        return false;
+    private boolean fetchBordic(IntelPlayer player) {
+        try {
+            String uuid = fetchAndCacheUuid(player.name);
+            if (uuid == null) {
+                return false;
+            }
+
+            String json = null;
+            synchronized (bordicCache) {
+                Object[] cached = bordicCache.get(uuid);
+                if (cached != null && System.currentTimeMillis() - (Long) cached[1] < BORDIC_CACHE_TTL_MS) {
+                    json = (String) cached[0];
+                }
+            }
+
+            if (json == null) {
+                json = get(BORDIC_URL + uuid, null, null);
+                if (json == null) {
+                    return false;
+                }
+            }
+
+            JsonObject root = new JsonParser().parse(json).getAsJsonObject();
+
+            if (!root.has("success") || !root.get("success").getAsBoolean()) {
+                return false;
+            }
+
+            if (!root.has("player") || !root.get("player").isJsonObject()) {
+                return false;
+            }
+
+            boolean ok = applyHypixelProfile(root.getAsJsonObject("player"), player);
+
+            if (ok) {
+                synchronized (bordicCache) {
+                    bordicCache.put(uuid, new Object[]{json, System.currentTimeMillis()});
+                }
+            }
+
+            return ok;
+        } catch (Exception exception) {
+            dbg("[Intel] Bordic fetch failed for " + player.name + ": " + exception);
+            return false;
+        }
     }
 
     private boolean fetchSlothpixel(IntelPlayer player) {
@@ -948,79 +988,86 @@ public class IntelManager {
                 return false;
             }
 
-            JsonObject profile = root.getAsJsonObject("player");
-
-            if (profile.has("networkExp")) {
-                double networkExp = profile.get("networkExp").getAsDouble();
-
-                player.level = (int) (
-                        (Math.sqrt(networkExp + 15312.5) - 88.38) / 35.35
-                );
-            }
-
-            JsonObject stats = profile.has("stats")
-                    ? profile.getAsJsonObject("stats")
-                    : null;
-
-            JsonObject bedwars = stats != null && stats.has("Bedwars")
-                    ? stats.getAsJsonObject("Bedwars")
-                    : null;
-
-            if (bedwars != null && bedwars.has("Experience")) {
-                player.star = getBedWarsLevelFromExp(
-                        bedwars.get("Experience").getAsInt()
-                );
-            } else {
-                JsonObject achievements = profile.has("achievements")
-                        ? profile.getAsJsonObject("achievements")
-                        : null;
-
-                player.star = achievements != null && achievements.has("bedwars_level")
-                        ? achievements.get("bedwars_level").getAsInt()
-                        : 0;
-            }
-
-            if (bedwars == null) {
-                // Account exists, but this player has hidden their Bedwars
-                // stats via Hypixel's API Settings — not the same as "not
-                // found". Whatever we already got (star, from achievements)
-                // stays; don't fall through to Slothpixel, since it proxies
-                // the same underlying data and would hit the identical
-                // privacy restriction.
-                player.statsHidden = true;
-                return true;
-            }
-
-            int finalKills = bwInt(bedwars, "final_kills_bedwars");
-            int rawFinalDeaths = bwInt(bedwars, "final_deaths_bedwars");
-
-            int finalDeaths = rawFinalDeaths;
-            if (finalDeaths == 0) finalDeaths = 1;
-
-            int wins = bwInt(bedwars, "wins_bedwars");
-            int rawLosses = bwInt(bedwars, "losses_bedwars");
-
-            int losses = rawLosses;
-            if (losses == 0) losses = 1;
-
-            player.finalKills = finalKills;
-            player.finalDeaths = rawFinalDeaths;
-            player.bedsBroken = bwInt(bedwars, "beds_broken_bedwars");
-            player.bedsLost = bwInt(bedwars, "beds_lost_bedwars");
-            player.kills = bwInt(bedwars, "kills_bedwars");
-            player.deaths = bwInt(bedwars, "deaths_bedwars");
-            player.wins = wins;
-            player.losses = rawLosses;
-            player.winstreak = bwInt(bedwars, "winstreak");
-            player.fkdr = (double) finalKills / finalDeaths;
-            player.wlr = (double) wins / losses;
-
-            return true;
+            return applyHypixelProfile(root.getAsJsonObject("player"), player);
         } catch (Exception ignored) {
             return false;
         }
     }
-        private int bwInt(JsonObject bedwars, String key) {
+
+    /**
+     * Maps a Hypixel-format player object (as returned by api.hypixel.net and by
+     * Bordic's Hypixel cache) onto the IntelPlayer. Shared by both sources.
+     */
+    private boolean applyHypixelProfile(JsonObject profile, IntelPlayer player) {
+        if (profile.has("networkExp")) {
+            double networkExp = profile.get("networkExp").getAsDouble();
+
+            player.level = (int) (
+                    (Math.sqrt(networkExp + 15312.5) - 88.38) / 35.35
+            );
+        }
+
+        JsonObject stats = profile.has("stats")
+                ? profile.getAsJsonObject("stats")
+                : null;
+
+        JsonObject bedwars = stats != null && stats.has("Bedwars")
+                ? stats.getAsJsonObject("Bedwars")
+                : null;
+
+        if (bedwars != null && bedwars.has("Experience")) {
+            player.star = getBedWarsLevelFromExp(
+                    bedwars.get("Experience").getAsInt()
+            );
+        } else {
+            JsonObject achievements = profile.has("achievements")
+                    ? profile.getAsJsonObject("achievements")
+                    : null;
+
+            player.star = achievements != null && achievements.has("bedwars_level")
+                    ? achievements.get("bedwars_level").getAsInt()
+                    : 0;
+        }
+
+        if (bedwars == null) {
+            // Account exists, but this player has hidden their Bedwars
+            // stats via Hypixel's API Settings — not the same as "not
+            // found". Whatever we already got (star, from achievements)
+            // stays; don't fall through to Slothpixel, since it proxies
+            // the same underlying data and would hit the identical
+            // privacy restriction.
+            player.statsHidden = true;
+            return true;
+        }
+
+        int finalKills = bwInt(bedwars, "final_kills_bedwars");
+        int rawFinalDeaths = bwInt(bedwars, "final_deaths_bedwars");
+
+        int finalDeaths = rawFinalDeaths;
+        if (finalDeaths == 0) finalDeaths = 1;
+
+        int wins = bwInt(bedwars, "wins_bedwars");
+        int rawLosses = bwInt(bedwars, "losses_bedwars");
+
+        int losses = rawLosses;
+        if (losses == 0) losses = 1;
+
+        player.finalKills = finalKills;
+        player.finalDeaths = rawFinalDeaths;
+        player.bedsBroken = bwInt(bedwars, "beds_broken_bedwars");
+        player.bedsLost = bwInt(bedwars, "beds_lost_bedwars");
+        player.kills = bwInt(bedwars, "kills_bedwars");
+        player.deaths = bwInt(bedwars, "deaths_bedwars");
+        player.wins = wins;
+        player.losses = rawLosses;
+        player.winstreak = bwInt(bedwars, "winstreak");
+        player.fkdr = (double) finalKills / finalDeaths;
+        player.wlr = (double) wins / losses;
+
+        return true;
+    }
+
+    private int bwInt(JsonObject bedwars, String key) {
         return bedwars.has(key) ? bedwars.get(key).getAsInt() : 0;
     }
 
