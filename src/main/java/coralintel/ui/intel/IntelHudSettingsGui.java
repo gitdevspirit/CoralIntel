@@ -37,6 +37,7 @@ public class IntelHudSettingsGui extends GuiScreen {
     private static final int S_BG_OP = 4;
     private static final int S_BORDER = 5;
     private static final int S_COLUMN_LINE = 6;
+    private static final int S_COLUMN_WIDTH = 7;
 
     private int scrollOffset = 0;
     private int maxScroll = 0;
@@ -106,6 +107,12 @@ public class IntelHudSettingsGui extends GuiScreen {
             case S_COLUMN_LINE:
                 hudOverlay.setColumnLineOpacity(
                         pixelToVal(mouseX, barX, barWidth, 0, 255)
+                );
+                break;
+
+            case S_COLUMN_WIDTH:
+                hudOverlay.setColumnWidthPercent(
+                        pixelToVal(mouseX, barX, barWidth, 100, 200)
                 );
                 break;
         }
@@ -262,6 +269,15 @@ public class IntelHudSettingsGui extends GuiScreen {
                 hudOverlay.getColumnLineOpacity(),
                 0, 255,
                 S_COLUMN_LINE,
+                mouseX, mouseY
+        );
+
+        y = slider(
+                innerX, y, innerWidth,
+                "Column Width %",
+                hudOverlay.getColumnWidthPercent(),
+                100, 200,
+                S_COLUMN_WIDTH,
                 mouseX, mouseY
         );
 
@@ -534,6 +550,9 @@ public class IntelHudSettingsGui extends GuiScreen {
         y += SLIDER_H;
 
         if (tryDrag(mouseX, mouseY, innerX, innerWidth, y, S_COLUMN_LINE, 255)) return;
+        y += SLIDER_H;
+
+        if (tryDrag(mouseX, mouseY, innerX, innerWidth, y, S_COLUMN_WIDTH, 200)) return;
         y += SLIDER_H;
 
         y += 6 + 12 + 16 + 20;
