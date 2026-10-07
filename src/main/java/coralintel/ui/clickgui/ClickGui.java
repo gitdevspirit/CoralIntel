@@ -8,6 +8,12 @@ import coralintel.module.Module;
 import coralintel.module.Setting;
 import coralintel.module.SliderSetting;
 import coralintel.module.modules.LobbyIntel;
+import coralintel.module.modules.PregameMessages;
+import coralintel.property.properties.TextProperty;
+import coralintel.command.CommandManager;
+import coralintel.config.Config;
+import coralintel.util.ChatUtil;
+import net.minecraft.util.ChatAllowedCharacters;
 import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
 import net.minecraft.client.gui.GuiScreen;
@@ -85,6 +91,12 @@ public class ClickGui extends GuiScreen {
         }
 
         panels.put(BLACKLIST_SAFELIST, new PanelState(startX, startY));
+    }
+
+    @Override
+    public void onGuiClosed() {
+        commitEdit(); // don't lose a half-finished edit when the GUI closes
+        super.onGuiClosed();
     }
 
     @Override
@@ -220,6 +232,103 @@ public class ClickGui extends GuiScreen {
                     live.blacklistReason = null;
                     live.computeThreat();
                 }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // ── Editable text rows (pregame messages) ───────────────────────────────
+    // Rows are rebuilt every frame, so the in-progress edit lives here on the
+    // screen, not on the row. Click a box to edit; Enter or clicking away
+    // saves (and writes the config file); Esc cancels.
+
+    private TextProperty editingText = null;
+    private final StringBuilder editBuffer = new StringBuilder();
+
+    private void startEditing(TextProperty property) {
+        commitEdit();
+        editingText = property;
+        editBuffer.setLength(0);
+        String current = property.getValue();
+        editBuffer.append(current == null ? "" : current);
+    }
+
+    private void commitEdit() {
+        if (editingText == null) return;
+
+        TextProperty property = editingText;
+        editingText = null;
+        String text = editBuffer.toString().trim();
+
+        // A leading "." would be run as a client command instead of sent.
+        if (text.startsWith(CommandManager.PREFIX)) {
+            ChatUtil.sendFormatted("&cA pregame message can't start with \".\" \u2014 it would be run as a command.");
+            return;
+        }
+
+        if (text.equals(property.getValue())) return;
+
+        property.setValue(text);
+        String name = Config.lastConfig != null ? Config.lastConfig : "default";
+        new Config(name, false).save();
+    }
+
+    private class TextRow extends Row {
+        final String label;
+        final TextProperty property;
+
+        TextRow(String label, TextProperty property) {
+            this.label = label;
+            this.property = property;
+            this.h = 34;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            boolean editing = editingText == property;
+            int boxY = y + 11;
+            int boxH = 18;
+            boolean hovered = hit(mouseX, mouseY, x, boxY, w, boxH);
+
+            mc.fontRendererObj.drawString(label, x, y, editing ? ACCENT : TEXT_DIM, false);
+
+            RoundedUtils.drawRoundedRect(x, boxY, w, boxH, 3, hovered || editing ? 0x33FFFFFF : 0x1AFFFFFF);
+            RoundedUtils.drawRoundedOutline(x, boxY, w, boxH, 3, 1f,
+                    editing ? ACCENT : (hovered ? 0x88FFFFFF : 0x55FFFFFF));
+
+            int maxW = w - 10;
+            String shown;
+            int color;
+
+            if (editing) {
+                // Keep the END of the text visible while typing, plus a blinking cursor.
+                shown = editBuffer.toString();
+                while (shown.length() > 0 && mc.fontRendererObj.getStringWidth(shown + "_") > maxW) {
+                    shown = shown.substring(1);
+                }
+                shown += (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
+                color = TEXT_ON;
+            } else {
+                String value = property.getValue() == null ? "" : property.getValue();
+                if (value.isEmpty()) {
+                    shown = "(empty \u2014 skipped)";
+                    color = TEXT_DIM;
+                } else {
+                    shown = value;
+                    while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown + "\u2026") > maxW) {
+                        shown = shown.substring(0, shown.length() - 1);
+                    }
+                    if (!shown.equals(value)) shown += "\u2026";
+                    color = TEXT_ON;
+                }
+            }
+
+            mc.fontRendererObj.drawString(shown, x + 5, boxY + 5, color, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, x, y + 11, w, 18)) {
+                startEditing(property);
                 return true;
             }
             return false;
@@ -500,6 +609,15 @@ public class ClickGui extends GuiScreen {
             rows.addAll(notificationRows());
         }
 
+        if (module instanceof PregameMessages) {
+            PregameMessages pgm = (PregameMessages) module;
+            rows.add(new SectionLabelRow("MESSAGES (sent 3s apart at 10s)"));
+            rows.add(new TextRow("Message 1", pgm.message1));
+            rows.add(new TextRow("Message 2", pgm.message2));
+            rows.add(new TextRow("Message 3", pgm.message3));
+            rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
+        }
+
         return rows;
     }
 
@@ -654,6 +772,10 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
+        // Clicking anywhere saves an in-progress text edit; clicking a text
+        // box then re-opens it for editing via TextRow.click().
+        commitEdit();
+
         if (button == 0) {
             for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
                 PanelState state = entry.getValue();
@@ -758,6 +880,24 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (editingText != null) {
+            if (keyCode == 1) {                      // Esc: cancel the edit, keep the GUI open
+                editingText = null;
+            } else if (keyCode == 28 || keyCode == 156) { // Enter / numpad Enter: save
+                commitEdit();
+            } else if (keyCode == 14) {              // Backspace
+                if (editBuffer.length() > 0) editBuffer.deleteCharAt(editBuffer.length() - 1);
+            } else if (isKeyComboCtrlV(keyCode)) {   // Ctrl+V
+                String clip = ChatAllowedCharacters.filterAllowedCharacters(getClipboardString());
+                int room = PregameMessages.MAX_LENGTH - editBuffer.length();
+                if (room > 0) editBuffer.append(clip, 0, Math.min(room, clip.length()));
+            } else if (ChatAllowedCharacters.isAllowedCharacter(typedChar)
+                    && editBuffer.length() < PregameMessages.MAX_LENGTH) {
+                editBuffer.append(typedChar);
+            }
+            return;
+        }
+
         if (listeningKeybind != null) {
             // ESC cancels the rebind instead of closing the GUI.
             if (keyCode == 1) listeningKeybind.cancelListening();
