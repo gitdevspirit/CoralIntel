@@ -528,8 +528,20 @@ public abstract class MixinGuiPlayerTabOverlay {
         }
 
         char colorChar = colorPrefix.charAt(1);
-        String stripped = vanillaName.replaceFirst("^(§[0-9a-fk-or])+", "");
-        return "§" + colorChar + stripped;
+        String teamCode = "\u00A7" + colorChar;
+
+        // Color the player's NAME by team and leave the rank prefix alone, so
+        // "[MVP+] Steve" keeps its rank colors but "Steve" is team colored.
+        String playerName = info.getGameProfile().getName();
+        int nameAt = playerName == null ? -1 : vanillaName.lastIndexOf(playerName);
+        if (nameAt >= 0) {
+            return vanillaName.substring(0, nameAt)
+                    + teamCode + playerName
+                    + vanillaName.substring(nameAt + playerName.length());
+        }
+
+        String stripped = vanillaName.replaceFirst("^(\u00A7[0-9a-fk-or])+", "");
+        return teamCode + stripped;
     }
 
     private String fmt(double value) {
