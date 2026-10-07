@@ -10,6 +10,7 @@ import coralintel.module.SliderSetting;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import coralintel.util.ColorUtil;
+import coralintel.util.PrestigeUtil;
 import coralintel.util.RenderUtil;
 import coralintel.util.TeamUtil;
 import net.minecraft.client.Minecraft;
@@ -269,82 +270,34 @@ public class BedwarsTag extends Module {
         return coralintel.ui.intel.IntelColors.getStatColor(intel.fkdr, 3, 6);
     }
 
-    // Returns [starText, name, urchinTag] — rendered separately with different colors
+    // Returns [starText, name, tag] — rendered separately. The star text carries
+    // its own per-character prestige color codes (PrestigeUtil / Nevada table).
     private String[] buildParts(IntelPlayer intel, String playerName) {
-        String star   = (intel == null || intel.loading) ? "?☆" : intel.star + "☆";
-        String name   = playerName;
-        String urchin = "";
+        String star = (intel == null || intel.loading)
+                ? "\u00A77[?\u272B]"
+                : PrestigeUtil.format(intel.star);
+        String tag = "";
 
-        if (intel != null && !intel.loading && intel.isNicked) {
-            urchin = "N"; // nicked
-        } else if (intel != null && !intel.loading && intel.cheater && intel.urchinType != null) {
-            if      (intel.urchinType.contains("blatant"))   urchin = "BC";
-            else if (intel.urchinType.contains("confirmed")) urchin = "CC";
-            else if (intel.urchinType.contains("sniper"))    urchin = "S";
-            else                                              urchin = "C";
+        if (intel != null && !intel.loading) {
+            if (intel.isNicked) {
+                tag = "NICK";
+            } else {
+                // Single source of truth: B / BC / CCC (confirmed cheater) /
+                // CC (closet cheater) / S / R — same labels as tab, HUD, GUI, .bw.
+                tag = intel.getTagBadge();
+            }
         }
 
-        return new String[]{ star, name, urchin };
+        return new String[]{ star, playerName, tag };
     }
 
     private int getStarColor(IntelPlayer intel) {
-        if (intel == null || intel.loading) return 0xFFAAAAAA;
-        return prestigeColor(intel.star);
+        return 0xFFFFFFFF; // real colors come from the §-codes in the star text
     }
 
     private int getUrchinColor(IntelPlayer intel) {
         if (intel == null) return 0xFFFF8844;
-        if (intel.isNicked) return 0xFFFF4444; // red for nick
-        if (intel.urchinType == null) return 0xFFFF8844;
-        if (intel.urchinType.contains("blatant"))   return 0xFFFF3344;
-        if (intel.urchinType.contains("confirmed")) return 0xFFDD44DD;
-        if (intel.urchinType.contains("sniper"))    return 0xFFFF1122;
-        return 0xFFFF8844;
-    }
-
-    private int prestigeColor(int s) {
-        if (s < 100)  return 0xFFAAAAAA;
-        if (s < 200)  return 0xFFFFFFFF;
-        if (s < 300)  return 0xFFFFAA00;
-        if (s < 400)  return 0xFF55FFFF;
-        if (s < 500)  return 0xFF55FF55;
-        if (s < 600)  return 0xFF55FFFF;
-        if (s < 700)  return 0xFFFF5555;
-        if (s < 800)  return 0xFFFF55FF;
-        if (s < 900)  return 0xFF5555FF;
-        if (s < 1000) return 0xFFAA00AA;
-        if (s < 1100) return 0xFFFFAA00;
-        if (s < 2000) return 0xFFAAAAAA;
-        if (s < 2100) return 0xFFFFAA00;
-        if (s < 2200) return 0xFFFFAA00;
-        if (s < 2300) return 0xFFFF55FF;
-        if (s < 2400) return 0xFF00AAAA;
-        if (s < 2500) return 0xFFFFFFFF;
-        if (s < 2600) return 0xFFFF5555;
-        if (s < 2700) return 0xFFFFFF55;
-        if (s < 2800) return 0xFF55FF55;
-        if (s < 2900) return 0xFF55FFFF;
-        if (s < 3000) return 0xFFFFAA00;
-        if (s < 3100) return 0xFFFFAA00;
-        if (s < 3200) return 0xFF5555FF;
-        if (s < 3300) return 0xFFFF5555;
-        if (s < 3400) return 0xFFAA0000;
-        if (s < 3500) return 0xFF55FFFF;
-        if (s < 3600) return 0xFF55FFFF;
-        if (s < 3700) return 0xFF55FF55;
-        if (s < 3800) return 0xFFFF7700;
-        if (s < 3900) return 0xFF0000AA;
-        if (s < 4000) return 0xFFFF5577;
-        if (s < 4100) return 0xFF55FF55;
-        if (s < 4200) return 0xFFFFFF55;
-        if (s < 4300) return 0xFF0000AA;
-        if (s < 4400) return 0xFF333333;
-        if (s < 4500) return 0xFFFF55FF;
-        if (s < 4600) return 0xFFFFFFFF;
-        if (s < 4700) return 0xFF55FFFF;
-        if (s < 4800) return 0xFFAAFFFF;
-        if (s < 4900) return 0xFFAA00AA;
-        if (s < 5000) return 0xFFFF5555;
-        return 0xFF5555FF;
+        if (intel.isNicked) return 0xFFAA00AA; // dark purple, matches the tab [NICK] tag
+        return intel.getTagColor();
     }
 }
