@@ -276,7 +276,8 @@ public class IntelGui extends GuiScreen {
         mc.fontRendererObj.drawString(namePrefix + p.name, nameX, cy + 8, nameCol, false);
 
         // Star below name — uses the Bedwars star count (not network level)
-        String lvlStr = p.loading ? "loading\u2026" : "\u2605 " + p.star;
+        String lvlStr = p.loading ? "loading\u2026"
+                : (p.isNicked ? "\u00A75[NICK]" : coralintel.util.PrestigeUtil.format(p.star));
         mc.fontRendererObj.drawString(
                 lvlStr, nameX, cy + 19,
                 p.loading ? COL_DIM : IntelColors.getPrestigeColor(p.star),
@@ -373,7 +374,8 @@ public class IntelGui extends GuiScreen {
         GlStateManager.popMatrix();
 
         // Star + team
-        String sub = "\u2605 " + p.star + (p.team != null ? "   [" + p.team + "]" : "");
+        String sub = (p.isNicked ? "\u00A75[NICK]" : coralintel.util.PrestigeUtil.format(p.star))
+                + (p.team != null ? "   \u00A77[" + p.team + "]" : "");
         mc.fontRendererObj.drawString(sub, x + 44f, y + 22f, IntelColors.getPrestigeColor(p.star), false);
         y += 48;
 
