@@ -3,6 +3,8 @@ package coralintel;
 import coralintel.command.CommandManager;
 import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
+import coralintel.command.commands.QueueCommand;
+import coralintel.command.commands.PregameMessageCommand;
 import coralintel.command.commands.BindCommand;
 import coralintel.command.commands.BlacklistCommand;
 import coralintel.command.commands.ConfigCommand;
@@ -23,6 +25,7 @@ import coralintel.module.ModuleManager;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.BedwarsTag;
 import coralintel.module.modules.AntiCheat;
+import coralintel.module.modules.PregameMessages;
 import coralintel.render.RenderEventBridge;
 import net.minecraftforge.common.MinecraftForge;
 import coralintel.property.Property;
@@ -68,6 +71,10 @@ public class CoralIntel {
         commandManager.register(new IntelPathCommand());
         commandManager.register(new RoleCommand());
         commandManager.register(new BedwarsStatsCommand());
+        commandManager.register(new QueueCommand());
+        commandManager.register(new PregameMessageCommand(1));
+        commandManager.register(new PregameMessageCommand(2));
+        commandManager.register(new PregameMessageCommand(3));
         commandManager.register(new BlacklistCommand());
         commandManager.register(new ConfigCommand());
         commandManager.register(new SafelistCommand());
@@ -81,6 +88,7 @@ public class CoralIntel {
         moduleManager.modules.put(LobbyIntel.class, new LobbyIntel());
         moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
         moduleManager.modules.put(AntiCheat.class, new AntiCheat());
+        moduleManager.modules.put(PregameMessages.class, new PregameMessages());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
