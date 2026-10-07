@@ -675,13 +675,63 @@ public class IntelManager {
             gotStats = fetchHypixelApi(player);
         }
 
-        // A nicked player's name can coincide with a real account's, so don't
-        // let the by-name Slothpixel fallback attach that stranger's stats.
+        // Fallback chain once the Hypixel API path fails (no key, invalid key,
+        // rate limited...): Vega (keyless, opt-in) -> Slothpixel (keyless).
+        // Skipped for nicked players: a nick's name can coincide with a real
+        // account's, so a by-name lookup would attach that stranger's stats.
+        if (!gotStats && !player.isNicked && isVegaEnabled()) {
+            gotStats = fetchVega(player);
+        }
+
         if (!gotStats && !player.isNicked) {
             fetchSlothpixel(player);
         }
 
         player.loading = false;
+    }
+
+    // ── Vega (keyless Bedwars stats) ─────────────────────────────────────
+    // NOT FILLED IN YET: the Vega docs page blocks automated fetching, so the
+    // endpoint and response format still need to be copied in from it.
+    // Everything around this (setting, fallback order, nick handling) is wired.
+    // To finish it: set VEGA_STATS_URL to the player-stats URL (use %s where
+    // the player name/UUID goes) and map the response in parseVega().
+    private static final String VEGA_STATS_URL = "";
+
+    private boolean isVegaEnabled() {
+        try {
+            coralintel.module.modules.LobbyIntel lobbyIntel =
+                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
+            return lobbyIntel != null && lobbyIntel.vegaFallback.getValue();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean fetchVega(IntelPlayer player) {
+        if (VEGA_STATS_URL.isEmpty()) {
+            dbg("[Intel] Vega fallback enabled but VEGA_STATS_URL isn't set — skipping.");
+            return false;
+        }
+
+        try {
+            String json = get(String.format(VEGA_STATS_URL, player.name), null, null);
+            if (json == null) {
+                return false;
+            }
+
+            JsonObject root = new JsonParser().parse(json).getAsJsonObject();
+            return parseVega(root, player);
+        } catch (Exception exception) {
+            dbg("[Intel] Vega fetch failed for " + player.name + ": " + exception);
+            return false;
+        }
+    }
+
+    /** Map Vega's response onto the player (star, finalKills, finalDeaths, bedsBroken, bedsLost, kills, deaths, wins, losses, winstreak; then fkdr/wlr). */
+    private boolean parseVega(JsonObject root, IntelPlayer player) {
+        // TODO: fill in from the Vega docs' response format.
+        return false;
     }
 
     private boolean fetchSlothpixel(IntelPlayer player) {
