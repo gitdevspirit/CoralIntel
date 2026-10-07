@@ -566,6 +566,7 @@ public class ClickGui extends GuiScreen {
         rows.add(new SliderRow("Background Opacity", hud::getBgOpacity, hud::setBgOpacity, 0, 255));
         rows.add(new SliderRow("Border Opacity", hud::getBorderOpacity, hud::setBorderOpacity, 0, 255));
         rows.add(new SliderRow("Column Line Opacity", hud::getColumnLineOpacity, hud::setColumnLineOpacity, 0, 255));
+        rows.add(new SliderRow("Column Width %", hud::getColumnWidthPercent, hud::setColumnWidthPercent, 100, 200));
         rows.add(new ToggleRow("Player Heads", hud::getShowHeads, hud::setShowHeads));
         rows.add(new ToggleRow("Star", hud::getShowStar, hud::setShowStar));
         rows.add(new ToggleRow("Network Level", hud::getShowLevel, hud::setShowLevel));
