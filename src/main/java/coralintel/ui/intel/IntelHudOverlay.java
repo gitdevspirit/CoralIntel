@@ -27,6 +27,8 @@ public class IntelHudOverlay {
 
     private int bgOpacity = 200;
     private int borderOpacity = 100;
+    /** Stat column width as a percentage of the default (100 = original widths). NAME stays fixed. */
+    private int columnWidthPercent = 100;
     private int columnLineOpacity = 26; // matches the original hardcoded 0x1A alpha
     private int bgColorRgb = 0x07070E;
     private int borderColorRgb = 0xFFFFFF;
@@ -124,6 +126,19 @@ public class IntelHudOverlay {
 
     public void setBorderOpacity(int opacity) {
         this.borderOpacity = Math.max(0, Math.min(255, opacity));
+    }
+
+    public void setColumnWidthPercent(int percent) {
+        this.columnWidthPercent = Math.max(100, Math.min(200, percent));
+    }
+
+    public int getColumnWidthPercent() {
+        return columnWidthPercent;
+    }
+
+    /** Scales a default stat-column width by the Column Width setting. */
+    private int cw(int base) {
+        return Math.round(base * columnWidthPercent / 100f);
     }
 
     public void setColumnLineOpacity(int opacity) {
@@ -365,49 +380,49 @@ public class IntelHudOverlay {
 
         if (showStar) {
             int headerWidth = mc.fontRendererObj.getStringWidth("✫");
-            drawText("✫", x + (35 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 35;
+            drawText("✫", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showLevel) {
             int headerWidth = mc.fontRendererObj.getStringWidth("LVL");
-            drawText("LVL", x + (35 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 35;
+            drawText("LVL", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showFkdr) {
             int headerWidth = mc.fontRendererObj.getStringWidth("FKDR");
-            drawText("FKDR", x + (40 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 40;
+            drawText("FKDR", x + (cw(40) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(40);
             columnBoundaries.add(x);
         }
 
         if (showWlr) {
             int headerWidth = mc.fontRendererObj.getStringWidth("WLR");
-            drawText("WLR", x + (35 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 35;
+            drawText("WLR", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showStreak) {
             int headerWidth = mc.fontRendererObj.getStringWidth("WS");
-            drawText("WS", x + (30 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 30;
+            drawText("WS", x + (cw(30) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(30);
             columnBoundaries.add(x);
         }
 
         if (showUrchin) {
             int headerWidth = mc.fontRendererObj.getStringWidth("TAGS");
-            drawText("TAGS", x + (35 - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += 35;
+            drawText("TAGS", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showThreat) {
             int headerWidth = mc.fontRendererObj.getStringWidth("THREAT");
-            drawText("THREAT", x + (45 - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("THREAT", x + (cw(45) - headerWidth) / 2, headerY, 0xFFFFFFFF);
         }
 
         // Column separator lines, spanning the content area below the header.
@@ -444,13 +459,13 @@ public class IntelHudOverlay {
 
         width += 120;
 
-        if (showStar) width += 35;
-        if (showLevel) width += 35;
-        if (showFkdr) width += 40;
-        if (showWlr) width += 35;
-        if (showStreak) width += 30;
-        if (showUrchin) width += 35;
-        if (showThreat) width += 45;
+        if (showStar) width += cw(35);
+        if (showLevel) width += cw(35);
+        if (showFkdr) width += cw(40);
+        if (showWlr) width += cw(35);
+        if (showStreak) width += cw(30);
+        if (showUrchin) width += cw(35);
+        if (showThreat) width += cw(45);
 
         return width;
     }
@@ -498,8 +513,8 @@ public class IntelHudOverlay {
             int color = player.loading ? TEXT_DIM : getPrestigeColor(player.star);
             int textWidth = mc.fontRendererObj.getStringWidth(text);
 
-            drawText(text, currentX + (35 - textWidth) / 2, y + 4, color);
-            currentX += 35;
+            drawText(text, currentX + (cw(35) - textWidth) / 2, y + 4, color);
+            currentX += cw(35);
         }
 
         if (showLevel) {
@@ -508,12 +523,12 @@ public class IntelHudOverlay {
 
             drawText(
                     text,
-                    currentX + (35 - textWidth) / 2,
+                    currentX + (cw(35) - textWidth) / 2,
                     y + 4,
                     player.loading ? TEXT_DIM : 0xFFFFFFFF
             );
 
-            currentX += 35;
+            currentX += cw(35);
         }
 
         if (showFkdr) {
@@ -526,8 +541,8 @@ public class IntelHudOverlay {
                     : getStatColor(player.fkdr, 3.0, 6.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (40 - textWidth) / 2, y + 4, color);
-            currentX += 40;
+            drawText(text, currentX + (cw(40) - textWidth) / 2, y + 4, color);
+            currentX += cw(40);
         }
 
         if (showWlr) {
@@ -540,8 +555,8 @@ public class IntelHudOverlay {
                     : getStatColor(player.wlr, 2.0, 4.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (35 - textWidth) / 2, y + 4, color);
-            currentX += 35;
+            drawText(text, currentX + (cw(35) - textWidth) / 2, y + 4, color);
+            currentX += cw(35);
         }
 
         if (showStreak) {
@@ -558,8 +573,8 @@ public class IntelHudOverlay {
                                     : TEXT_DIM;
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (30 - textWidth) / 2, y + 4, color);
-            currentX += 30;
+            drawText(text, currentX + (cw(30) - textWidth) / 2, y + 4, color);
+            currentX += cw(30);
         }
 
         if (showUrchin) {
@@ -613,13 +628,13 @@ public class IntelHudOverlay {
                 int textWidth = mc.fontRendererObj.getStringWidth(displayText);
                 drawText(
                         displayText,
-                        currentX + (35 - textWidth) / 2,
+                        currentX + (cw(35) - textWidth) / 2,
                         y + 4,
                         displayColor
                 );
             }
 
-            currentX += 35;
+            currentX += cw(35);
         }
 
         if (showThreat) {
@@ -631,7 +646,7 @@ public class IntelHudOverlay {
 
             drawText(
                     text,
-                    currentX + (45 - textWidth) / 2,
+                    currentX + (cw(45) - textWidth) / 2,
                     y + 4,
                     player.loading ? TEXT_DIM : getThreatColor((int) player.threatScore)
             );
