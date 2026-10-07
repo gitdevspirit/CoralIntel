@@ -5,6 +5,7 @@ import coralintel.module.modules.LobbyIntel;
 import coralintel.ui.intel.IntelColors;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
+import coralintel.util.PrestigeUtil;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiPlayerTabOverlay;
 import net.minecraft.client.network.NetworkPlayerInfo;
@@ -126,6 +127,15 @@ public abstract class MixinGuiPlayerTabOverlay {
             return coloredName;
         }
 
+        // Nicked players have no real stats — show a [NICK] tag in the tab
+        // list instead of a meaningless 0-star badge and zeroed stats.
+        if (player.isNicked && lobbyIntel.tabShowNick.getValue()) {
+            if (lobbyIntel.seraphStyle.getValue()) {
+                return fitPixelsLeft(coloredName, NAME_COL_WIDTH) + buildSeraphNickSuffix(info, lobbyIntel);
+            }
+            return NICK_TAG + coloredName;
+        }
+
         String prefix = "";
         String stats;
         if (lobbyIntel.seraphStyle.getValue()) {
@@ -141,6 +151,32 @@ public abstract class MixinGuiPlayerTabOverlay {
         return prefix + coloredName + stats;
     }
 
+    private static final String NICK_TAG = "\u00A75[NICK] ";
+
+    /** Seraph-style row for a nicked player: HP (if enabled), then NICK in the Tags column, other columns blank. */
+    private String buildSeraphNickSuffix(NetworkPlayerInfo info, LobbyIntel intel) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        StringBuilder stats = new StringBuilder("  ");
+
+        if (intel.tabShowHp.getValue()) {
+            String hpStr = "-";
+            if (mc.theWorld != null && info.getGameProfile().getId() != null) {
+                net.minecraft.entity.player.EntityPlayer entity =
+                        mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
+                if (entity != null) {
+                    hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
+                }
+            }
+            stats.append("\u00A7f").append(padPixelsCenter(hpStr, HP_COL_WIDTH)).append(" ");
+        }
+
+        stats.append(padPixelsCenter("", STAR_COL_WIDTH)).append(" ");
+        stats.append(padPixelsCenter("", FKDR_COL_WIDTH)).append(" ");
+        stats.append(padPixelsCenter("", WLR_COL_WIDTH)).append(" ");
+        stats.append("\u00A75").append(padPixelsCenter("NICK", TAGS_COL_WIDTH));
+        return stats.toString();
+    }
+
     /**
      * Star + cheater-tag badge — rendered to the LEFT of the player's name
      * in the default (non-Seraph) tab format.
@@ -150,8 +186,8 @@ public abstract class MixinGuiPlayerTabOverlay {
         boolean wroteAny = false;
 
         if (intel.tabShowStar.getValue()) {
-            String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
-            prefix.append("§8[").append(starCode).append("\u272A").append(player.star).append("§8] ");
+            // Full per-character prestige color + glyph (Nevada table): "[1234✪]"
+            prefix.append(PrestigeUtil.format(player.star)).append("\u00A7r ");
             wroteAny = true;
         }
 
@@ -304,7 +340,6 @@ public abstract class MixinGuiPlayerTabOverlay {
             stats.append("§f").append(padPixelsCenter(hpStr, HP_COL_WIDTH)).append(" ");
         }
 
-        String starCode = IntelColors.nearestCode(IntelColors.getPrestigeColor(player.star));
         // Splitting the glyph and the number into their own fixed-width
         // sub-slots (instead of centering "✩19" as one glued unit) fixes a
         // real remaining issue: a 2-digit number pushes more content after
@@ -318,11 +353,13 @@ public abstract class MixinGuiPlayerTabOverlay {
         // centering both the icon AND the number in their own sub-slots —
         // that stacked padding from both sides of each and created a big
         // artificial gap in the middle instead of a tight icon+number pair.
-        String starIcon = "\u272A";
+        String starIcon = PrestigeUtil.glyphColored(player.star);
         int starIconWidth = mc.fontRendererObj.getStringWidth(starIcon) + 1;
         int starNumWidth = Math.max(10, STAR_COL_WIDTH - starIconWidth);
-        stats.append(starCode).append(starIcon);
-        stats.append(padPixels(String.valueOf(player.star), starNumWidth)).append(" ");
+        stats.append(starIcon);
+        // padPixels measures with getStringWidth (ignores § codes), so the
+        // multi-color number lines up exactly like the plain one did.
+        stats.append(padPixels(PrestigeUtil.number(player.star), starNumWidth)).append("\u00A7r ");
 
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
         stats.append(fkdrCode).append(padPixelsCenter(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
