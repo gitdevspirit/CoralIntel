@@ -671,7 +671,7 @@ public class IntelManager {
     private void fetchHypixel(IntelPlayer player) {
         boolean gotStats = false;
 
-        if (!hypixelApiKey.isEmpty()) {
+        if (isBordicEnabled() || !hypixelApiKey.isEmpty()) {
             gotStats = fetchHypixelApi(player);
         }
 
@@ -697,6 +697,16 @@ public class IntelManager {
     // To finish it: set VEGA_STATS_URL to the player-stats URL (use %s where
     // the player name/UUID goes) and map the response in parseVega().
     private static final String VEGA_STATS_URL = "";
+
+    private boolean isBordicEnabled() {
+        try {
+            coralintel.module.modules.LobbyIntel lobbyIntel =
+                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
+            return lobbyIntel != null && lobbyIntel.useBordic.getValue();
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private boolean isVegaEnabled() {
         try {
@@ -852,11 +862,10 @@ public class IntelManager {
 
             String json;
             try {
-                json = get(
-                        "https://api.hypixel.net/v2/player?uuid=" + uuid,
-                        "API-Key",
-                        hypixelApiKey
-                );
+                // Bordic's cache serves the same JSON as Hypixel's /v2/player, without a key
+                json = isBordicEnabled()
+                        ? get("https://api.bordic.xyz/v3/cache/hypixel?uuid=" + uuid, null, null)
+                        : get("https://api.hypixel.net/v2/player?uuid=" + uuid, "API-Key", hypixelApiKey);
             } catch (RateLimitedException e) {
                 // Extra backoff on top of the normal spacing — push the next
                 // request further out so we don't immediately hit the limit
