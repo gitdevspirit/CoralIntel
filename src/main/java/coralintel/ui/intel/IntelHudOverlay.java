@@ -3,6 +3,7 @@ package coralintel.ui.intel;
 import coralintel.CoralIntel;
 import coralintel.ui.clickgui.GuiColors;
 import coralintel.ui.clickgui.RoundedUtils;
+import coralintel.util.PrestigeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.network.NetworkPlayerInfo;
@@ -467,7 +468,9 @@ public class IntelHudOverlay {
         currentX += 120;
 
         if (showStar) {
-            String text = player.loading ? "-" : "✫" + player.star;
+            // Per-character prestige colors from PrestigeUtil (Nevada table);
+            // the embedded §-codes override the base color below.
+            String text = player.loading ? "-" : PrestigeUtil.formatCompact(player.star);
             int color = player.loading ? TEXT_DIM : getPrestigeColor(player.star);
             int textWidth = mc.fontRendererObj.getStringWidth(text);
 
@@ -539,7 +542,10 @@ public class IntelHudOverlay {
             String displayText = "";
             int displayColor = TEXT_DIM;
 
-            if (player.cheater || player.blacklisted) {
+            if (player.isNicked && !player.loading) {
+                displayText = "NICK";
+                displayColor = 0xFFAA00AA;
+            } else if (player.cheater || player.blacklisted) {
                 displayText = player.getTagBadge();
                 displayColor = player.getTagColor();
             }
