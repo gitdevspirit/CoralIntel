@@ -57,6 +57,81 @@ public class IntelManager {
         }
     }
 
+    /** After this many fetch rounds with no usable stats, a player's stats are just set to 0. */
+    public static final int MAX_FETCH_ATTEMPTS = 3;
+
+    private static boolean hasNoStats(IntelPlayer p) {
+        return p.star == 0 && p.finalKills == 0 && p.wins == 0 && p.fkdr == 0 && p.wlr == 0;
+    }
+
+    /**
+     * One fetch round for a player, with attempt tracking. A round that throws
+     * or finishes with no stats counts as an attempt; on the 3rd the stats are
+     * zeroed and the player is marked final so nothing reloads them again.
+     */
+    private void runStatsFetch(IntelPlayer p) {
+        try {
+            fetchHypixel(p);
+            p.computeThreat();
+            p.statsFetchFailed = false;
+        } catch (Exception exception) {
+            p.loading = false;
+            p.statsFetchFailed = true;
+            dbg("[Intel] stats fetch failed for " + p.name + ": " + exception);
+        }
+
+        if (p.statsSkipped) {
+            p.loading = true; // keep the "skipped" look even if a fetch was in flight
+            return;
+        }
+
+        // "No stats" is the correct, stable answer for these — nothing to retry.
+        if (p.isNicked || p.statsHidden) {
+            p.statsFinal = true;
+            return;
+        }
+
+        if (!p.statsFetchFailed && !hasNoStats(p)) {
+            p.statsFinal = true; // fully loaded
+            return;
+        }
+
+        p.fetchAttempts++;
+        if (p.fetchAttempts >= MAX_FETCH_ATTEMPTS) {
+            p.star = 0; p.level = 0; p.fkdr = 0; p.wlr = 0; p.winstreak = 0;
+            p.finalKills = 0; p.finalDeaths = 0; p.bedsBroken = 0; p.bedsLost = 0;
+            p.kills = 0; p.deaths = 0; p.wins = 0; p.losses = 0;
+            p.loading = false;
+            p.statsFetchFailed = false;
+            p.statsFinal = true;
+            p.computeThreat();
+            dbg("[Intel] " + p.name + " returned no stats " + p.fetchAttempts + " times — stats set to 0.");
+        }
+    }
+
+    private boolean isSkipSelfEnabled() {
+        try {
+            coralintel.module.modules.LobbyIntel lobbyIntel =
+                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
+            return lobbyIntel != null && lobbyIntel.skipSelfStats.getValue();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Mellow's nick check: real accounts have version-4 UUIDs; a nick's tab UUID is version 1. */
+    private static boolean isNickUuid(java.util.UUID uuid) {
+        return uuid != null && uuid.version() == 1;
+    }
+
+    private void markNicked(IntelPlayer p) {
+        p.isNicked = true;
+        p.loading = false;
+        p.statsFetchFailed = false;
+        p.statsFinal = true;
+        p.computeThreat();
+    }
+
     /**
      * Re-attempts the stats fetch for anyone still showing no data — covers
      * both explicit fetch failures (network hiccup, timeout) and the quieter
@@ -67,7 +142,10 @@ public class IntelManager {
      */
     public void retryFailedFetches() {
         for (IntelPlayer player : combined()) {
-            if (player.loading || player.statsHidden || player.isNicked) {
+            // statsFinal covers loaded / hidden / nicked / gave-up-after-3 —
+            // only players that are NOT fully loaded ever get re-fetched.
+            if (player.loading || player.statsFinal || player.statsSkipped
+                    || player.statsHidden || player.isNicked) {
                 continue;
             }
 
@@ -82,13 +160,7 @@ public class IntelManager {
 
             pool.submit(() -> {
                 try {
-                    fetchHypixel(player);
-                    player.computeThreat();
-                    player.statsFetchFailed = false;
-                } catch (Exception exception) {
-                    player.loading = false;
-                    player.statsFetchFailed = true;
-                    dbg("[Intel] retry failed for " + player.name + ": " + exception);
+                    runStatsFetch(player);
                 } finally {
                     pushUpdate();
                 }
@@ -299,14 +371,7 @@ public class IntelManager {
 
         pool.submit(() -> {
             try {
-                fetchHypixel(player);
-                player.computeThreat();
-                player.statsFetchFailed = false;
-            } catch (Exception exception) {
-                player.loading = false;
-                player.statsFetchFailed = true;
-                dbg("[Intel] stats fetch failed for " + player.name
-                        + ": " + exception);
+                runStatsFetch(player);
             } finally {
                 pushUpdate();
             }
@@ -416,13 +481,40 @@ public class IntelManager {
             String team = detectTeam(info);
             IntelPlayer existing = existingByName.get(name.toLowerCase());
 
+            java.util.UUID tabUuid = info.getGameProfile().getId();
+            boolean nickedUuid = isNickUuid(tabUuid);
+            boolean skipSelf = minecraft.thePlayer != null
+                    && name.equalsIgnoreCase(minecraft.thePlayer.getName())
+                    && isSkipSelfEnabled();
+
             IntelPlayer player;
             if (existing != null) {
                 player = existing;
                 player.team = team;
+
+                if (nickedUuid && !player.isNicked) {
+                    markNicked(player);
+                } else if (!nickedUuid && skipSelf && !player.statsSkipped) {
+                    player.statsSkipped = true;
+                    player.loading = true;
+                } else if (!skipSelf && player.statsSkipped) {
+                    // Option turned back off — start loading own stats.
+                    player.statsSkipped = false;
+                    player.statsFinal = false;
+                    player.fetchAttempts = 0;
+                    player.loading = true;
+                    needsFetch.add(player);
+                }
             } else {
                 player = new IntelPlayer(name, team);
-                needsFetch.add(player);
+
+                if (nickedUuid) {
+                    markNicked(player);         // no lookups for nicks at all
+                } else if (skipSelf) {
+                    player.statsSkipped = true; // stays in the loading look, never fetched
+                } else {
+                    needsFetch.add(player);
+                }
 
                 if (player.blacklisted) {
                     notifyBlacklisted(player);
@@ -510,14 +602,7 @@ public class IntelManager {
 
             pool.submit(() -> {
                 try {
-                    fetchHypixel(current);
-                    current.computeThreat();
-                    current.statsFetchFailed = false;
-                } catch (Exception exception) {
-                    current.loading = false;
-                    current.statsFetchFailed = true;
-                    dbg("[Intel] stats fetch failed for " + current.name
-                            + ": " + exception);
+                    runStatsFetch(current);
                 } finally {
                     Minecraft.getMinecraft().addScheduledTask(() -> {
                         List<IntelPlayer> refreshed = new ArrayList<>(players);
@@ -671,7 +756,7 @@ public class IntelManager {
     private void fetchHypixel(IntelPlayer player) {
         boolean gotStats = false;
 
-        if (isBordicEnabled() || !hypixelApiKey.isEmpty()) {
+        if (!hypixelApiKey.isEmpty()) {
             gotStats = fetchHypixelApi(player);
         }
 
@@ -697,16 +782,6 @@ public class IntelManager {
     // To finish it: set VEGA_STATS_URL to the player-stats URL (use %s where
     // the player name/UUID goes) and map the response in parseVega().
     private static final String VEGA_STATS_URL = "";
-
-    private boolean isBordicEnabled() {
-        try {
-            coralintel.module.modules.LobbyIntel lobbyIntel =
-                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
-            return lobbyIntel != null && lobbyIntel.useBordic.getValue();
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     private boolean isVegaEnabled() {
         try {
@@ -759,15 +834,6 @@ public class IntelManager {
             JsonObject root = new JsonParser().parse(json).getAsJsonObject();
 
             if (root.has("error")) {
-                String err = root.get("error").isJsonNull() ? "" : root.get("error").getAsString().toLowerCase();
-                boolean fromTab;
-                synchronized (uuidCache) {
-                    fromTab = uuidCache.containsKey(player.name);
-                }
-                if (fromTab && (err.contains("exist") || err.contains("not found"))) {
-                    player.isNicked = true;
-                    dbg("[Intel] " + player.name + " detected as nicked (Slothpixel: " + err + ").");
-                }
                 return false;
             }
 
@@ -844,16 +910,6 @@ public class IntelManager {
                 hypixelSlots.release();
             }
 
-            // True when this UUID is the one the server itself put in the tab
-            // list (scanLobby caches it). A nicked player's tab UUID belongs
-            // to no real Hypixel account, so "no such player" for THAT uuid
-            // means nicked — whereas a Mojang-looked-up UUID with no Hypixel
-            // record is just a real account that never joined.
-            boolean uuidFromTab;
-            synchronized (uuidCache) {
-                uuidFromTab = uuidCache.containsKey(player.name);
-            }
-
             String uuid = fetchAndCacheUuid(player.name);
 
             if (uuid == null) {
@@ -862,10 +918,11 @@ public class IntelManager {
 
             String json;
             try {
-                // Bordic's cache serves the same JSON as Hypixel's /v2/player, without a key
-                json = isBordicEnabled()
-                        ? get("https://api.bordic.xyz/v3/cache/hypixel?uuid=" + uuid, null, null)
-                        : get("https://api.hypixel.net/v2/player?uuid=" + uuid, "API-Key", hypixelApiKey);
+                json = get(
+                        "https://api.hypixel.net/v2/player?uuid=" + uuid,
+                        "API-Key",
+                        hypixelApiKey
+                );
             } catch (RateLimitedException e) {
                 // Extra backoff on top of the normal spacing — push the next
                 // request further out so we don't immediately hit the limit
@@ -888,14 +945,9 @@ public class IntelManager {
             }
 
             if (!root.has("player") || root.get("player").isJsonNull()) {
-                if (uuidFromTab) {
-                    player.isNicked = true;
-                    dbg("[Intel] " + player.name + " detected as nicked (tab UUID has no Hypixel player).");
-                }
                 return false;
             }
 
-            player.isNicked = false;
             JsonObject profile = root.getAsJsonObject("player");
 
             if (profile.has("networkExp")) {
@@ -1289,20 +1341,34 @@ public class IntelManager {
         }
     }
 
+    /**
+     * Team from the scoreboard team's color prefix (how Mellow does it). The
+     * old version searched the display name for color codes, which also
+     * matched rank colors ([MVP+] etc.) and gave wrong teams.
+     */
     private String detectTeam(NetworkPlayerInfo info) {
         try {
-            String displayName = info.getDisplayName() != null
-                    ? info.getDisplayName().getFormattedText()
-                    : "";
+            net.minecraft.scoreboard.ScorePlayerTeam team = info.getPlayerTeam();
+            if (team == null) return null;
 
-            if (displayName.contains("§c")) return "red";
-            if (displayName.contains("§9")) return "blue";
-            if (displayName.contains("§a")) return "green";
-            if (displayName.contains("§e")) return "yellow";
-            if (displayName.contains("§b")) return "aqua";
-            if (displayName.contains("§f")) return "white";
-            if (displayName.contains("§d")) return "pink";
-            if (displayName.contains("§8")) return "gray";
+            String prefix = team.getColorPrefix();
+            if (prefix == null) return null;
+
+            for (int i = 0; i + 1 < prefix.length(); i++) {
+                if (prefix.charAt(i) != '\u00A7') continue;
+                switch (Character.toLowerCase(prefix.charAt(i + 1))) {
+                    case 'c': return "red";
+                    case '9': return "blue";
+                    case 'a': return "green";
+                    case 'e': return "yellow";
+                    case 'b': return "aqua";
+                    case 'f': return "white";
+                    case 'd': return "pink";
+                    case '7':
+                    case '8': return "gray";
+                    default: break; // style code (bold etc.) — keep looking
+                }
+            }
         } catch (Exception ignored) {
         }
 
