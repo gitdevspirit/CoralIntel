@@ -311,14 +311,16 @@ public class IntelHudSettingsGui extends GuiScreen {
                 y,
                 innerWidth,
                 "Sort By",
-                new String[]{"Threat", "FKDR", "Star", "Name"},
+                new String[]{"Threat", "FKDR", "Star", "Name", "Team"},
                 hudOverlay.getSortMode().equals("threat")
                         ? 0
                         : hudOverlay.getSortMode().equals("fkdr")
                                 ? 1
                                 : hudOverlay.getSortMode().equals("star")
                                         ? 2
-                                        : 3,
+                                        : hudOverlay.getSortMode().equals("name")
+                                                ? 3
+                                                : 4,
                 mouseX,
                 mouseY
         );
@@ -601,7 +603,9 @@ public class IntelHudSettingsGui extends GuiScreen {
                                     ? "star"
                                     : mode.equals("star")
                                             ? "name"
-                                            : "threat"
+                                            : mode.equals("name")
+                                                    ? "team"
+                                                    : "threat"
             );
         }
 
