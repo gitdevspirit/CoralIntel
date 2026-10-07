@@ -372,7 +372,6 @@ public class IntelHudOverlay {
         List<Integer> columnBoundaries = new ArrayList<>();
 
         if (showHeads) x += HEAD_SIZE + 4;
-        if (showTeamColor) x += 3;
 
         drawText("NAME", x, headerY, 0xFFFFFFFF);
         x += 120;
@@ -455,7 +454,6 @@ public class IntelHudOverlay {
         int width = PADDING * 2;
 
         if (showHeads) width += HEAD_SIZE + 4;
-        if (showTeamColor) width += 3;
 
         width += 120;
 
@@ -472,11 +470,6 @@ public class IntelHudOverlay {
 
     private void drawPlayerLine(IntelPlayer player, int x, int y) {
         int currentX = x;
-
-        if (showTeamColor && player.team != null && !player.team.isEmpty()) {
-            fillRect(currentX, y + 2, 2, HEAD_SIZE, getTeamColor(player.team));
-            currentX += 3;
-        }
 
         if (showHeads) {
             drawPlayerHead(player.name, currentX, y + 2, HEAD_SIZE);
