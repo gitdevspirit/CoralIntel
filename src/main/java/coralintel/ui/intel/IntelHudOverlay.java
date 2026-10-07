@@ -218,6 +218,21 @@ public class IntelHudOverlay {
         skinIsSheet.put(name, isSheet);
     }
 
+    private static int teamRank(String team) {
+        if (team == null) return 99;
+        switch (team.toLowerCase()) {
+            case "red":    return 0;
+            case "blue":   return 1;
+            case "green":  return 2;
+            case "yellow": return 3;
+            case "aqua":   return 4;
+            case "white":  return 5;
+            case "pink":   return 6;
+            case "gray":   return 7;
+            default:       return 98;
+        }
+    }
+
     private void sortPlayers() {
         switch (sortMode) {
             case "threat":
@@ -234,6 +249,15 @@ public class IntelHudOverlay {
 
             case "name":
                 players.sort(Comparator.comparing(p -> p.name));
+                break;
+
+            case "team":
+                // Group by team (red, blue, green, yellow, aqua, white, pink,
+                // gray; unassigned last), highest threat first inside each.
+                players.sort((a, b) -> {
+                    int byTeam = Integer.compare(teamRank(a.team), teamRank(b.team));
+                    return byTeam != 0 ? byTeam : Double.compare(b.threatScore, a.threatScore);
+                });
                 break;
         }
     }
