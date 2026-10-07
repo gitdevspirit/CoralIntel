@@ -82,8 +82,10 @@ public class LobbyIntel extends Module {
 
     public final BooleanSetting tabShowTag =
             register(new BooleanSetting("Tab: Show Cheater Tag", true));
-    public final BooleanSetting vegaFallback =
-            register(new BooleanSetting("Keyless Fallback (Vega)", false));
+    public final BooleanSetting bordicPrimary =
+            register(new BooleanSetting("Bordic Stats (Keyless)", false));
+    public final BooleanSetting bordicFallback =
+            register(new BooleanSetting("Keyless Fallback (Bordic)", false));
     public final BooleanSetting skipSelfStats =
             register(new BooleanSetting("Skip Own Stats (Tab/HUD)", false));
     public final BooleanSetting tabShowNick =
