@@ -675,7 +675,9 @@ public class IntelManager {
             gotStats = fetchHypixelApi(player);
         }
 
-        if (!gotStats) {
+        // A nicked player's name can coincide with a real account's, so don't
+        // let the by-name Slothpixel fallback attach that stranger's stats.
+        if (!gotStats && !player.isNicked) {
             fetchSlothpixel(player);
         }
 
@@ -697,6 +699,15 @@ public class IntelManager {
             JsonObject root = new JsonParser().parse(json).getAsJsonObject();
 
             if (root.has("error")) {
+                String err = root.get("error").isJsonNull() ? "" : root.get("error").getAsString().toLowerCase();
+                boolean fromTab;
+                synchronized (uuidCache) {
+                    fromTab = uuidCache.containsKey(player.name);
+                }
+                if (fromTab && (err.contains("exist") || err.contains("not found"))) {
+                    player.isNicked = true;
+                    dbg("[Intel] " + player.name + " detected as nicked (Slothpixel: " + err + ").");
+                }
                 return false;
             }
 
@@ -773,6 +784,16 @@ public class IntelManager {
                 hypixelSlots.release();
             }
 
+            // True when this UUID is the one the server itself put in the tab
+            // list (scanLobby caches it). A nicked player's tab UUID belongs
+            // to no real Hypixel account, so "no such player" for THAT uuid
+            // means nicked — whereas a Mojang-looked-up UUID with no Hypixel
+            // record is just a real account that never joined.
+            boolean uuidFromTab;
+            synchronized (uuidCache) {
+                uuidFromTab = uuidCache.containsKey(player.name);
+            }
+
             String uuid = fetchAndCacheUuid(player.name);
 
             if (uuid == null) {
@@ -808,9 +829,14 @@ public class IntelManager {
             }
 
             if (!root.has("player") || root.get("player").isJsonNull()) {
+                if (uuidFromTab) {
+                    player.isNicked = true;
+                    dbg("[Intel] " + player.name + " detected as nicked (tab UUID has no Hypixel player).");
+                }
                 return false;
             }
 
+            player.isNicked = false;
             JsonObject profile = root.getAsJsonObject("player");
 
             if (profile.has("networkExp")) {
