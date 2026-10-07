@@ -367,34 +367,6 @@ public class LobbyIntel extends Module {
         }
     }
 
-    private boolean wasMouseDown = false;
-
-    @EventTarget
-    public void onRender2DClick(Render2DEvent event) {
-        if (mc.currentScreen != null) return;
-
-        boolean down = org.lwjgl.input.Mouse.isButtonDown(0);
-
-        if (down && !wasMouseDown) {
-            net.minecraft.client.gui.ScaledResolution resolution =
-                    new net.minecraft.client.gui.ScaledResolution(mc);
-
-            int mouseX = org.lwjgl.input.Mouse.getX()
-                    * resolution.getScaledWidth()
-                    / mc.displayWidth;
-
-            int mouseY = resolution.getScaledHeight()
-                    - org.lwjgl.input.Mouse.getY()
-                    * resolution.getScaledHeight()
-                    / mc.displayHeight
-                    - 1;
-
-            hudOverlay.handleClick(mouseX, mouseY);
-        }
-
-        wasMouseDown = down;
-    }
-
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
         // The message-based "starts in 1 second" /who races the actual
@@ -694,19 +666,6 @@ public class LobbyIntel extends Module {
                 getHudOverlay().setPlayers(refreshed);
             }
         }
-    }
-
-    private boolean addPlayerToOverlay(String playerName) {
-        IntelManager manager = IntelManager.getInstance();
-
-        for (IntelPlayer player : manager.getPlayers()) {
-            if (player.name.equalsIgnoreCase(playerName)) {
-                return false;
-            }
-        }
-
-        manager.addManualPlayer(playerName);
-        return true;
     }
 
     private static String detectDefaultLogPath() {

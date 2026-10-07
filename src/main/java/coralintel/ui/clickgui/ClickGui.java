@@ -12,7 +12,6 @@ import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.renderer.GlStateManager;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
@@ -761,8 +760,8 @@ public class ClickGui extends GuiScreen {
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
         if (listeningKeybind != null) {
             // ESC cancels the rebind instead of closing the GUI.
-            int resolved = keyCode == 1 ? 0 : keyCode;
-            listeningKeybind.setKeyCode(resolved);
+            if (keyCode == 1) listeningKeybind.cancelListening();
+            else listeningKeybind.setKeyCode(keyCode);
             listeningKeybind = null;
             return;
         }

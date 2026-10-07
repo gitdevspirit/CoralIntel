@@ -5,7 +5,6 @@ import coralintel.ui.clickgui.GuiColors;
 import coralintel.ui.clickgui.RoundedUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
@@ -115,6 +114,7 @@ public class IntelHudOverlay {
 
     public void setSortMode(String mode) {
         this.sortMode = mode;
+        sortPlayers();
     }
 
     public void setBgOpacity(int opacity) {
@@ -202,16 +202,10 @@ public class IntelHudOverlay {
     }
 
     public void setBgColorRgb(int rgb) { this.bgColorRgb = rgb & 0xFFFFFF; }
-    public int getBgColorRgb() { return bgColorRgb; }
 
     public void setBorderColorRgb(int rgb) { this.borderColorRgb = rgb & 0xFFFFFF; }
-    public int getBorderColorRgb() { return borderColorRgb; }
 
     public void setColumnColorRgb(int rgb) { this.columnColorRgb = rgb & 0xFFFFFF; }
-    public int getColumnColorRgb() { return columnColorRgb; }
-
-    public void handleClick(int mx, int my) {
-    }
 
     public void setPlayers(List<IntelPlayer> players) {
         this.players = new ArrayList<>(players);
@@ -231,6 +225,10 @@ public class IntelHudOverlay {
 
             case "fkdr":
                 players.sort((a, b) -> Double.compare(b.fkdr, a.fkdr));
+                break;
+
+            case "star":
+                players.sort((a, b) -> Integer.compare(b.star, a.star));
                 break;
 
             case "name":

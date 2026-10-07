@@ -3,12 +3,17 @@ package coralintel.command.commands;
 import coralintel.command.Command;
 import coralintel.config.Config;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * .c s [name]  — save current settings to a config file (default: "default")
  * .c l [name]  — load settings from a config file (default: "default")
  * .c list      — list saved config files
  */
 public class ConfigCommand extends Command {
+    // Data files that share the config directory; .c must not overwrite them
+    private static final List<String> RESERVED_NAMES = Arrays.asList("blacklist", "safelist", "roles");
 
     public ConfigCommand() {
         super("c", "config");
@@ -25,7 +30,7 @@ public class ConfigCommand extends Command {
         String sub = args[0].toLowerCase();
         String name = args.length > 1 ? args[1] : "default";
 
-        if (!name.matches("[A-Za-z0-9_-]{1,32}")) {
+        if (!name.matches("[A-Za-z0-9_-]{1,32}") || RESERVED_NAMES.contains(name.toLowerCase())) {
             reply("&cConfig name can only contain letters, numbers, - and _.");
             return;
         }
@@ -45,7 +50,7 @@ public class ConfigCommand extends Command {
             }
             case "list": {
                 java.io.File dir = new java.io.File("./config/CoralIntel/");
-                java.io.File[] files = dir.listFiles((d, fname) -> fname.endsWith(".json") && !fname.equals("blacklist.json"));
+                java.io.File[] files = dir.listFiles((d, fname) -> fname.endsWith(".json") && !RESERVED_NAMES.contains(fname.substring(0, fname.length() - 5)));
 
                 if (files == null || files.length == 0) {
                     reply("&7No saved configs yet.");

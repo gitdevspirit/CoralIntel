@@ -157,6 +157,6 @@ public class BedwarsStatsCommand extends Command {
     }
 
     private String fmt(double value) {
-        return String.format("%.2f", value);
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
     }
 }

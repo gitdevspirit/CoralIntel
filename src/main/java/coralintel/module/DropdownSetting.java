@@ -4,7 +4,6 @@ public class DropdownSetting extends Setting {
 
     private final String[] options;
     private int index;
-    private boolean open = false;
 
     public DropdownSetting(String name, int defaultIndex, String... options) {
         super(name);
@@ -20,9 +19,6 @@ public class DropdownSetting extends Setting {
 
     public String getValue()    { return options[index]; }
     public int    getIndex()    { return index; }
-    public String[] getOptions(){ return options; }
-    public boolean isOpen()     { return open; }
-    public void setOpen(boolean o) { open = o; }
 
     public void next() {
         index = (index + 1) % options.length;

@@ -33,8 +33,7 @@ public class IntelKeyCommand extends Command {
             return;
         }
 
-        String key = args[0].trim();
-        // Basic UUID format validation
+        String key = args[0].trim().toLowerCase();
         if (!key.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
             reply("&cThat doesn't look like a valid Hypixel API key.");
             reply("&7Keys look like: &fxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx");
@@ -43,8 +42,6 @@ public class IntelKeyCommand extends Command {
         }
 
         IntelManager.hypixelApiKey = key;
-        // Reset invalid-key flag so it retries with the new key
-        IntelManager.getInstance().resetInvalidKeyFlag();
 
         // Persist via both the property system and dedicated key file
         try {
@@ -55,6 +52,6 @@ public class IntelKeyCommand extends Command {
             }
         } catch (Exception ignored) {}
 
-        reply("&aHypixel API key set and saved. &7Use &f.lobbyintel &7or toggle LobbyIntel to scan.");
+        reply("&aHypixel API key set and saved. &7Toggle LobbyIntel to scan.");
     }
 }

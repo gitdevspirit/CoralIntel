@@ -13,6 +13,8 @@ import coralintel.util.ChatUtil;
 import coralintel.property.Property;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -55,7 +57,10 @@ public class Config {
                 return;
             }
 
-            JsonElement parsed = new JsonParser().parse(new BufferedReader(new FileReader(file)));
+            JsonElement parsed;
+            try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+                parsed = new JsonParser().parse(reader);
+            }
             if (parsed == null || !parsed.isJsonObject()) {
                 ChatUtil.sendFormatted(String.format("%sInvalid config format (&c&o%s&r)&r", CoralIntel.clientName, file.getName()));
                 return;
@@ -204,9 +209,7 @@ public class Config {
                 object.add(module.getName(), moduleObject);
             }
 
-            PrintWriter printWriter = new PrintWriter(new FileWriter(file));
-            printWriter.println(gson.toJson(object));
-            printWriter.close();
+            Files.write(file.toPath(), gson.toJson(object).getBytes(StandardCharsets.UTF_8));
             ChatUtil.sendFormatted(String.format("%sConfig has been saved (&a&o%s&r)&r", CoralIntel.clientName, file.getName()));
         } catch (IOException e) {
             LOGGER.severe("Error saving config: " + e.getMessage());

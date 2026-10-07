@@ -1,6 +1,5 @@
 package coralintel.ui.intel;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import coralintel.CoralIntel;
@@ -14,10 +13,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IntelManager {
@@ -133,8 +132,8 @@ public class IntelManager {
     private final AtomicLong lastHypixelRequest = new AtomicLong(0);
 
     private final Map<String, String> uuidCache = new HashMap<>();
-    private final List<IntelPlayer> players = new ArrayList<>();
-    private final List<IntelPlayer> manualPlayers = new ArrayList<>();
+    private final List<IntelPlayer> players = new CopyOnWriteArrayList<>();
+    private final List<IntelPlayer> manualPlayers = new CopyOnWriteArrayList<>();
 
     private volatile boolean fetching = false;
 
@@ -202,13 +201,13 @@ public class IntelManager {
     public IntelPlayer getPlayer(String name) {
         if (name == null) return null;
 
-        for (IntelPlayer player : new ArrayList<>(players)) {
+        for (IntelPlayer player : players) {
             if (name.equalsIgnoreCase(player.name)) {
                 return player;
             }
         }
 
-        for (IntelPlayer player : new ArrayList<>(manualPlayers)) {
+        for (IntelPlayer player : manualPlayers) {
             if (name.equalsIgnoreCase(player.name)) {
                 return player;
             }
@@ -538,16 +537,6 @@ public class IntelManager {
         fetching = false;
     }
 
-    /**
-     * Forces a full re-fetch of every player currently in the lobby,
-     * ignoring cached stats. Use sparingly — this is what re-triggers the
-     * full sequential rate-limited fetch for the whole lobby.
-     */
-    public void forceRefreshAll() {
-        players.clear();
-        scanLobby();
-    }
-
     public void refresh() {
         scanLobby();
     }
@@ -573,9 +562,6 @@ public class IntelManager {
      */
     public void clearManualPlayers() {
         manualPlayers.clear();
-    }
-
-    public void resetInvalidKeyFlag() {
     }
 
     private String fetchAndCacheUuid(String name) {

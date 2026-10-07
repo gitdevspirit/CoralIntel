@@ -85,13 +85,16 @@ public class BedwarsTag extends Module {
         List<IntelPlayer> intelPlayers = IntelManager.getInstance().getPlayers();
         IAccessorRenderManager rm = (IAccessorRenderManager) mc.getRenderManager();
 
+        Entity viewEntity = mc.getRenderViewEntity();
+        if (viewEntity == null) return;
+
         for (Entity entity : mc.theWorld.loadedEntityList) {
             if (!(entity instanceof EntityPlayer)) continue;
             EntityPlayer player = (EntityPlayer) entity;
 
             if (!selfTag.getValue() && player == mc.thePlayer) continue;
             if (player.deathTime > 0) continue;
-            if (mc.getRenderViewEntity().getDistanceToEntity(player) > 64f) continue;
+            if (viewEntity.getDistanceToEntity(player) > 64f) continue;
 
             // Look up intel data
             IntelPlayer intel = null;
@@ -106,7 +109,7 @@ public class BedwarsTag extends Module {
             double px = RenderUtil.lerpDouble(player.posX, player.lastTickPosX, event.getPartialTicks()) - rm.getRenderPosX();
             double py = RenderUtil.lerpDouble(player.posY, player.lastTickPosY, event.getPartialTicks()) - rm.getRenderPosY();
             double pz = RenderUtil.lerpDouble(player.posZ, player.lastTickPosZ, event.getPartialTicks()) - rm.getRenderPosZ();
-            double dist = mc.getRenderViewEntity().getDistanceToEntity(player);
+            double dist = viewEntity.getDistanceToEntity(player);
 
             // Position above head — offset above vanilla nametag
             double nametagY = py + player.getEyeHeight() + (player.isSneaking() ? 0.225 : 0.4);

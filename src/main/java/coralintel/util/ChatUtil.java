@@ -17,14 +17,4 @@ public class ChatUtil {
     public static void sendFormatted(String string) {
         ChatUtil.send(new ChatComponentText(ChatColors.formatColor(string)));
     }
-
-    public static void sendRaw(String string) {
-        ChatUtil.send(new ChatComponentText(string));
-    }
-
-    public static void sendMessage(String string) {
-        if (ChatUtil.mc.thePlayer != null) {
-            ChatUtil.mc.thePlayer.sendChatMessage(string);
-        }
-    }
 }

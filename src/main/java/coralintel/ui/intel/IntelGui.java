@@ -55,7 +55,6 @@ public class IntelGui extends GuiScreen {
     private static final int COL_MID      = 0xFF8888BB;
     private static final int COL_BRIGHT   = 0xFFDDDDEE;
     private static final int COL_ACCENT   = GuiColors.ACCENT; // E991B8 pink
-    private static final int COL_GOLD     = 0xFFFFCC44;
     private static final int COL_RED      = 0xFFFF3355;
     private static final int COL_REDSUB   = 0xAAFF3355;
 
@@ -70,14 +69,6 @@ public class IntelGui extends GuiScreen {
     private String  searchText  = "";
     private boolean searchFocus = false;
     
-    // Settings panel
-    private boolean showSettings = false;
-    private static final int SETTINGS_WIDTH = 280;
-    private boolean settingsMouseDown = false;
-    private int settingsDragTarget = -1; // Which slider is being dragged (-1 = none)
-    private int settingsScrollOff = 0;
-    private int settingsMaxScroll = 0;
-
     // Skin cache — keyed by player name -> ResourceLocation
     private final java.util.Map<String, ResourceLocation> skinCache     = new java.util.HashMap<>();
     // true = full 64x64 skin sheet (lobby player), false = pre-cropped 16x16 face (downloaded)
@@ -109,9 +100,8 @@ public class IntelGui extends GuiScreen {
 
         fillRect(0, 0, sw, sh, BG_FULL);
 
-        int settingsW = 0; // No longer using side panel
         int detailW = selected != null ? Math.min(sw / 3, 320) : 0;
-        int listW   = sw - detailW - settingsW;
+        int listW   = sw - detailW;
 
         drawHeader(sw, mx, my);
         drawSearchBar(listW, mx, my);
@@ -174,11 +164,9 @@ public class IntelGui extends GuiScreen {
         String settings = "\u2699";
         int sx = rx - 26, sy = ry;
         boolean sHov = mx >= sx && mx < sx + 20 && my >= sy && my < sy + 16;
-        boolean sActive = false; // No longer using side panel
-        RoundedUtils.drawRoundedRect(sx, sy, 20, 16, 4, sActive ? 0x55E991B8 : sHov ? 0x33FFFFFF : 0x11FFFFFF);
-        if (sActive) RoundedUtils.drawRoundedOutline(sx, sy, 20, 16, 4, 1f, COL_ACCENT);
-        else if (sHov) RoundedUtils.drawRoundedOutline(sx, sy, 20, 16, 4, 1f, 0x33FFFFFF);
-        gl(); mc.fontRendererObj.drawString(settings, sx + 6f, sy + 3f, sActive ? COL_ACCENT : sHov ? COL_BRIGHT : COL_MID, false);
+        RoundedUtils.drawRoundedRect(sx, sy, 20, 16, 4, sHov ? 0x33FFFFFF : 0x11FFFFFF);
+        if (sHov) RoundedUtils.drawRoundedOutline(sx, sy, 20, 16, 4, 1f, 0x33FFFFFF);
+        gl(); mc.fontRendererObj.drawString(settings, sx + 6f, sy + 3f, sHov ? COL_BRIGHT : COL_MID, false);
     }
 
     // ── Search bar ────────────────────────────────────────────────────────────
@@ -314,7 +302,6 @@ public class IntelGui extends GuiScreen {
             // Draw badge background
             int iconWidth = mc.fontRendererObj.getStringWidth(icon) + 4;
             int tagWidth = mc.fontRendererObj.getStringWidth(tag) + 4;
-            int totalWidth = iconWidth + tagWidth + 2;
             
             // Icon background
             RoundedUtils.drawRoundedRect(nameX, cy + 30, iconWidth, 9, 2, iconColor & 0x66FFFFFF);
@@ -445,169 +432,6 @@ public class IntelGui extends GuiScreen {
         }
     }
 
-    // ── Settings Panel ────────────────────────────────────────────────────────
-
-    private void drawSettings(int x, int w, int sh, int mx, int my) {
-        fillRect(x, 0, w, sh, BG_DETAIL);
-        fillRect(x, 0, 1, sh, COL_DIVIDER);
-
-        int innerX = x + 12;
-        int innerW = w - 24;
-        int startY = 14;
-        int y = startY - settingsScrollOff;
-
-        // Enable scissor test for clipping
-        GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        ScaledResolution sr = new ScaledResolution(mc);
-        int scale = sr.getScaleFactor();
-        GL11.glScissor(x * scale, 0, w * scale, sh * scale);
-
-        // Title
-        gl();
-        GlStateManager.pushMatrix();
-        GlStateManager.translate(innerX, y, 0);
-        GlStateManager.scale(1.1f, 1.1f, 1f);
-        mc.fontRendererObj.drawString("HUD OVERLAY", 0, 0, COL_ACCENT, false);
-        GlStateManager.popMatrix();
-        y += 22;
-
-        fillRect(innerX, y, innerW, 1, COL_DIVIDER);
-        y += 10;
-
-        // Get HUD overlay instance
-        coralintel.module.modules.LobbyIntel lobbyIntel = (coralintel.module.modules.LobbyIntel) 
-            CoralIntel.moduleManager.getModule("LobbyIntel");
-        if (lobbyIntel == null) {
-            gl(); mc.fontRendererObj.drawString("LobbyIntel module not found", innerX, y, COL_DIM, false);
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            return;
-        }
-        IntelHudOverlay hud = lobbyIntel.getHudOverlay();
-        if (hud == null) {
-            gl(); mc.fontRendererObj.drawString("HUD overlay not initialized", innerX, y, COL_DIM, false);
-            GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            return;
-        }
-
-        int contentStartY = y;
-
-        // Enable/Disable toggle
-        y = drawToggle(innerX, y, innerW, "Enabled", hud.isEnabled(), mx, my);
-
-        y += 8;
-        fillRect(innerX, y, innerW, 1, COL_DIVIDER);
-        y += 10;
-
-        // Position section
-        gl(); mc.fontRendererObj.drawString("POSITION", innerX, y, COL_DIM, false); y += 14;
-        y = drawSlider(innerX, y, innerW, "X Position", hud.getPosX(), 0, 1920, mx, my);
-        y = drawSlider(innerX, y, innerW, "Y Position", hud.getPosY(), 0, 1080, mx, my);
-
-        y += 8;
-        fillRect(innerX, y, innerW, 1, COL_DIVIDER);
-        y += 10;
-
-        // Display section
-        gl(); mc.fontRendererObj.drawString("DISPLAY", innerX, y, COL_DIM, false); y += 14;
-        y = drawSlider(innerX, y, innerW, "Scale", (int)(hud.getScale() * 100), 50, 200, mx, my);
-        y = drawSlider(innerX, y, innerW, "Max Players", hud.getMaxPlayers(), 1, 20, mx, my);
-        y = drawSlider(innerX, y, innerW, "Background Opacity", hud.getBgOpacity(), 0, 255, mx, my);
-
-        y += 8;
-        fillRect(innerX, y, innerW, 1, COL_DIVIDER);
-        y += 10;
-
-        // Columns section
-        gl(); mc.fontRendererObj.drawString("COLUMNS", innerX, y, COL_DIM, false); y += 14;
-        y = drawToggle(innerX, y, innerW, "Player Heads", hud.getShowHeads(), mx, my);
-        y = drawToggle(innerX, y, innerW, "FKDR", hud.getShowFkdr(), mx, my);
-        y = drawToggle(innerX, y, innerW, "WLR", hud.getShowWlr(), mx, my);
-        y = drawToggle(innerX, y, innerW, "Winstreak", hud.getShowStreak(), mx, my);
-        y = drawToggle(innerX, y, innerW, "Threat Score", hud.getShowThreat(), mx, my);
-        y = drawToggle(innerX, y, innerW, "Team Colors", hud.getShowTeamColor(), mx, my);
-
-        y += 8;
-        fillRect(innerX, y, innerW, 1, COL_DIVIDER);
-        y += 10;
-
-        // Sort section
-        gl(); mc.fontRendererObj.drawString("SORTING", innerX, y, COL_DIM, false); y += 14;
-        String[] sortModes = {"Threat", "FKDR", "Name"};
-        String currentMode = hud.getSortMode();
-        int modeIndex = currentMode.equals("threat") ? 0 : currentMode.equals("fkdr") ? 1 : 2;
-        y = drawDropdown(innerX, y, innerW, "Sort By", sortModes, modeIndex, mx, my);
-
-        // Calculate max scroll
-        int contentHeight = y - contentStartY;
-        int visibleHeight = sh - (startY + FTR);
-        settingsMaxScroll = Math.max(0, contentHeight - visibleHeight);
-
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
-    }
-
-    private int drawToggle(int x, int y, int w, String label, boolean value, int mx, int my) {
-        boolean hov = mx >= x && mx < x + w && my >= y && my < y + 16;
-        
-        gl(); mc.fontRendererObj.drawString(label, x, y + 4, hov ? COL_BRIGHT : COL_MID, false);
-        
-        int toggleX = x + w - 32;
-        int toggleY = y + 2;
-        int toggleW = 32;
-        int toggleH = 12;
-        
-        // Background
-        int bgColor = value ? 0x88E991B8 : 0x44444455;
-        RoundedUtils.drawRoundedRect(toggleX, toggleY, toggleW, toggleH, toggleH / 2f, bgColor);
-        
-        // Knob
-        int knobX = value ? toggleX + toggleW - toggleH : toggleX;
-        int knobColor = value ? COL_ACCENT : 0xFF666677;
-        RoundedUtils.drawRoundedRect(knobX, toggleY, toggleH, toggleH, toggleH / 2f, knobColor);
-        
-        return y + 20;
-    }
-
-    private int drawSlider(int x, int y, int w, String label, int value, int min, int max, int mx, int my) {
-        gl(); mc.fontRendererObj.drawString(label, x, y, COL_DIM, false);
-        String valStr = String.valueOf(value);
-        mc.fontRendererObj.drawString(valStr, x + w - mc.fontRendererObj.getStringWidth(valStr), y, COL_BRIGHT, false);
-        y += 10;
-        
-        int barY = y + 2;
-        int barH = 4;
-        
-        // Background
-        fillRect(x, barY, w, barH, 0x33FFFFFF);
-        
-        // Filled portion
-        float pct = (value - min) / (float)(max - min);
-        int fillW = (int)(w * pct);
-        fillRect(x, barY, fillW, barH, COL_ACCENT);
-        
-        // Knob
-        int knobX = x + fillW - 4;
-        int knobY = barY - 2;
-        fillRect(knobX, knobY, 8, 8, COL_ACCENT);
-        
-        return y + 16;
-    }
-
-    private int drawDropdown(int x, int y, int w, String label, String[] options, int selected, int mx, int my) {
-        gl(); mc.fontRendererObj.drawString(label, x, y, COL_DIM, false);
-        y += 10;
-        
-        int btnH = 18;
-        boolean hov = mx >= x && mx < x + w && my >= y && my < y + btnH;
-        
-        RoundedUtils.drawRoundedRect(x, y, w, btnH, 3, hov ? 0x33FFFFFF : 0x22000000);
-        RoundedUtils.drawRoundedOutline(x, y, w, btnH, 3, 1f, hov ? COL_ACCENT : 0x33FFFFFF);
-        
-        gl(); mc.fontRendererObj.drawString(options[selected], x + 6f, y + 5f, COL_BRIGHT, false);
-        mc.fontRendererObj.drawString("\u25BC", x + w - 12f, y + 5f, COL_DIM, false);
-        
-        return y + 22;
-    }
-
     // ── Footer ────────────────────────────────────────────────────────────────
 
     private void drawFooter(int sw, int sh) {
@@ -622,7 +446,7 @@ public class IntelGui extends GuiScreen {
     // ── Player head ───────────────────────────────────────────────────────────
 
     // Tracks in-flight skin downloads: name -> "pending", "done", or fail timestamp (ms)
-    private final java.util.Map<String, Object> skinFetchState = new java.util.HashMap<>();
+    private final java.util.Map<String, Object> skinFetchState = new java.util.concurrent.ConcurrentHashMap<>();
 
     private void drawPlayerHead(String name, int x, int y, int size) {
         try {
@@ -705,13 +529,10 @@ public class IntelGui extends GuiScreen {
                             g.drawImage(fullSkin, 0, 0, res, res, 40, 8, 48, 16, null);
                             g.dispose();
 
-                            final net.minecraft.client.renderer.texture.DynamicTexture dt =
-                                    new net.minecraft.client.renderer.texture.DynamicTexture(face);
-
-                            // Step D: register texture on MC main thread
+                            // Step D: DynamicTexture allocates GL textures, so it must be built on the MC main thread
                             net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(() -> {
-                                ResourceLocation loc = mc.getTextureManager()
-                                        .getDynamicTextureLocation("intel_face_" + nameFinal, dt);
+                                ResourceLocation loc = mc.getTextureManager().getDynamicTextureLocation("intel_face_" + nameFinal,
+                                        new net.minecraft.client.renderer.texture.DynamicTexture(face));
                                 skinCache.put(nameFinal, loc);
                                 skinIsSheet.put(nameFinal, false); // Mark as pre-cropped
                                 skinFetchState.put(nameFinal, "done");
@@ -758,15 +579,8 @@ public class IntelGui extends GuiScreen {
         super.handleMouseInput();
         int dw = Mouse.getEventDWheel();
         if (dw != 0) {
-            if (showSettings) {
-                // Scroll in settings panel
-                settingsScrollOff -= dw > 0 ? SCROLL_SPD : -SCROLL_SPD;
-                settingsScrollOff = Math.max(0, Math.min(settingsScrollOff, settingsMaxScroll));
-            } else {
-                // Scroll in player list
-                scrollOff -= dw > 0 ? SCROLL_SPD : -SCROLL_SPD;
-                scrollOff = Math.max(0, Math.min(scrollOff, maxScroll));
-            }
+            scrollOff -= dw > 0 ? SCROLL_SPD : -SCROLL_SPD;
+            scrollOff = Math.max(0, Math.min(scrollOff, maxScroll));
         }
     }
 
@@ -824,6 +638,7 @@ public class IntelGui extends GuiScreen {
 
         // Cards
         int cY = HDR + SRCH + COL_HDR + 4;
+        if (my < cY || my >= sh - FTR) return;
         for (int i = 0; i < players.size(); i++) {
             int cy = cY + i * (CARD_H + CARD_GAP) - scrollOff;
             if (my < cy || my >= cy + CARD_H || mx < CARD_PAD || mx >= listW - CARD_PAD) continue;
@@ -845,87 +660,6 @@ public class IntelGui extends GuiScreen {
         super.mouseClicked(mx, my, button);
     }
     
-    @Override
-    protected void mouseClickMove(int mx, int my, int button, long timeSinceLastClick) {
-        if (!showSettings) return;
-        
-        ScaledResolution sr = new ScaledResolution(mc);
-        int sw = sr.getScaledWidth();
-        int settingsX = sw - SETTINGS_WIDTH + 12;
-        int settingsW = SETTINGS_WIDTH - 24;
-        
-        coralintel.module.modules.LobbyIntel lobbyIntel = (coralintel.module.modules.LobbyIntel) 
-            CoralIntel.moduleManager.getModule("LobbyIntel");
-        if (lobbyIntel == null) return;
-        IntelHudOverlay hud = lobbyIntel.getHudOverlay();
-        if (hud == null) return;
-        
-        int startY = 14;
-        int y = startY - settingsScrollOff;
-        
-        // Title
-        y += 22;
-        
-        // Divider after title
-        y += 10;
-        
-        // Enabled toggle - drawToggle returns y+20
-        y += 20;
-        
-        // Divider after enabled
-        y += 8;
-        y += 10;
-        
-        // "POSITION" label
-        y += 14;
-        
-        // X Position slider - drawSlider returns y+16
-        if (my >= y && my < y + 16 && mx >= settingsX && mx < settingsX + settingsW) {
-            int val = (int)((mx - settingsX) / (float)settingsW * 1920);
-            hud.setPosition(Math.max(0, Math.min(1920, val)), hud.getPosY());
-            return;
-        }
-        y += 16;
-        
-        // Y Position slider - drawSlider returns y+16
-        if (my >= y && my < y + 16 && mx >= settingsX && mx < settingsX + settingsW) {
-            int val = (int)((mx - settingsX) / (float)settingsW * 1080);
-            hud.setPosition(hud.getPosX(), Math.max(0, Math.min(1080, val)));
-            return;
-        }
-        y += 16;
-        
-        // Divider after position
-        y += 8;
-        y += 10;
-        
-        // "DISPLAY" label
-        y += 14;
-        
-        // Scale slider - drawSlider returns y+16
-        if (my >= y && my < y + 16 && mx >= settingsX && mx < settingsX + settingsW) {
-            int val = 50 + (int)((mx - settingsX) / (float)settingsW * 150);
-            hud.setScale(Math.max(0.5f, Math.min(2.0f, val / 100f)));
-            return;
-        }
-        y += 16;
-        
-        // Max Players slider - drawSlider returns y+16
-        if (my >= y && my < y + 16 && mx >= settingsX && mx < settingsX + settingsW) {
-            int val = 1 + (int)((mx - settingsX) / (float)settingsW * 19);
-            hud.setMaxPlayers(Math.max(1, Math.min(20, val)));
-            return;
-        }
-        y += 16;
-        
-        // Background Opacity slider - drawSlider returns y+16
-        if (my >= y && my < y + 16 && mx >= settingsX && mx < settingsX + settingsW) {
-            int val = (int)((mx - settingsX) / (float)settingsW * 255);
-            hud.setBgOpacity(Math.max(0, Math.min(255, val)));
-            return;
-        }
-    }
-
     @Override
     protected void keyTyped(char c, int key) throws IOException {
         if (searchFocus) {
@@ -1009,47 +743,12 @@ public class IntelGui extends GuiScreen {
         return false;
     }
 
-    // Severity tiers for cheat detection — higher = reported first
-    private static final Object[][] CHEAT_TIERS = {
-        // {severity, reason_keywords[], type_keywords[], message}
-        {3, new String[]{"scaffold","bridg","blatant scaffold"}, new String[]{"blatant"},
-            "HIGH THREAT | Blatant scaffolder. Near-instant bridges everywhere. Rush their bed before they cross."},
-        {3, new String[]{"ab","autoblock","hopping","full hop"}, new String[]{},
-            "HIGH THREAT | Autoblock / hopping. Near-perfect blocking every hit. Use bow and rush bed — avoid sword fights."},
-        {3, new String[]{"fly","bhop","bunnyhop","speed"}, new String[]{},
-            "HIGH THREAT | Movement hacks. Expect instant rushes. Fortify your bed and defend early."},
-        {3, new String[]{"esp","visual","xray","x-ray","wallhack"}, new String[]{},
-            "HIGH THREAT | ESP / visuals. They see through walls and track you. Cover your bed on all sides."},
-        {3, new String[]{"aimbot"}, new String[]{},
-            "HIGH THREAT | Aimbot. Avoid all direct fights. Rush bed and disengage immediately."},
-        {2, new String[]{"ka","killaura","kill aura"}, new String[]{},
-            "MEDIUM THREAT | KillAura (KA). Auto-targets and attacks. Avoid open 1v1s — use terrain and rush bed."},
-        {2, new String[]{"aa","aim assist","aimassist"}, new String[]{},
-            "MEDIUM THREAT | Aim assist (AA). Improved accuracy. You can outmanoeuvre — don't let them set up shots."},
-        {2, new String[]{"reach"}, new String[]{},
-            "MEDIUM THREAT | Extended reach. They win range trades. Stay point-blank or use a bow."},
-        {2, new String[]{"jr","jrv","jump reset","velo","velocity","anti-kb","antikb"}, new String[]{},
-            "MEDIUM THREAT | Velocity / jump reset (JRV). Takes reduced knockback. Focus bed destruction over PvP."},
-        {2, new String[]{"sniper"}, new String[]{"sniper"},
-            "MEDIUM THREAT | Known sniper. Use covered tunnels and avoid open bridges."},
-        {1, new String[]{"hop"}, new String[]{},
-            "MEDIUM THREAT | Hopping. Reduces knockback taken. Don't rely on void plays — rush bed instead."},
-        {1, new String[]{"ac","autoclick","autoclicker","cps"}, new String[]{},
-            "LOW-MED THREAT | Autoclicker (AC). Higher CPS but no aim advantage. Gap fights and use knockback."},
-        {1, new String[]{"legitscaff","legitscaf","fastplace"}, new String[]{},
-            "LOW-MED THREAT | Legit-scaffold / fastplace. Bridges faster than normal. Cut their routes early."},
-        {1, new String[]{"eagle"}, new String[]{},
-            "LOW-MED THREAT | Eagle bridge. Faster aerial bridging. Play standard and deny their crossing."},
-        {0, new String[]{"2q","3q","4q","boosting","queue"}, new String[]{},
-            "LOW THREAT | Queue sniper / booster. Stats inflated via boosting — don't be misled by numbers."},
-    };
-
     // Per-cheat advice snippets — scanned in severity order, ALL matches collected
     private static final Object[][] CHEAT_ADVICE = {
         // {severity, reason_kws[], type_kws[], short_label, advice}
         {3, new String[]{"aimbot"},                      new String[]{}, "Aimbot",       "don't fight in the open — rush bed"},
         {3, new String[]{"blatant scaffold","scaffold","bridg"}, new String[]{"blatant"}, "Blatant scaffold", "rush bed before they bridge across"},
-        {3, new String[]{"ab","autoblock","full hop","hopping"}, new String[]{""},        "Autoblock/hop",    "avoid sword fights, use bow"},
+        {3, new String[]{"ab","autoblock","full hop","hopping"}, new String[]{},        "Autoblock/hop",    "avoid sword fights, use bow"},
         {3, new String[]{"hop"},                         new String[]{}, "Hop",          "don't rely on void traps"},
         {3, new String[]{"fly","bhop","bunnyhop","speed"},new String[]{}, "Movement",    "fortify bed immediately"},
         {3, new String[]{"esp","visual","xray","x-ray","wallhack"}, new String[]{}, "ESP","cover bed on all sides"},
@@ -1113,18 +812,14 @@ public class IntelGui extends GuiScreen {
         return "Low threat. Easy target — rush early for free resources and a quick bed.";
     }
 
-    private boolean containsAny(String text, String... keywords) {
-        for (String k : keywords) if (text.contains(k)) return true;
-        return false;
-    }
-
     private List<String> wrap(String text, int maxW) {
         List<String> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
         for (String w : text.split(" ")) {
             String test = cur.length() == 0 ? w : cur + " " + w;
             if (mc.fontRendererObj.getStringWidth(test) > maxW) {
-                out.add(cur.toString()); cur = new StringBuilder(w);
+                if (cur.length() > 0) out.add(cur.toString());
+                cur = new StringBuilder(w);
             } else cur = new StringBuilder(test);
         }
         if (cur.length() > 0) out.add(cur.toString());

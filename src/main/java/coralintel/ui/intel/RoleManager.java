@@ -49,7 +49,6 @@ public class RoleManager {
     public PlayerRole getRole(String playerNameOrUuid) {
         String key = playerNameOrUuid.toLowerCase();
         PlayerRole role = playerRoles.get(key);
-        System.out.println("[RoleManager] getRole(" + playerNameOrUuid + ") -> key: " + key + " -> role: " + role);
         return role;
     }
     
@@ -78,7 +77,6 @@ public class RoleManager {
         String key = playerNameOrUuid.toLowerCase();
         ownerList.put(key, playerNameOrUuid);
         playerRoles.put(key, PlayerRole.OWNER);
-        System.out.println("[RoleManager] Added owner: " + playerNameOrUuid + " (key: " + key + ")");
         save();
     }
     
