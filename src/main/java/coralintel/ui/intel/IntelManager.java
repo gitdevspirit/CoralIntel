@@ -60,52 +60,77 @@ public class IntelManager {
     /** After this many fetch rounds with no usable stats, a player's stats are just set to 0. */
     public static final int MAX_FETCH_ATTEMPTS = 3;
 
+    /**
+     * Rounds allowed for a player who came back only partially loaded (e.g. just
+     * the star). They keep refreshing in the loading look until every stat is in;
+     * this cap only stops genuinely-hidden accounts from refreshing forever.
+     */
+    public static final int MAX_PARTIAL_ATTEMPTS = 5;
+
     private static boolean hasNoStats(IntelPlayer p) {
         return p.star == 0 && p.finalKills == 0 && p.wins == 0 && p.fkdr == 0 && p.wlr == 0;
     }
 
     /**
-     * One fetch round for a player, with attempt tracking. A round that throws
-     * or finishes with no stats counts as an attempt; on the 3rd the stats are
-     * zeroed and the player is marked final so nothing reloads them again.
+     * One fetch round for a player, with attempt tracking. A player only counts
+     * as fully loaded once EVERY stat came back (statsComplete) — a lone star is
+     * not enough. Until then the row stays in its loading look and the 10s retry
+     * loop keeps refreshing it. Rounds that return nothing at all are zeroed on
+     * the 3rd; partial results (e.g. star only) get MAX_PARTIAL_ATTEMPTS rounds
+     * and then keep whatever was found.
      */
     private void runStatsFetch(IntelPlayer p) {
+        p.fetchInFlight = true;
         try {
-            fetchHypixel(p);
-            p.computeThreat();
-            p.statsFetchFailed = false;
-        } catch (Exception exception) {
-            p.loading = false;
-            p.statsFetchFailed = true;
-            dbg("[Intel] stats fetch failed for " + p.name + ": " + exception);
-        }
+            try {
+                fetchHypixel(p);
+                p.computeThreat();
+                p.statsFetchFailed = false;
+            } catch (Exception exception) {
+                p.statsFetchFailed = true;
+                dbg("[Intel] stats fetch failed for " + p.name + ": " + exception);
+            }
 
-        if (p.statsSkipped) {
-            p.loading = true; // keep the "skipped" look even if a fetch was in flight
-            return;
-        }
+            if (p.statsSkipped) {
+                p.loading = true; // keep the "skipped" look even if a fetch was in flight
+                return;
+            }
 
-        // "No stats" is the correct, stable answer for these — nothing to retry.
-        if (p.isNicked || p.statsHidden) {
-            p.statsFinal = true;
-            return;
-        }
+            // "No stats" is the correct, stable answer for nicks — nothing to retry.
+            if (p.isNicked) {
+                p.loading = false;
+                p.statsFinal = true;
+                return;
+            }
 
-        if (!p.statsFetchFailed && !hasNoStats(p)) {
-            p.statsFinal = true; // fully loaded
-            return;
-        }
+            if (p.statsComplete && !p.statsFetchFailed) {
+                p.loading = false;
+                p.statsFinal = true; // fully loaded: every stat is in
+                return;
+            }
 
-        p.fetchAttempts++;
-        if (p.fetchAttempts >= MAX_FETCH_ATTEMPTS) {
-            p.star = 0; p.level = 0; p.fkdr = 0; p.wlr = 0; p.winstreak = 0;
-            p.finalKills = 0; p.finalDeaths = 0; p.bedsBroken = 0; p.bedsLost = 0;
-            p.kills = 0; p.deaths = 0; p.wins = 0; p.losses = 0;
-            p.loading = false;
-            p.statsFetchFailed = false;
-            p.statsFinal = true;
-            p.computeThreat();
-            dbg("[Intel] " + p.name + " returned no stats " + p.fetchAttempts + " times — stats set to 0.");
+            boolean empty = hasNoStats(p);
+            p.fetchAttempts++;
+            int cap = empty ? MAX_FETCH_ATTEMPTS : MAX_PARTIAL_ATTEMPTS;
+
+            if (p.fetchAttempts >= cap) {
+                if (empty) {
+                    p.star = 0; p.level = 0; p.fkdr = 0; p.wlr = 0; p.winstreak = 0;
+                    p.finalKills = 0; p.finalDeaths = 0; p.bedsBroken = 0; p.bedsLost = 0;
+                    p.kills = 0; p.deaths = 0; p.wins = 0; p.losses = 0;
+                }
+                p.loading = false;
+                p.statsFetchFailed = false;
+                p.statsFinal = true;
+                p.computeThreat();
+                dbg("[Intel] " + p.name + (empty ? " returned no stats " : " only partially loaded ")
+                        + p.fetchAttempts + " times — giving up"
+                        + (empty ? " (stats set to 0)." : " (keeping what was found)."));
+            } else {
+                p.loading = true; // not fully loaded yet — stay in the loading look, retry loop continues
+            }
+        } finally {
+            p.fetchInFlight = false;
         }
     }
 
@@ -142,21 +167,16 @@ public class IntelManager {
      */
     public void retryFailedFetches() {
         for (IntelPlayer player : combined()) {
-            // statsFinal covers loaded / hidden / nicked / gave-up-after-3 —
-            // only players that are NOT fully loaded ever get re-fetched.
-            if (player.loading || player.statsFinal || player.statsSkipped
-                    || player.statsHidden || player.isNicked) {
-                continue;
-            }
-
-            boolean noData = player.star == 0 && player.finalKills == 0
-                    && player.wins == 0 && player.fkdr == 0 && player.wlr == 0;
-
-            if (!noData && !player.statsFetchFailed) {
+            // statsFinal covers fully loaded / nicked / gave up — only players
+            // that are NOT fully loaded (and not already being fetched) get
+            // re-fetched, so partial rows (e.g. star only) keep refreshing.
+            if (player.fetchInFlight || player.statsFinal || player.statsSkipped
+                    || player.isNicked) {
                 continue;
             }
 
             player.loading = true;
+            player.fetchInFlight = true;
 
             pool.submit(() -> {
                 try {
@@ -369,6 +389,7 @@ public class IntelManager {
             }
         });
 
+        player.fetchInFlight = true;
         pool.submit(() -> {
             try {
                 runStatsFetch(player);
@@ -599,6 +620,7 @@ public class IntelManager {
 
         for (IntelPlayer player : needsFetch) {
             final IntelPlayer current = player;
+            current.fetchInFlight = true;
 
             pool.submit(() -> {
                 try {
@@ -737,10 +759,10 @@ public class IntelManager {
         try {
             fetchHypixel(player);
         } catch (Exception exception) {
-            player.loading = false;
             dbg("[Intel] standalone stats fetch failed for " + name
                     + ": " + exception);
         }
+        player.loading = false;
 
         try {
             fetchUrchinBatch(java.util.Collections.singletonList(player));
@@ -754,32 +776,36 @@ public class IntelManager {
     }
 
     private void fetchHypixel(IntelPlayer player) {
-        boolean gotStats = false;
         boolean bordicTried = false;
+
+        // Each round starts clean: "complete" is only ever earned by a source
+        // that returns every stat, and "hidden" is only set by a source that
+        // saw the account without its Bedwars stats.
+        player.statsComplete = false;
+        player.statsHidden = false;
 
         // Optional: Bordic first (keyless). Skipped for nicked players: a nick's
         // name can coincide with a real account's, so a by-name lookup would
         // attach that stranger's stats.
         if (!player.isNicked && isBordicPrimary()) {
             bordicTried = true;
-            gotStats = fetchBordic(player);
+            fetchBordic(player);
         }
 
-        if (!gotStats && !hypixelApiKey.isEmpty()) {
-            gotStats = fetchHypixelApi(player);
+        if (!player.statsComplete && !hypixelApiKey.isEmpty()) {
+            fetchHypixelApi(player);
         }
 
-        // Fallback chain once the Hypixel API path fails (no key, invalid key,
-        // rate limited...): Bordic (keyless, opt-in) -> Slothpixel (keyless).
-        if (!gotStats && !player.isNicked && !bordicTried && isBordicFallbackEnabled()) {
-            gotStats = fetchBordic(player);
+        // Fallback chain until a source returns EVERY stat (not just the star):
+        // Bordic (keyless, opt-in) -> Slothpixel (keyless).
+        if (!player.statsComplete && !player.isNicked && !bordicTried && isBordicFallbackEnabled()) {
+            fetchBordic(player);
         }
 
-        if (!gotStats && !player.isNicked) {
+        if (!player.statsComplete && !player.isNicked) {
             fetchSlothpixel(player);
         }
-
-        player.loading = false;
+        // loading is decided by runStatsFetch: it stays true until fully loaded.
     }
 
     // ── Bordic (keyless Bedwars stats) ───────────────────────────────────
@@ -927,6 +953,9 @@ public class IntelManager {
             player.fkdr = (double) finalKills / finalDeaths;
             player.wlr = (double) wins / losses;
 
+            player.statsHidden = false;
+            player.statsComplete = root.has("level");
+
             return true;
         } catch (Exception ignored) {
             return false;
@@ -999,7 +1028,9 @@ public class IntelManager {
      * Bordic's Hypixel cache) onto the IntelPlayer. Shared by both sources.
      */
     private boolean applyHypixelProfile(JsonObject profile, IntelPlayer player) {
-        if (profile.has("networkExp")) {
+        boolean hasLevel = profile.has("networkExp");
+
+        if (hasLevel) {
             double networkExp = profile.get("networkExp").getAsDouble();
 
             player.level = (int) (
@@ -1063,6 +1094,10 @@ public class IntelManager {
         player.winstreak = bwInt(bedwars, "winstreak");
         player.fkdr = (double) finalKills / finalDeaths;
         player.wlr = (double) wins / losses;
+
+        // Fully loaded only when the Bedwars stats AND the network level are in.
+        player.statsHidden = false;
+        player.statsComplete = hasLevel;
 
         return true;
     }
