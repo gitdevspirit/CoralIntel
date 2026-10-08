@@ -26,11 +26,24 @@ public class BedwarsStatsCommand extends Command {
             return;
         }
 
-        String ign = args[0];
-        reply("&7Fetching Bedwars stats for &f" + ign + "&7...");
+        lookup(args[0], true, false);
+    }
+
+    /**
+     * Runs the same lookup as .bw and prints the result to chat. Also used by LobbyIntel
+     * to auto-check players who talk in the pregame lobby.
+     *
+     * @param announce   print the "Fetching..." line first
+     * @param allowCache reuse recently cached stats instead of fetching (auto lookups only;
+     *                   a typed .bw always fetches fresh)
+     */
+    public void lookup(String ign, boolean announce, boolean allowCache) {
+        if (announce) {
+            reply("&7Fetching Bedwars stats for &f" + ign + "&7...");
+        }
 
         new Thread(() -> {
-            IntelPlayer player = IntelManager.getInstance().fetchStandaloneStats(ign);
+            IntelPlayer player = IntelManager.getInstance().fetchStandaloneStats(ign, allowCache);
             Minecraft.getMinecraft().addScheduledTask(() -> sendStats(ign, player));
         }, "bw-stats-lookup").start();
     }
