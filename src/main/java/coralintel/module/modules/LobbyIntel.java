@@ -36,6 +36,10 @@ public class LobbyIntel extends Module {
     public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
     public final BooleanSetting trackPregameChat =
             register(new BooleanSetting("Track Pregame Chat", true));
+    // On: someone typing in the pregame lobby gets an automatic .bw-style stats line in
+    // chat. Off: they are added to the Intel HUD instead (the older behaviour).
+    public final BooleanSetting pregameChatAutoBw =
+            register(new BooleanSetting("Pregame Chat: Auto .bw", true));
     public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
     public final coralintel.module.SliderSetting focusCount =
             register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
@@ -238,6 +242,11 @@ public class LobbyIntel extends Module {
     private final java.util.Map<String, String> chatTracked = new java.util.concurrent.ConcurrentHashMap<>();
     // Nicked players who typed in pregame (lowercase names). Announced once each
     // and shown on the HUD until they leave / the countdown rescan takes over.
+    // Players already auto-checked with .bw this lobby (lowercase), so each is looked up once.
+    private final java.util.Set<String> chatBwLooked =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private final coralintel.command.commands.BedwarsStatsCommand autoBw =
+            new coralintel.command.commands.BedwarsStatsCommand();
     private final java.util.Set<String> chatNicks =
             java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
@@ -431,6 +440,7 @@ public class LobbyIntel extends Module {
         retryTickCounter = 0;
         chatTracked.clear();
         chatNicks.clear();
+        chatBwLooked.clear();
         IntelManager.getInstance().clearAll();
 
         if (autoKey.getValue()) {
@@ -787,10 +797,22 @@ public class LobbyIntel extends Module {
                         IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby but is nicked.");
                     }
 
-                    IntelManager.getInstance().addNickedChatter(name);
+                    if (!pregameChatAutoBw.getValue()) {
+                        IntelManager.getInstance().addNickedChatter(name);
+                    }
                     return;
                 }
             }
+        }
+
+        // Auto .bw: print their stats in chat instead of adding them to the HUD. Once per
+        // player per lobby; recently cached stats are reused to spare the API.
+        if (pregameChatAutoBw.getValue()) {
+            if (chatBwLooked.add(name.toLowerCase(java.util.Locale.ROOT))) {
+                IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — auto .bw.");
+                autoBw.lookup(name, false, true);
+            }
+            return;
         }
 
         if (chatTracked.put(name.toLowerCase(java.util.Locale.ROOT), name) == null) {
