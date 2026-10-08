@@ -2,7 +2,7 @@
 
 A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your lobby before the game starts. It reads stats for everyone in the lobby, flags cheaters, and shows it all in a draggable HUD overlay, an enhanced tab list and a ClickGUI.
 
-[IMAGE]
+<img width="500" height="460" alt="add players" src="https://github.com/user-attachments/assets/c9ecc4f9-8257-4a05-b192-eb6a83081f5c" />
 
 ## Features
 
@@ -14,6 +14,8 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your lobby before the g
 - **BedWarsTag** – floating star / FKDR / threat tag above players' heads (depth-tested, no wall-hack).
 - **AntiCheat** – heuristic movement/combat checks (NoSlow, AutoBlock, Sprint, Velocity, Rotation, Scaffold) that only inform you about other players.
 - **Resilient stats fetching** – Hypixel API with automatic keyless fallbacks (Bordic, Slothpixel). Already-loaded players are never reloaded when the roster is re-sorted.
+- **Stat cache** – fully loaded stats are saved to disk for 0–30 minutes (default 15, set it in the LobbyIntel settings), so re-queuing into the same players doesn't re-fetch them and eases rate limits. `.bw` always fetches fresh.
+- **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
 - **Pregame messages** – up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay.
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Shift).
