@@ -11,6 +11,7 @@ import coralintel.ui.intel.IntelColors;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import coralintel.util.ChatUtil;
+import coralintel.util.PrestigeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -52,6 +53,7 @@ public class SessionStats extends Module {
     /** At most one automatic refresh per this long (spares the API key). */
     private static final long AUTO_MIN_GAP_MS = 120_000L;
 
+    // Each toggle controls BOTH the HUD and the chat summary (where the stat exists there).
     public final BooleanSetting showWins =
             register(new BooleanSetting("Show Wins", true));
     public final BooleanSetting showKills =
@@ -60,6 +62,20 @@ public class SessionStats extends Module {
             register(new BooleanSetting("Show FKDR", true));
     public final BooleanSetting showBblr =
             register(new BooleanSetting("Show BBLR", true));
+    public final BooleanSetting showDeaths =
+            register(new BooleanSetting("Show Deaths", true));
+    public final BooleanSetting showWlr =
+            register(new BooleanSetting("Show WLR", true));
+    public final BooleanSetting showStars =
+            register(new BooleanSetting("Show Stars", true));
+    // HUD only:
+    public final BooleanSetting showTime =
+            register(new BooleanSetting("Show Session Time", true));
+    public final BooleanSetting showFinals =
+            register(new BooleanSetting("Show Finals", true));
+    public final BooleanSetting showBeds =
+            register(new BooleanSetting("Show Beds", true));
+
     public final BooleanSetting autoSummary =
             register(new BooleanSetting("Summary After Games", true));
 
@@ -69,13 +85,17 @@ public class SessionStats extends Module {
             register(new BooleanSetting("HUD Background", true));
     // Line order for the HUD: lowest number goes on top (ties keep the default order).
     public final SliderSetting orderTime =
-            register(new SliderSetting("Order: Session Time", 1, 1, 4, 1));
+            register(new SliderSetting("Order: Session Time", 1, 1, 6, 1));
     public final SliderSetting orderFinals =
-            register(new SliderSetting("Order: Finals / FKDR", 2, 1, 4, 1));
+            register(new SliderSetting("Order: Finals / FKDR", 2, 1, 6, 1));
     public final SliderSetting orderBeds =
-            register(new SliderSetting("Order: Beds / BBLR", 3, 1, 4, 1));
+            register(new SliderSetting("Order: Beds / BBLR", 3, 1, 6, 1));
     public final SliderSetting orderWins =
-            register(new SliderSetting("Order: Wins / WLR", 4, 1, 4, 1));
+            register(new SliderSetting("Order: Wins / WLR", 4, 1, 6, 1));
+    public final SliderSetting orderKills =
+            register(new SliderSetting("Order: Kills / Deaths", 5, 1, 6, 1));
+    public final SliderSetting orderStars =
+            register(new SliderSetting("Order: Stars", 6, 1, 6, 1));
     // Saved with the other settings but dragged in the inventory, so not shown in the ClickGUI.
     private final SliderSetting hudX =
             register(new SliderSetting("HUD X", 6, 0, 4000, 1, () -> false));
@@ -83,12 +103,16 @@ public class SessionStats extends Module {
             register(new SliderSetting("HUD Y", 40, 0, 4000, 1, () -> false));
 
     private static final class Totals {
-        final int wins, losses, kills, finalKills, finalDeaths, bedsBroken, bedsLost;
+        final int wins, losses, kills, deaths, finalKills, finalDeaths, bedsBroken, bedsLost;
+        /** Star level with the fraction when known (falls back to the whole star). */
+        final double star;
 
         Totals(IntelPlayer p) {
             this.wins = p.wins;
             this.losses = p.losses;
             this.kills = p.kills;
+            this.deaths = p.deaths;
+            this.star = p.starExact > 0 ? p.starExact : p.star;
             this.finalKills = p.finalKills;
             this.finalDeaths = p.finalDeaths;
             this.bedsBroken = p.bedsBroken;
@@ -97,11 +121,12 @@ public class SessionStats extends Module {
     }
 
     private static final class Gained {
-        int wins, losses, games, kills, finalKills, finalDeaths, bedsBroken, bedsLost;
-        double fkdr, bblr, wlr;
+        int wins, losses, games, kills, deaths, finalKills, finalDeaths, bedsBroken, bedsLost;
+        int starNow; // whole star level right now, only used to pick the glyph
+        double fkdr, bblr, wlr, stars;
 
         boolean isEmpty() {
-            return games == 0 && kills == 0 && finalKills == 0 && finalDeaths == 0
+            return games == 0 && kills == 0 && deaths == 0 && finalKills == 0 && finalDeaths == 0
                     && bedsBroken == 0 && bedsLost == 0;
         }
     }
@@ -266,12 +291,19 @@ public class SessionStats extends Module {
         if (showKills.getValue()) {
             line.append("&7Kills &f+").append(g.kills).append("  ");
         }
+        if (showDeaths.getValue()) {
+            line.append("&7Deaths &f+").append(g.deaths).append("  ");
+        }
         if (showFkdr.getValue()) {
             String code = IntelColors.nearestCode(IntelColors.getStatColor(g.fkdr, 3, 6));
             line.append("&7FKDR ").append(code).append(fmt(g.fkdr)).append("  ");
         }
         if (showBblr.getValue()) {
             line.append("&7BBLR &f").append(fmt(g.bblr)).append("  ");
+        }
+
+        if (showStars.getValue()) {
+            line.append("&7Stars &f+").append(fmt(g.stars)).append(PrestigeUtil.glyphColored(g.starNow)).append("  ");
         }
 
         line.append("&8(").append(g.games).append(g.games == 1 ? " game, " : " games, ")
@@ -329,6 +361,7 @@ public class SessionStats extends Module {
 
         FontRenderer font = mc.fontRendererObj;
         List<String> lines = hudLines();
+        if (lines.isEmpty()) return; // every line is turned off
 
         int pad = 4;
         int lineH = font.FONT_HEIGHT + 2;
@@ -450,7 +483,7 @@ public class SessionStats extends Module {
         return was;
     }
 
-    /** The four HUD lines, already color-formatted, in the order set in the ClickGUI. */
+    /** The HUD lines (only the stats that are switched on), color-formatted, in the ClickGUI order. */
     private List<String> hudLines() {
         List<String> out = new ArrayList<>();
 
@@ -463,30 +496,48 @@ public class SessionStats extends Module {
         String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.fkdr, 3, 6));
         String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.wlr, 2, 4));
 
+        // null = that whole line is switched off.
         String[] text = {
-                "&7Session Time: &b" + duration(),
-                "&7Finals: &f" + g.finalKills + " &8/ &7FKDR: " + fkdrCode + fmt(g.fkdr),
-                "&7Beds: &f" + g.bedsBroken + " &8/ &7BBLR: &f" + fmt(g.bblr),
-                "&7Wins: &f" + g.wins + " &8/ &7WLR: " + wlrCode + fmt(g.wlr)
+                showTime.getValue() ? "&7Session Time: &b" + duration() : null,
+                join(showFinals.getValue() ? "&7Finals: &f" + g.finalKills : null,
+                        showFkdr.getValue() ? "&7FKDR: " + fkdrCode + fmt(g.fkdr) : null),
+                join(showBeds.getValue() ? "&7Beds: &f" + g.bedsBroken : null,
+                        showBblr.getValue() ? "&7BBLR: &f" + fmt(g.bblr) : null),
+                join(showWins.getValue() ? "&7Wins: &f" + g.wins : null,
+                        showWlr.getValue() ? "&7WLR: " + wlrCode + fmt(g.wlr) : null),
+                join(showKills.getValue() ? "&7Kills: &f" + g.kills : null,
+                        showDeaths.getValue() ? "&7Deaths: &f" + g.deaths : null),
+                showStars.getValue()
+                        ? "&7Stars: &f+" + fmt(g.stars) + PrestigeUtil.glyphColored(g.starNow) : null
         };
         double[] order = {
-                orderTime.getValue(), orderFinals.getValue(), orderBeds.getValue(), orderWins.getValue()
+                orderTime.getValue(), orderFinals.getValue(), orderBeds.getValue(),
+                orderWins.getValue(), orderKills.getValue(), orderStars.getValue()
         };
 
         // Selection sort on (order value, default position): tiny list, keeps ties stable.
-        boolean[] used = new boolean[4];
-        for (int n = 0; n < 4; n++) {
+        boolean[] used = new boolean[text.length];
+        for (int n = 0; n < text.length; n++) {
             int best = -1;
-            for (int i = 0; i < 4; i++) {
-                if (!used[i] && (best == -1 || order[i] < order[best])) {
+            for (int i = 0; i < text.length; i++) {
+                if (used[i] || text[i] == null) continue;
+                if (best == -1 || order[i] < order[best]) {
                     best = i;
                 }
             }
+            if (best == -1) break;
             used[best] = true;
             out.add(ChatColors.formatColor(text[best]));
         }
 
         return out;
+    }
+
+    /** Joins the parts that are on with a dim slash; null when none are. */
+    private static String join(String first, String second) {
+        if (first == null) return second;
+        if (second == null) return first;
+        return first + " &8/ " + second;
     }
 
     private static int clamp(int value, int min, int max) {
@@ -505,6 +556,9 @@ public class SessionStats extends Module {
         g.losses = diff(l.losses, b.losses);
         g.games = g.wins + g.losses;
         g.kills = diff(l.kills, b.kills);
+        g.deaths = diff(l.deaths, b.deaths);
+        g.stars = Math.max(0.0, l.star - b.star);
+        g.starNow = (int) l.star;
         g.finalKills = diff(l.finalKills, b.finalKills);
         g.finalDeaths = diff(l.finalDeaths, b.finalDeaths);
         g.bedsBroken = diff(l.bedsBroken, b.bedsBroken);
