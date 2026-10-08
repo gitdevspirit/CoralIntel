@@ -28,6 +28,7 @@ import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.BedwarsTag;
 import coralintel.module.modules.AntiCheat;
 import coralintel.module.modules.PregameMessages;
+import coralintel.module.modules.StreamerMode;
 import coralintel.ui.intel.StatSnapshotManager;
 import coralintel.render.RenderEventBridge;
 import net.minecraftforge.common.MinecraftForge;
@@ -95,6 +96,7 @@ public class CoralIntel {
         moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
         moduleManager.modules.put(AntiCheat.class, new AntiCheat());
         moduleManager.modules.put(PregameMessages.class, new PregameMessages());
+        moduleManager.modules.put(StreamerMode.class, new StreamerMode());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
