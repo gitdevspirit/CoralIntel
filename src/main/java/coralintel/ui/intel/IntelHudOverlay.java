@@ -316,6 +316,19 @@ public class IntelHudOverlay {
     }
 
     private List<IntelPlayer> getDisplayPlayers() {
+        List<IntelPlayer> base = getDisplayPlayersBase();
+        List<IntelPlayer> result = new ArrayList<>(base.size());
+
+        for (IntelPlayer player : base) {
+            // Streamer mode: your own row (name, stats, tags) is not drawn.
+            if (coralintel.module.modules.StreamerMode.hidesStatsFor(player.name)) continue;
+            result.add(player);
+        }
+
+        return result;
+    }
+
+    private List<IntelPlayer> getDisplayPlayersBase() {
         coralintel.module.modules.LobbyIntel lobbyIntel =
                 (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule(
                         coralintel.module.modules.LobbyIntel.class
