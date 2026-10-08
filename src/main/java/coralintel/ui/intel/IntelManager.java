@@ -514,6 +514,56 @@ public class IntelManager {
         return result;
     }
 
+    /**
+     * Lightweight, frequent team sync: re-reads each tracked player's team from
+     * the tab list and pushes an update only when something changed. Teams are
+     * assigned when the match starts, which is NOT in step with the 10s
+     * rescan — without this the HUD kept the pre-match order for up to 10s.
+     * Call from the main client thread.
+     */
+    public void refreshTeams() {
+        Minecraft minecraft = Minecraft.getMinecraft();
+
+        if (minecraft.getNetHandler() == null) {
+            return;
+        }
+
+        boolean changed = false;
+
+        for (NetworkPlayerInfo info : minecraft.getNetHandler().getPlayerInfoMap()) {
+            String name = info.getGameProfile().getName();
+
+            if (name == null || isNpc(info)) {
+                continue;
+            }
+
+            IntelPlayer tracked = getPlayer(name);
+
+            if (tracked == null) {
+                continue;
+            }
+
+            String team = detectTeam(info);
+
+            if (!java.util.Objects.equals(tracked.team, team)) {
+                tracked.team = team;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            List<IntelPlayer> combined = combined();
+
+            if (gui != null) {
+                gui.setPlayers(combined);
+            }
+
+            if (hudOverlay != null) {
+                hudOverlay.setPlayers(combined);
+            }
+        }
+    }
+
     public void scanLobby() {
         fetching = true;
 
