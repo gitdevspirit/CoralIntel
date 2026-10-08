@@ -5,6 +5,7 @@ import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.QueueCommand;
 import coralintel.command.commands.PregameMessageCommand;
+import coralintel.command.commands.PeriodStatsCommand;
 import coralintel.command.commands.BindCommand;
 import coralintel.command.commands.BlacklistCommand;
 import coralintel.command.commands.ConfigCommand;
@@ -27,6 +28,7 @@ import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.BedwarsTag;
 import coralintel.module.modules.AntiCheat;
 import coralintel.module.modules.PregameMessages;
+import coralintel.ui.intel.StatSnapshotManager;
 import coralintel.render.RenderEventBridge;
 import net.minecraftforge.common.MinecraftForge;
 import coralintel.property.Property;
@@ -73,6 +75,8 @@ public class CoralIntel {
         commandManager.register(new RoleCommand());
         commandManager.register(new BedwarsStatsCommand());
         commandManager.register(new QueueCommand());
+        commandManager.register(new PeriodStatsCommand("daily", "Daily", "24 hours", 24L * 60L * 60L * 1000L));
+        commandManager.register(new PeriodStatsCommand("monthly", "Monthly", "30 days", 30L * 24L * 60L * 60L * 1000L));
         commandManager.register(new PregameMessageCommand(1));
         commandManager.register(new PregameMessageCommand(2));
         commandManager.register(new PregameMessageCommand(3));
@@ -130,6 +134,7 @@ public class CoralIntel {
                 }
             } catch (Exception ignored) {
             }
+            StatSnapshotManager.getInstance().saveIfDirty();
             config.save();
         }));
 
