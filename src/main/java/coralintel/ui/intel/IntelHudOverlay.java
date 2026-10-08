@@ -483,13 +483,14 @@ public class IntelHudOverlay {
         }
 
         // In an active match (team assigned) — color the name by team,
-        // same as BedWarsTag and the tab list do. In the lobby (no team
-        // yet) — prefix the Hypixel rank instead, since there's no team to
-        // show. Cheater/high-threat coloring still takes priority either way.
+        // same as BedWarsTag and the tab list do. Team color always wins over
+        // the cheater/high-threat name color; those still show in the tag and
+        // threat columns. In the lobby (no team yet) — prefix the Hypixel
+        // rank instead, since there's no team to show.
         String displayName = player.name;
 
         if (player.team != null && !player.team.isEmpty()) {
-            if (showTeamColor && !player.cheater && player.threatScore < 75) {
+            if (showTeamColor) {
                 nameColor = getTeamColor(player.team);
             }
         } else if (player.rankPrefix != null && !player.rankPrefix.isEmpty()) {
