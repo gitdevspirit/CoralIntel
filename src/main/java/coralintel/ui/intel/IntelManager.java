@@ -16,7 +16,9 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IntelManager {
@@ -167,7 +169,10 @@ public class IntelManager {
      * Settings, or nicked) since retrying those can't help.
      */
     public void retryFailedFetches() {
-        for (IntelPlayer player : combined()) {
+        List<IntelPlayer> toCheck = new ArrayList<>(combined());
+        toCheck.addAll(parked.values());
+
+        for (IntelPlayer player : toCheck) {
             // statsFinal covers fully loaded / nicked / gave up — only players
             // that are NOT fully loaded (and not already being fetched) get
             // re-fetched, so partial rows (e.g. star only) keep refreshing.
@@ -255,6 +260,15 @@ public class IntelManager {
             }
         }
 
+        // Parked chatters are kept whatever their load state: the fetch is still
+        // writing into this same object, so the reused player finishes on its own.
+        for (IntelPlayer p : parked.values()) {
+            if (!p.isNicked && !p.statsSkipped) {
+                retained.put(p.name.toLowerCase(), new Retained(p));
+            }
+        }
+        parked.clear();
+
         retained.values().removeIf(r -> now - r.at > RETAIN_MS);
     }
 
@@ -267,6 +281,62 @@ public class IntelManager {
         }
 
         return r.player;
+    }
+
+    // ── Pregame chat chatters ─────────────────────────────────────────────
+    // Someone typing in the pregame lobby is shown on the HUD for a moment,
+    // then "parked": removed from the display while their stats keep loading in
+    // the background (same IntelPlayer object), ready for the countdown rescan.
+    private final Map<String, IntelPlayer> parked = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ScheduledExecutorService parkTimer =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "coral-pregame-park");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /** Adds a pregame chatter to the roster (stats start loading) and parks them after {@code hudMillis}. */
+    public void addPregameChatter(String name, long hudMillis) {
+        addManualPlayer(name);
+
+        final String key = name.toLowerCase();
+
+        parkTimer.schedule(() -> Minecraft.getMinecraft().addScheduledTask(() -> {
+            for (IntelPlayer p : manualPlayers) {
+                if (p.name.equalsIgnoreCase(name)) {
+                    manualPlayers.remove(p);
+                    parked.put(key, p);
+                    pushUpdate();
+                    dbg("[Intel] " + name + " parked off the HUD; stats keep loading.");
+                    return;
+                }
+            }
+        }), Math.max(0L, hudMillis), TimeUnit.MILLISECONDS);
+    }
+
+    /** Adds a nicked pregame chatter to the HUD. No stats lookup — a nick's name can match a stranger's account. */
+    public void addNickedChatter(String name) {
+        for (IntelPlayer p : combined()) {
+            if (p.name.equalsIgnoreCase(name)) {
+                if (!p.isNicked) {
+                    markNicked(p);
+                    pushUpdate();
+                }
+                return;
+            }
+        }
+
+        IntelPlayer player = new IntelPlayer(name, null);
+        markNicked(player);
+        manualPlayers.add(player);
+        pushUpdate();
+    }
+
+    /** Drops every trace of a player (parked / stashed) — used when they leave the pregame lobby. */
+    public void forgetPlayer(String name) {
+        String key = name.toLowerCase();
+        parked.remove(key);
+        retained.remove(key);
     }
 
     private volatile boolean fetching = false;
@@ -396,7 +466,10 @@ public class IntelManager {
             }
         }
 
-        IntelPlayer recycled = takeRetained(name);
+        IntelPlayer recycled = parked.remove(name.toLowerCase());
+        if (recycled == null) {
+            recycled = takeRetained(name);
+        }
         final IntelPlayer player = recycled != null ? recycled : new IntelPlayer(name, null);
         manualPlayers.add(player);
 
@@ -481,6 +554,7 @@ public class IntelManager {
         boolean removed = manualPlayers.removeIf(
                 player -> player.name.equalsIgnoreCase(name)
         );
+        parked.remove(name.toLowerCase());
 
         List<IntelPlayer> combined = combined();
 
@@ -880,11 +954,41 @@ public class IntelManager {
     public IntelPlayer fetchStandaloneStats(String name) {
         IntelPlayer player = new IntelPlayer(name, null);
 
-        try {
-            fetchHypixel(player);
-        } catch (Exception exception) {
-            dbg("[Intel] standalone stats fetch failed for " + name
-                    + ": " + exception);
+        // One-off lookups have no 10s retry loop behind them, so retry here:
+        // a rate limit, a Mojang hiccup or a partial answer (star only) gets
+        // another go instead of being printed as-is. Bordic is always part of
+        // the chain for these lookups, whatever the HUD's keyless settings say.
+        for (int attempt = 1; attempt <= STANDALONE_ATTEMPTS; attempt++) {
+            boolean rateLimited = false;
+
+            try {
+                fetchHypixel(player, true);
+            } catch (RateLimitedException exception) {
+                rateLimited = true;
+                dbg("[Intel] standalone stats rate limited for " + name + " (attempt " + attempt + ")");
+            } catch (Exception exception) {
+                dbg("[Intel] standalone stats fetch failed for " + name
+                        + ": " + exception);
+            }
+
+            if (player.statsComplete) {
+                break;
+            }
+
+            // Two independent sources both saw the account without Bedwars
+            // stats: that's a hidden profile, not a failed fetch.
+            if (player.statsHidden && !rateLimited && attempt >= 2) {
+                break;
+            }
+
+            if (attempt < STANDALONE_ATTEMPTS) {
+                try {
+                    Thread.sleep((rateLimited ? 1500L : 700L) * attempt);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
         player.loading = false;
 
@@ -903,8 +1007,21 @@ public class IntelManager {
         return player;
     }
 
+    private static final int STANDALONE_ATTEMPTS = 3;
+
     private void fetchHypixel(IntelPlayer player) {
+        fetchHypixel(player, false);
+    }
+
+    /**
+     * @param forceBordic true for one-off lookups (.bw / .daily / .monthly): Bordic is
+     *                    always tried as a fallback, independent of the HUD's keyless settings.
+     * @throws RateLimitedException only when a source was rate limited AND nothing else
+     *                    managed to return every stat, so callers can retry.
+     */
+    private void fetchHypixel(IntelPlayer player, boolean forceBordic) {
         boolean bordicTried = false;
+        RateLimitedException limited = null;
 
         // Each round starts clean: "complete" is only ever earned by a source
         // that returns every stat, and "hidden" is only set by a source that
@@ -917,21 +1034,40 @@ public class IntelManager {
         // attach that stranger's stats.
         if (!player.isNicked && isBordicPrimary()) {
             bordicTried = true;
-            fetchBordic(player);
+            try {
+                fetchBordic(player);
+            } catch (RateLimitedException e) {
+                limited = e;
+            }
         }
 
+        // A rate limit on one source must not abort the chain: remember it and
+        // carry on to the keyless sources below.
         if (!player.statsComplete && !hypixelApiKey.isEmpty()) {
-            fetchHypixelApi(player);
+            try {
+                fetchHypixelApi(player);
+            } catch (RateLimitedException e) {
+                limited = e;
+            }
         }
 
         // Fallback chain until a source returns EVERY stat (not just the star):
         // Bordic (keyless, opt-in) -> Slothpixel (keyless).
-        if (!player.statsComplete && !player.isNicked && !bordicTried && isBordicFallbackEnabled()) {
-            fetchBordic(player);
+        if (!player.statsComplete && !player.isNicked && !bordicTried
+                && (forceBordic || isBordicFallbackEnabled())) {
+            try {
+                fetchBordic(player);
+            } catch (RateLimitedException e) {
+                limited = e;
+            }
         }
 
         if (!player.statsComplete && !player.isNicked) {
             fetchSlothpixel(player);
+        }
+
+        if (limited != null && !player.statsComplete) {
+            throw limited;
         }
         // loading is decided by runStatsFetch: it stays true until fully loaded.
     }
@@ -1007,6 +1143,8 @@ public class IntelManager {
             }
 
             return ok;
+        } catch (RateLimitedException exception) {
+            throw exception;
         } catch (Exception exception) {
             dbg("[Intel] Bordic fetch failed for " + player.name + ": " + exception);
             return false;
@@ -1146,6 +1284,8 @@ public class IntelManager {
             }
 
             return applyHypixelProfile(root.getAsJsonObject("player"), player);
+        } catch (RateLimitedException exception) {
+            throw exception; // was swallowed here, so a 429 looked like "no stats"
         } catch (Exception ignored) {
             return false;
         }
@@ -1166,26 +1306,29 @@ public class IntelManager {
             );
         }
 
-        JsonObject stats = profile.has("stats")
+        JsonObject stats = profile.has("stats") && profile.get("stats").isJsonObject()
                 ? profile.getAsJsonObject("stats")
                 : null;
 
-        JsonObject bedwars = stats != null && stats.has("Bedwars")
+        JsonObject bedwars = stats != null && stats.has("Bedwars") && stats.get("Bedwars").isJsonObject()
                 ? stats.getAsJsonObject("Bedwars")
                 : null;
 
-        if (bedwars != null && bedwars.has("Experience")) {
-            player.star = getBedWarsLevelFromExp(
-                    bedwars.get("Experience").getAsInt()
-            );
+        int newStar;
+
+        if (bedwars != null && bwInt(bedwars, "Experience") > 0) {
+            newStar = getBedWarsLevelFromExp(bwInt(bedwars, "Experience"));
         } else {
-            JsonObject achievements = profile.has("achievements")
+            JsonObject achievements = profile.has("achievements") && profile.get("achievements").isJsonObject()
                     ? profile.getAsJsonObject("achievements")
                     : null;
 
-            player.star = achievements != null && achievements.has("bedwars_level")
-                    ? achievements.get("bedwars_level").getAsInt()
-                    : 0;
+            newStar = achievements != null ? bwInt(achievements, "bedwars_level") : 0;
+        }
+
+        // Never replace a star an earlier source already found with a 0.
+        if (newStar > 0 || player.star == 0) {
+            player.star = newStar;
         }
 
         if (bedwars == null) {
@@ -1230,8 +1373,18 @@ public class IntelManager {
         return true;
     }
 
+    /** Null-safe: a null / non-numeric field used to throw and abort the whole profile (star kept, every other stat lost). */
     private int bwInt(JsonObject bedwars, String key) {
-        return bedwars.has(key) ? bedwars.get(key).getAsInt() : 0;
+        try {
+            if (!bedwars.has(key) || !bedwars.get(key).isJsonPrimitive()) {
+                return 0;
+            }
+
+            double value = bedwars.get(key).getAsDouble();
+            return (int) Math.max(0, Math.min(Integer.MAX_VALUE, value));
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     private void fetchUrchinBatch(List<IntelPlayer> batch) {
