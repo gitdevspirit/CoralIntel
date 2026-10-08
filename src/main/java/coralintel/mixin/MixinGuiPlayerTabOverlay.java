@@ -196,7 +196,9 @@ public abstract class MixinGuiPlayerTabOverlay {
             // Closet cheater specifically renders gold in the tab list;
             // everything else uses the nearest code to its usual color.
             String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor());
-            prefix.append(tagCode).append(tag).append(" ");
+            // §r after the badge so the tag color can never bleed onto the
+            // name — the team color (or the rank colors) must stay in charge.
+            prefix.append(tagCode).append(tag).append("\u00A7r ");
             wroteAny = true;
         }
 
