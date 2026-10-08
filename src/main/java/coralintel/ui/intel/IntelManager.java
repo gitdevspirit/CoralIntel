@@ -227,6 +227,47 @@ public class IntelManager {
     private final List<IntelPlayer> players = new CopyOnWriteArrayList<>();
     private final List<IntelPlayer> manualPlayers = new CopyOnWriteArrayList<>();
 
+    // Fully-loaded players stashed whenever the roster is rebuilt (new world,
+    // /who, team assignment) so they come back WITH their stats instead of
+    // being fetched again — the roster is just re-ordered/re-teamed.
+    private static final long RETAIN_MS = 10 * 60 * 1000L;
+
+    private static class Retained {
+        final IntelPlayer player;
+        final long at = System.currentTimeMillis();
+
+        Retained(IntelPlayer player) {
+            this.player = player;
+        }
+    }
+
+    private final Map<String, Retained> retained = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Stashes every player whose stats are fully loaded so a roster rebuild can reuse them. */
+    public void retainLoadedPlayers() {
+        long now = System.currentTimeMillis();
+
+        for (IntelPlayer p : combined()) {
+            if (p.statsFinal && p.statsComplete && !p.isNicked
+                    && !p.statsSkipped && !p.fetchInFlight) {
+                retained.put(p.name.toLowerCase(), new Retained(p));
+            }
+        }
+
+        retained.values().removeIf(r -> now - r.at > RETAIN_MS);
+    }
+
+    /** Returns (and removes) a stashed, still-fresh player for this name, or null. */
+    private IntelPlayer takeRetained(String name) {
+        Retained r = retained.remove(name.toLowerCase());
+
+        if (r == null || System.currentTimeMillis() - r.at > RETAIN_MS) {
+            return null;
+        }
+
+        return r.player;
+    }
+
     private volatile boolean fetching = false;
 
     private IntelGui gui;
@@ -349,7 +390,8 @@ public class IntelManager {
             }
         }
 
-        IntelPlayer player = new IntelPlayer(name, null);
+        IntelPlayer recycled = takeRetained(name);
+        final IntelPlayer player = recycled != null ? recycled : new IntelPlayer(name, null);
         manualPlayers.add(player);
 
         List<IntelPlayer> combined = combined();
@@ -360,6 +402,11 @@ public class IntelManager {
 
         if (hudOverlay != null) {
             hudOverlay.setPlayers(combined);
+        }
+
+        // Already loaded earlier this session — reuse its stats as-is.
+        if (recycled != null) {
+            return;
         }
 
         pool.submit(() -> {
@@ -488,6 +535,11 @@ public class IntelManager {
         for (IntelPlayer existing : players) {
             existingByName.put(existing.name.toLowerCase(), existing);
         }
+        // A name already tracked via /who keeps its object (and any stats /
+        // in-flight fetch) when it shows up in the tab list — no second fetch.
+        for (IntelPlayer manual : manualPlayers) {
+            existingByName.putIfAbsent(manual.name.toLowerCase(), manual);
+        }
 
         List<IntelPlayer> newRoster = new ArrayList<>();
         List<IntelPlayer> needsFetch = new ArrayList<>();
@@ -501,6 +553,12 @@ public class IntelManager {
 
             String team = detectTeam(info);
             IntelPlayer existing = existingByName.get(name.toLowerCase());
+
+            if (existing == null) {
+                // Seen earlier this session with stats fully loaded: bring it
+                // back with those stats; only its team/position changes.
+                existing = takeRetained(name);
+            }
 
             java.util.UUID tabUuid = info.getGameProfile().getId();
             boolean nickedUuid = isNickUuid(tabUuid);
@@ -557,6 +615,7 @@ public class IntelManager {
 
         players.clear();
         players.addAll(newRoster);
+        manualPlayers.removeIf(newRoster::contains);
 
         if (gui != null) {
             for (NetworkPlayerInfo info : minecraft.getNetHandler().getPlayerInfoMap()) {
@@ -649,6 +708,10 @@ public class IntelManager {
     }
 
     public void clearAll() {
+        // Soft clear: loaded stats are kept aside and reused when the same
+        // players show up again (pregame -> arena, countdown rescans, /who).
+        retainLoadedPlayers();
+
         players.clear();
         manualPlayers.clear();
 
