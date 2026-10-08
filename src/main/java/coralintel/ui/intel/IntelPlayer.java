@@ -44,6 +44,13 @@ public class IntelPlayer {
     // hidden, nicked, or gave up after MAX_FETCH_ATTEMPTS. Rescans and the
     // periodic retry only touch players where this is still false.
     public boolean statsFinal = false;
+    // True only when a source returned the full Bedwars stats object (plus the
+    // network level) — i.e. every column has real data, not just the star
+    // (which can come alone from the achievements fallback).
+    public boolean statsComplete = false;
+    // A stats fetch for this player is queued or running — keeps the retry
+    // loop from double-submitting while the row stays in its loading look.
+    public volatile boolean fetchInFlight = false;
     // True for yourself when "Skip Own Stats" is on: no fetch, row stays
     // in its "-" / plain-name loading look.
     public boolean statsSkipped = false;
