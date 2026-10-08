@@ -48,6 +48,8 @@ public class IntelPlayer {
     // network level) — i.e. every column has real data, not just the star
     // (which can come alone from the achievements fallback).
     public boolean statsComplete = false;
+    // True when the stats came from the disk cache this round (no API calls made).
+    public boolean statsFromCache = false;
     // A stats fetch for this player is queued or running — keeps the retry
     // loop from double-submitting while the row stays in its loading look.
     public volatile boolean fetchInFlight = false;
