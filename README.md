@@ -26,7 +26,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your lobby before the g
 2. Download the latest `CoralIntel` jar from the [Releases](../../releases) page.
 3. Put the jar in your `.minecraft/mods` folder and launch the game.
 4. Join Hypixel and run `/api new` – the key is detected automatically from your log, or set it yourself with `.intelkey <key>`.
-5. *(Optional)* Set a Coral key with `.coralkey <key>` for cheater tags.
+5. *(Optional but Recommended)* Set a Coral key with `.coralkey <key>` for cheater tags.
 
 ### Building from source
 
@@ -81,4 +81,4 @@ Settings are saved to `config/CoralIntel/` inside your Minecraft folder. Use the
 
 ## Disclaimer
 
-CoralIntel only reads public stats and information the game already sends your client. Make sure any use complies with the rules of the server you play on.
+CoralIntel only reads public stats and information the game already sends your client. Make sure any use complies with the rules of the server you play on. As all mods are, CoralIntel is strictly use at your own risk, we do not take any responsibility for **any** bans whatsoever.
