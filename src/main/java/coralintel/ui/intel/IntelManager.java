@@ -16,9 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IntelManager {
@@ -284,34 +282,14 @@ public class IntelManager {
     }
 
     // ── Pregame chat chatters ─────────────────────────────────────────────
-    // Someone typing in the pregame lobby is shown on the HUD for a moment,
-    // then "parked": removed from the display while their stats keep loading in
-    // the background (same IntelPlayer object), ready for the countdown rescan.
+    // Pregame chatters stay on the HUD until "The game starts in 1 second". Players
+    // that get "parked" (removed from the display) keep loading in the background
+    // on the same IntelPlayer object so they can be reused later.
     private final Map<String, IntelPlayer> parked = new java.util.concurrent.ConcurrentHashMap<>();
-    private final ScheduledExecutorService parkTimer =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "coral-pregame-park");
-                t.setDaemon(true);
-                return t;
-            });
 
-    /** Adds a pregame chatter to the roster (stats start loading) and parks them after {@code hudMillis}. */
-    public void addPregameChatter(String name, long hudMillis) {
+    /** Adds a pregame chatter to the roster right away; their stats start loading immediately. */
+    public void addPregameChatter(String name) {
         addManualPlayer(name);
-
-        final String key = name.toLowerCase();
-
-        parkTimer.schedule(() -> Minecraft.getMinecraft().addScheduledTask(() -> {
-            for (IntelPlayer p : manualPlayers) {
-                if (p.name.equalsIgnoreCase(name)) {
-                    manualPlayers.remove(p);
-                    parked.put(key, p);
-                    pushUpdate();
-                    dbg("[Intel] " + name + " parked off the HUD; stats keep loading.");
-                    return;
-                }
-            }
-        }), Math.max(0L, hudMillis), TimeUnit.MILLISECONDS);
     }
 
     /** Adds a nicked pregame chatter to the HUD. No stats lookup — a nick's name can match a stranger's account. */
