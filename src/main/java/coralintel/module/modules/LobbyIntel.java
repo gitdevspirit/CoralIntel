@@ -89,6 +89,10 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Bordic Stats (Keyless)", false));
     public final BooleanSetting bordicFallback =
             register(new BooleanSetting("Keyless Fallback (Bordic)", false));
+    // 0 = off. Re-queuing into players seen within this many minutes reuses their
+    // saved stats (disk cache) instead of fetching again.
+    public final coralintel.module.SliderSetting statCacheMinutes =
+            register(new coralintel.module.SliderSetting("Stat Cache (minutes, 0=off)", 15, 0, 30, 1));
     public final BooleanSetting skipSelfStats =
             register(new BooleanSetting("Skip Own Stats (Tab/HUD)", false));
     public final BooleanSetting tabShowNick =
