@@ -439,6 +439,12 @@ public class LobbyIntel extends Module {
 
         retryTickCounter++;
 
+        // Every 0.5s: sync teams from the tab list so the HUD re-sorts as soon
+        // as teams are assigned (the full rescan below only runs every 10s).
+        if (retryTickCounter % 10 == 0) {
+            IntelManager.getInstance().refreshTeams();
+        }
+
         // 20 ticks/sec — every 200 ticks is 10 seconds.
         if (retryTickCounter >= 200) {
             retryTickCounter = 0;
