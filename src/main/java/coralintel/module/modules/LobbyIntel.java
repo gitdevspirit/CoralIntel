@@ -36,6 +36,8 @@ public class LobbyIntel extends Module {
     public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
     public final BooleanSetting trackPregameChat =
             register(new BooleanSetting("Track Pregame Chat", true));
+    public final coralintel.module.SliderSetting pregameChatHudSeconds =
+            register(new coralintel.module.SliderSetting("Pregame Chat: HUD Seconds", 1, 1, 10, 1));
     public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
     public final coralintel.module.SliderSetting focusCount =
             register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
@@ -229,6 +231,10 @@ public class LobbyIntel extends Module {
     // They are added to the roster straight away so their stats load early;
     // cleared on every world change.
     private final java.util.Map<String, String> chatTracked = new java.util.concurrent.ConcurrentHashMap<>();
+    // Nicked players who typed in pregame (lowercase names). Announced once each
+    // and shown on the HUD until they leave / the countdown rescan takes over.
+    private final java.util.Set<String> chatNicks =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     // "[142✫] [MVP+] Name: hello" or "Name: hello". Party / guild / PM lines
     // start with "Party >", "Guild >", "To ..." so they never match.
@@ -418,6 +424,7 @@ public class LobbyIntel extends Module {
         finalWhoSent = false;
         retryTickCounter = 0;
         chatTracked.clear();
+        chatNicks.clear();
         IntelManager.getInstance().clearAll();
 
         if (autoKey.getValue()) {
@@ -574,6 +581,7 @@ public class LobbyIntel extends Module {
                 // without a quit message.
                 java.util.List<String> typedInPregame = new java.util.ArrayList<>(chatTracked.values());
                 chatTracked.clear();
+                chatNicks.clear(); // the tab scan below re-detects nicks from their tab UUID
 
                 IntelManager.getInstance().clearAll();
                 IntelManager.getInstance().scanLobby();
@@ -712,8 +720,13 @@ public class LobbyIntel extends Module {
         if (quit.find()) {
             final String leaver = quit.group(1);
 
-            if (chatTracked.remove(leaver.toLowerCase(java.util.Locale.ROOT)) != null) {
+            String leaverKey = leaver.toLowerCase(java.util.Locale.ROOT);
+            boolean wasTracked = chatTracked.remove(leaverKey) != null;
+            boolean wasNick = chatNicks.remove(leaverKey);
+
+            if (wasTracked || wasNick) {
                 mc.addScheduledTask(() -> {
+                    IntelManager.getInstance().forgetPlayer(leaver);
                     removePlayerFromOverlay(leaver);
                     IntelManager.dbg("[Intel] " + leaver + " left the pregame lobby — removed.");
                 });
@@ -740,10 +753,19 @@ public class LobbyIntel extends Module {
             if (info != null) {
                 if (IntelManager.isNpc(info)) return;
 
-                // A nick's tab UUID is version 1 — the tab scan marks it as nicked,
-                // so don't look the name up as if it were a real account.
+                // A nick's tab UUID is version 1 (Mellow's check). Never look a nick
+                // up as if it were a real account — a stranger may own that name.
+                // Announce it once client-side and put it on the HUD instead.
                 java.util.UUID id = info.getGameProfile().getId();
-                if (id != null && id.version() == 1) return;
+                if (id != null && id.version() == 1) {
+                    if (chatNicks.add(name.toLowerCase(java.util.Locale.ROOT))) {
+                        ChatUtil.sendFormatted("&5[NICK] &f" + name + " &7is nicked.");
+                        IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby but is nicked.");
+                    }
+
+                    IntelManager.getInstance().addNickedChatter(name);
+                    return;
+                }
             }
         }
 
@@ -751,8 +773,10 @@ public class LobbyIntel extends Module {
             IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — added to roster.");
         }
 
-        // No-op if they're already tracked (tab scan or earlier message).
-        IntelManager.getInstance().addManualPlayer(name);
+        // Added to the HUD with stats loading; parked off the HUD after the
+        // configured time while the stats keep loading. No-op if already tracked.
+        IntelManager.getInstance().addPregameChatter(name,
+                (long) (pregameChatHudSeconds.getValue() * 1000L));
     }
 
     private void removePlayerFromOverlay(String playerName) {
