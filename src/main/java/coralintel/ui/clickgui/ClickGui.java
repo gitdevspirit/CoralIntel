@@ -61,6 +61,8 @@ public class ClickGui extends GuiScreen {
     private final Map<Object, PanelState> panels = new LinkedHashMap<>();
     private static final String BLACKLIST_SAFELIST = "Blacklist/Safelist";
     private SliderRow draggingSlider = null;
+    // Ctrl+click / Ctrl+drag in the ClickGUI moves the session HUD.
+    private boolean movingHud = false;
     private KeybindSetting listeningKeybind = null;
 
     private static class PanelState {
@@ -637,7 +639,8 @@ public class ClickGui extends GuiScreen {
                 rows.add(new SectionLabelRow(line));
             }
             rows.add(new SectionLabelRow(".reset restarts it, .session prints it"));
-            rows.add(new SectionLabelRow("Inventory: drag the HUD to move it"));
+            rows.add(new SectionLabelRow("Ctrl+click here to place the HUD"));
+            rows.add(new SectionLabelRow("(or drag it in your inventory)"));
         }
 
         if (module instanceof PregameMessages) {
@@ -713,7 +716,20 @@ public class ClickGui extends GuiScreen {
             drawPanel(entry.getKey(), entry.getValue(), mouseX, mouseY);
         }
 
+        // The session HUD is shown here too, on top of the panels, so it can be placed by eye.
+        SessionStats session = sessionStats();
+        if (session != null) {
+            session.setPlacing(isCtrlKeyDown());
+            session.drawHud(false, mouseX, mouseY);
+            session.setPlacing(false);
+        }
+
         super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private static SessionStats sessionStats() {
+        Module module = CoralIntel.moduleManager.getModule(SessionStats.class);
+        return module instanceof SessionStats ? (SessionStats) module : null;
     }
 
     private static final int MAX_VISIBLE_CONTENT = 400; // caps a panel's height before it scrolls
@@ -807,6 +823,15 @@ public class ClickGui extends GuiScreen {
         // box then re-opens it for editing via TextRow.click().
         commitEdit();
 
+        // Ctrl+click anywhere puts the session HUD there (and drag keeps moving it).
+        if (button == 0 && isCtrlKeyDown()) {
+            SessionStats session = sessionStats();
+            if (session != null && session.beginMove(mouseX, mouseY)) {
+                movingHud = true;
+                return;
+            }
+        }
+
         if (button == 0) {
             for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
                 PanelState state = entry.getValue();
@@ -857,6 +882,11 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void mouseReleased(int mouseX, int mouseY, int state) {
+        if (movingHud) {
+            movingHud = false;
+            SessionStats session = sessionStats();
+            if (session != null) session.endMove();
+        }
         draggingSlider = null;
         draggingGenericSlider = null;
         for (PanelState p : panels.values()) p.dragging = false;
@@ -865,6 +895,11 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void mouseClickMove(int mouseX, int mouseY, int button, long timeSinceLastClick) {
+        if (movingHud) {
+            SessionStats session = sessionStats();
+            if (session != null) session.moveTo(mouseX, mouseY);
+            return;
+        }
         if (draggingSlider != null) {
             draggingSlider.apply(mouseX);
             return;
