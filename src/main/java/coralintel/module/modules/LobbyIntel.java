@@ -630,6 +630,7 @@ public class LobbyIntel extends Module {
 
             if (!realNames.isEmpty()) {
                 IntelManager manager = IntelManager.getInstance();
+                manager.retainLoadedPlayers(); // keep loaded stats; /who only re-lists the roster
                 manager.getPlayers().clear();
                 manager.clearManualPlayers();
 
