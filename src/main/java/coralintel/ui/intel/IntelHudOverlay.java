@@ -248,33 +248,71 @@ public class IntelHudOverlay {
         }
     }
 
-    private void sortPlayers() {
-        switch (sortMode) {
-            case "threat":
-                players.sort((a, b) -> Double.compare(b.threatScore, a.threatScore));
-                break;
+    /** Sort keys captured once per sort, so stats landing on other threads can't change them mid-sort. */
+    private static class SortKey {
+        final IntelPlayer player;
+        final double threat;
+        final double fkdr;
+        final int star;
+        final int teamRank;
+        final String name;
 
+        SortKey(IntelPlayer player) {
+            this.player = player;
+            this.threat = player.threatScore;
+            this.fkdr = player.fkdr;
+            this.star = player.star;
+            this.teamRank = teamRank(player.team);
+            this.name = player.name == null ? "" : player.name;
+        }
+    }
+
+    private void sortPlayers() {
+        if (players.size() < 2) return;
+
+        List<SortKey> keys = new ArrayList<>(players.size());
+        for (IntelPlayer player : players) {
+            keys.add(new SortKey(player));
+        }
+
+        Comparator<SortKey> byName = (a, b) -> String.CASE_INSENSITIVE_ORDER.compare(a.name, b.name);
+        Comparator<SortKey> byThreat = (a, b) -> Double.compare(b.threat, a.threat);
+        Comparator<SortKey> cmp;
+
+        switch (sortMode) {
             case "fkdr":
-                players.sort((a, b) -> Double.compare(b.fkdr, a.fkdr));
+                cmp = ((Comparator<SortKey>) (a, b) -> Double.compare(b.fkdr, a.fkdr)).thenComparing(byName);
                 break;
 
             case "star":
-                players.sort((a, b) -> Integer.compare(b.star, a.star));
+                cmp = ((Comparator<SortKey>) (a, b) -> Integer.compare(b.star, a.star)).thenComparing(byName);
                 break;
 
             case "name":
-                players.sort(Comparator.comparing(p -> p.name));
+                cmp = byName;
                 break;
 
             case "team":
                 // Group by team (red, blue, green, yellow, aqua, white, pink,
                 // gray; unassigned last), highest threat first inside each.
-                players.sort((a, b) -> {
-                    int byTeam = Integer.compare(teamRank(a.team), teamRank(b.team));
-                    return byTeam != 0 ? byTeam : Double.compare(b.threatScore, a.threatScore);
-                });
+                cmp = ((Comparator<SortKey>) (a, b) -> Integer.compare(a.teamRank, b.teamRank))
+                        .thenComparing(byThreat)
+                        .thenComparing(byName);
+                break;
+
+            case "threat":
+            default:
+                cmp = byThreat.thenComparing(byName);
                 break;
         }
+
+        keys.sort(cmp);
+
+        List<IntelPlayer> sorted = new ArrayList<>(keys.size());
+        for (SortKey key : keys) {
+            sorted.add(key.player);
+        }
+        players = sorted;
     }
 
     private List<IntelPlayer> getDisplayPlayers() {
@@ -321,6 +359,11 @@ public class IntelHudOverlay {
 
     public void render() {
         if (!enabled || players.isEmpty()) return;
+
+        // Re-sort every frame (cheap, <= 80 rows) so the order always matches
+        // the CURRENT teams/stats — teams get assigned after the roster was
+        // last pushed, and that used to leave the list in its old order.
+        sortPlayers();
 
         List<IntelPlayer> displayPlayers = getDisplayPlayers();
 
