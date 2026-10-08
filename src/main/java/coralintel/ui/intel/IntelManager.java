@@ -106,6 +106,7 @@ public class IntelManager {
             if (p.statsComplete && !p.statsFetchFailed) {
                 p.loading = false;
                 p.statsFinal = true; // fully loaded: every stat is in
+                StatSnapshotManager.getInstance().record(p); // baseline for .daily / .monthly
                 return;
             }
 
@@ -329,6 +330,11 @@ public class IntelManager {
 
     public List<IntelPlayer> getPlayers() {
         return players;
+    }
+
+    /** Snapshot of everyone tracked right now: tab-scanned players plus manually added / chat-tracked ones. */
+    public List<IntelPlayer> getAllPlayers() {
+        return combined();
     }
 
     public IntelPlayer getPlayer(String name) {
@@ -682,11 +688,11 @@ public class IntelManager {
                 }
             }
 
-            gui.setPlayers(new ArrayList<>(players));
+            gui.setPlayers(combined());
         }
 
         if (hudOverlay != null) {
-            hudOverlay.setPlayers(new ArrayList<>(players));
+            hudOverlay.setPlayers(combined());
         }
 
         if (!needsFetch.isEmpty()) {
@@ -713,7 +719,7 @@ public class IntelManager {
                             }
                         }
 
-                        List<IntelPlayer> refreshed = new ArrayList<>(players);
+                        List<IntelPlayer> refreshed = combined();
 
                         if (gui != null) {
                             gui.setPlayers(refreshed);
@@ -736,7 +742,7 @@ public class IntelManager {
                     runStatsFetch(current);
                 } finally {
                     Minecraft.getMinecraft().addScheduledTask(() -> {
-                        List<IntelPlayer> refreshed = new ArrayList<>(players);
+                        List<IntelPlayer> refreshed = combined();
 
                         if (gui != null) {
                             gui.setPlayers(refreshed);
@@ -881,6 +887,10 @@ public class IntelManager {
                     + ": " + exception);
         }
         player.loading = false;
+
+        if (player.statsComplete) {
+            StatSnapshotManager.getInstance().record(player); // baseline for .daily / .monthly
+        }
 
         try {
             fetchUrchinBatch(java.util.Collections.singletonList(player));
