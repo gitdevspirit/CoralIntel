@@ -44,6 +44,28 @@ public class BedwarsStatsCommand extends Command {
 
         LobbyIntel intel = (LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
 
+        // A star with nothing behind it means the sources only gave us the
+        // achievements level. Printing "FKDR 0.00 WLR 0.00" for that is misleading,
+        // so say what actually happened instead.
+        boolean hasDetail = player.finalKills != 0 || player.finalDeaths != 0
+                || player.wins != 0 || player.losses != 0
+                || player.kills != 0 || player.deaths != 0
+                || player.bedsBroken != 0 || player.bedsLost != 0;
+
+        if (player.star != 0 && !hasDetail && !player.isNicked) {
+            reply("&b" + ign + "&7 » " + coralintel.util.PrestigeUtil.format(player.star) + "\u00A7r");
+
+            if (player.statsHidden) {
+                reply("&e" + ign + " &7has hidden their other Bedwars stats via API Settings.");
+            } else {
+                reply("&cOnly the star loaded for &f" + ign
+                        + "&c (Hypixel and Bordic returned partial data). Try again in a few seconds.");
+            }
+
+            sendTagLine(player, intel);
+            return;
+        }
+
         if (!hasAnyData) {
             if (player.isNicked) {
                 reply("&5[NICK] &f" + ign + " &7appears to be nicked.");
@@ -57,14 +79,7 @@ public class BedwarsStatsCommand extends Command {
                         + "&c (nicked, never played, or API unreachable).");
             }
 
-            if (!player.getTagBadge().isEmpty() && intel != null && intel.bwShowTag.getValue()) {
-                String badge = player.getTagBadge();
-                String message = player.getFullTagMessage();
-                String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
-                String tagCode = badge.equals("CC") ? "§6"
-                        : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
-                reply(tagCode + "[" + badge + "] &7" + detail);
-            }
+            sendTagLine(player, intel);
 
             return;
         }
@@ -141,14 +156,18 @@ public class BedwarsStatsCommand extends Command {
 
         reply(line.toString().trim());
 
-        if (!player.getTagBadge().isEmpty() && intel != null && intel.bwShowTag.getValue()) {
-            String badge = player.getTagBadge();
-            String message = player.getFullTagMessage();
-                String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
-            String tagCode = badge.equals("CC") ? "§6"
-                    : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
-            reply(tagCode + "[" + badge + "] &7" + detail);
-        }
+        sendTagLine(player, intel);
+    }
+
+    private void sendTagLine(IntelPlayer player, LobbyIntel intel) {
+        if (player.getTagBadge().isEmpty() || intel == null || !intel.bwShowTag.getValue()) return;
+
+        String badge = player.getTagBadge();
+        String message = player.getFullTagMessage();
+        String detail = !message.isEmpty() ? message : (player.urchinTag != null ? player.urchinTag : badge);
+        String tagCode = badge.equals("CC") ? "§6"
+                : coralintel.ui.intel.IntelColors.nearestCode(player.getTagColor());
+        reply(tagCode + "[" + badge + "] &7" + detail);
     }
 
     /** Defaults to true (shown) when the module reference or setting is unavailable. */
