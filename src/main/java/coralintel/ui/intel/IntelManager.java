@@ -789,26 +789,6 @@ public class IntelManager {
         return fetchAndCacheUuid(name);
     }
 
-    /** Re-pulls a tracked player's Coral tags (e.g. right after .tadd) and refreshes the UI. */
-    public void refreshCoralTags(String name) {
-        IntelPlayer tracked = getPlayer(name);
-
-        if (tracked == null) {
-            return;
-        }
-
-        pool.submit(() -> {
-            try {
-                fetchUrchinBatch(java.util.Collections.singletonList(tracked));
-                tracked.computeThreat();
-            } catch (Exception exception) {
-                dbg("[Coral] refresh failed for " + name + ": " + exception);
-            } finally {
-                pushUpdate();
-            }
-        });
-    }
-
     private String fetchAndCacheUuid(String name) {
         synchronized (uuidCache) {
             String cached = uuidCache.get(name);
