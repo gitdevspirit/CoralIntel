@@ -64,6 +64,7 @@ public class BedwarsTag extends Module {
     public boolean willRenderTagFor(EntityPlayer player) {
         if (!isEnabled()) return false;
         if (!selfTag.getValue() && player == mc.thePlayer) return false;
+        if (player == mc.thePlayer && StreamerMode.disablesOwnNametag()) return false;
         if (player.deathTime > 0) return false;
         if (mc.getRenderViewEntity() == null
                 || mc.getRenderViewEntity().getDistanceToEntity(player) > 64f) return false;
@@ -94,6 +95,7 @@ public class BedwarsTag extends Module {
             EntityPlayer player = (EntityPlayer) entity;
 
             if (!selfTag.getValue() && player == mc.thePlayer) continue;
+            if (player == mc.thePlayer && StreamerMode.disablesOwnNametag()) continue;
             if (player.deathTime > 0) continue;
             if (viewEntity.getDistanceToEntity(player) > 64f) continue;
 
@@ -129,11 +131,16 @@ public class BedwarsTag extends Module {
                     * 0.0065 * scale.getValue();
             GlStateManager.scale(-tagScale, -tagScale, 1.0);
 
-            String[] parts = buildParts(intel, player.getName());
-            String starPart   = parts[0]; // e.g. "☆8"
-            String urchinPart = parts[2]; // e.g. "CC" or ""
+            // Streamer mode (yourself only): optional custom name, no stats, no tags.
+            boolean ownStatsHidden = StreamerMode.hidesStatsFor(player.getName());
+            boolean ownTagsHidden  = StreamerMode.hidesTagsFor(player.getName());
+            String shownName = StreamerMode.aliasFor(player.getName());
+
+            String[] parts = buildParts(intel, shownName);
+            String starPart   = ownStatsHidden ? "" : parts[0]; // e.g. "☆8"
+            String urchinPart = ownTagsHidden ? "" : parts[2];  // e.g. "CC" or ""
             String healthPart = buildHealthText(player); // e.g. " 20" or " 10.0" or " 20"(tab)
-            String fkdrPart   = buildFkdrText(intel);
+            String fkdrPart   = ownStatsHidden ? "" : buildFkdrText(intel);
 
             // In an active Bedwars match (team scoreboard assigned by the
             // server) — color the name by team instead of showing rank.
@@ -142,12 +149,12 @@ public class BedwarsTag extends Module {
             int nameColor;
 
             if (player.getTeam() != null) {
-                namePart = player.getName();
+                namePart = shownName;
                 nameColor = TeamUtil.getTeamColor(player, 1f).getRGB() | 0xFF000000;
             } else {
                 String rank = (intel != null && intel.rankPrefix != null && !intel.rankPrefix.isEmpty())
                         ? intel.rankPrefix + " " : "";
-                namePart = rank + player.getName();
+                namePart = rank + shownName;
                 nameColor = 0xFFFFFFFF;
             }
 
