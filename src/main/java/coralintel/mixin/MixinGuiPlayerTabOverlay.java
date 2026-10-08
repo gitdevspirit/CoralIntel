@@ -120,6 +120,16 @@ public abstract class MixinGuiPlayerTabOverlay {
         // color the server already sent (lobby state — no team assigned).
         String coloredName = applyTeamColor(vanillaName, info);
 
+        // Streamer mode: your own row can show a custom name and/or no stats.
+        String ownIgn = info.getGameProfile().getName();
+        String alias = coralintel.module.modules.StreamerMode.aliasFor(ownIgn);
+        if (!alias.equals(ownIgn)) {
+            coloredName = coloredName.replace(ownIgn, alias);
+        }
+        if (coralintel.module.modules.StreamerMode.hidesStatsFor(ownIgn)) {
+            return coloredName;
+        }
+
         IntelPlayer player = IntelManager.getInstance()
                 .getPlayer(info.getGameProfile().getName());
 
@@ -129,7 +139,8 @@ public abstract class MixinGuiPlayerTabOverlay {
 
         // Nicked players have no real stats — show a [NICK] tag in the tab
         // list instead of a meaningless 0-star badge and zeroed stats.
-        if (player.isNicked && lobbyIntel.tabShowNick.getValue()) {
+        if (player.isNicked && lobbyIntel.tabShowNick.getValue()
+                && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
             if (lobbyIntel.seraphStyle.getValue()) {
                 return fitPixelsLeft(coloredName, NAME_COL_WIDTH) + buildSeraphNickSuffix(info, lobbyIntel);
             }
@@ -191,7 +202,7 @@ public abstract class MixinGuiPlayerTabOverlay {
             wroteAny = true;
         }
 
-        String tag = player.getTagBadge();
+        String tag = coralintel.module.modules.StreamerMode.badgeFor(player);
         if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
             // Closet cheater specifically renders gold in the tab list;
             // everything else uses the nearest code to its usual color.
@@ -369,7 +380,7 @@ public abstract class MixinGuiPlayerTabOverlay {
         String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
         stats.append(wlrCode).append(padPixelsCenter(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
 
-        String tag = player.getTagBadge();
+        String tag = coralintel.module.modules.StreamerMode.badgeFor(player);
         String tagCode = tag.isEmpty() ? "§7" : (tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
         stats.append(tagCode).append(padPixelsCenter(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
 
