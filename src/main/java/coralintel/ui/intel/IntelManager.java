@@ -1334,6 +1334,7 @@ public class IntelManager {
 
         if (bedwars != null && bwInt(bedwars, "Experience") > 0) {
             newStar = getBedWarsLevelFromExp(bwInt(bedwars, "Experience"));
+            player.starExact = getBedWarsExactLevelFromExp(bwInt(bedwars, "Experience"));
         } else {
             JsonObject achievements = profile.has("achievements") && profile.get("achievements").isJsonObject()
                     ? profile.getAsJsonObject("achievements")
@@ -1672,6 +1673,31 @@ public class IntelManager {
 
         reader.close();
         return result.toString();
+    }
+
+    /** Same table as getBedWarsLevelFromExp, but keeps the progress through the current level. */
+    private static double getBedWarsExactLevelFromExp(int experience) {
+        if (experience <= 0) {
+            return 0;
+        }
+
+        final int prestigeExperience = 487000;
+
+        double level = (experience / prestigeExperience) * 100;
+        int remaining = experience % prestigeExperience;
+
+        int[] earlyLevelCosts = {500, 1000, 2000, 3500, 5000};
+
+        for (int cost : earlyLevelCosts) {
+            if (remaining < cost) {
+                return level + (double) remaining / cost;
+            }
+
+            remaining -= cost;
+            level++;
+        }
+
+        return level + remaining / 5000.0;
     }
 
     private static int getBedWarsLevelFromExp(int experience) {
