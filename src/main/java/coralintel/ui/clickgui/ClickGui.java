@@ -9,6 +9,7 @@ import coralintel.module.Setting;
 import coralintel.module.SliderSetting;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.PregameMessages;
+import coralintel.module.modules.SessionStats;
 import coralintel.module.modules.StreamerMode;
 import coralintel.property.properties.TextProperty;
 import coralintel.command.CommandManager;
@@ -86,13 +87,16 @@ public class ClickGui extends GuiScreen {
         int startY = 20;
         int columnGap = PANEL_W + 20;
 
-        // Streamer Mode gets its own second row, just under the header row, so the
-        // main row of panels keeps its layout. Both rows are draggable like any panel.
+        // Streamer Mode and Session Stats get their own second row, just under the
+        // header row, so the main row of panels keeps its layout. Both rows are
+        // draggable like any panel.
         int secondRowY = startY + HEADER_H + 16;
+        int secondRowX = startX;
 
         for (Module module : CoralIntel.moduleManager.modules.values()) {
-            if (module instanceof StreamerMode) {
-                panels.put(module, new PanelState(20, secondRowY));
+            if (module instanceof StreamerMode || module instanceof SessionStats) {
+                panels.put(module, new PanelState(secondRowX, secondRowY));
+                secondRowX += columnGap;
                 continue;
             }
 
@@ -625,6 +629,14 @@ public class ClickGui extends GuiScreen {
             rows.add(new SectionLabelRow("YOUR NAMETAG (used when Own Nametag = Custom)"));
             rows.add(new TextRow("Custom Nametag Text", streamer.nametagText));
             rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
+        }
+
+        if (module instanceof SessionStats) {
+            rows.add(new SectionLabelRow("THIS SESSION"));
+            for (String line : ((SessionStats) module).guiLines()) {
+                rows.add(new SectionLabelRow(line));
+            }
+            rows.add(new SectionLabelRow(".reset restarts it, .session prints it"));
         }
 
         if (module instanceof PregameMessages) {
