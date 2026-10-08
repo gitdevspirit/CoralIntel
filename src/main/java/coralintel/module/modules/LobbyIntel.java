@@ -19,6 +19,7 @@ import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import coralintel.ui.intel.SafelistManager;
 import coralintel.util.ChatUtil;
+import coralintel.util.PregameUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.play.server.S02PacketChat;
 import net.minecraft.util.IChatComponent;
@@ -33,6 +34,8 @@ public class LobbyIntel extends Module {
 
     public final BooleanSetting autoScan = register(new BooleanSetting("Auto Scan on Join", true));
     public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
+    public final BooleanSetting trackPregameChat =
+            register(new BooleanSetting("Track Pregame Chat", true));
     public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
     public final coralintel.module.SliderSetting focusCount =
             register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
@@ -222,6 +225,22 @@ public class LobbyIntel extends Module {
     private boolean pendingArenaWho = false;
     private int retryTickCounter = 0;
 
+    // Players who typed in the PREGAME lobby chat (lowercase name -> name).
+    // They are added to the roster straight away so their stats load early;
+    // cleared on every world change.
+    private final java.util.Map<String, String> chatTracked = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // "[142✫] [MVP+] Name: hello" or "Name: hello". Party / guild / PM lines
+    // start with "Party >", "Guild >", "To ..." so they never match.
+    private static final Pattern PREGAME_CHAT =
+            Pattern.compile("^(?:\\[[^\\]]*\\]\\s*)*([A-Za-z0-9_]{1,16}):\\s.+$");
+    // "[MVP+] Name has quit!" (printed in the pregame lobby when someone leaves)
+    private static final Pattern PREGAME_QUIT =
+            Pattern.compile("^(?:\\[[^\\]]*\\]\\s*)*([A-Za-z0-9_]{1,16}) has quit!");
+    // System lines that look like "Word: text" but aren't a player talking.
+    private static final java.util.Set<String> NOT_PLAYER_NAMES = new java.util.HashSet<>(
+            java.util.Arrays.asList("online", "tip", "note", "warning", "reminder", "team", "teams"));
+
     public LobbyIntel() {
         super("LobbyIntel", true);
 
@@ -398,6 +417,7 @@ public class LobbyIntel extends Module {
         scannedThisSession = false;
         finalWhoSent = false;
         retryTickCounter = 0;
+        chatTracked.clear();
         IntelManager.getInstance().clearAll();
 
         if (autoKey.getValue()) {
@@ -530,6 +550,10 @@ public class LobbyIntel extends Module {
 
         String message = component.getUnformattedText();
 
+        if (trackPregameChat.getValue() && packet.getType() != 2) {
+            handlePregameChat(message);
+        }
+
         if (autoScan.getValue()
                 && !scannedThisSession
                 && message.contains("The game starts in 10 seconds")) {
@@ -542,8 +566,24 @@ public class LobbyIntel extends Module {
                     tryAutoDetectKey();
                 }
 
+                // Players who typed in the pregame lobby and haven't been seen
+                // leaving ("has quit!") go straight back into the roster after
+                // the rebuild. They come back with whatever stats were already
+                // loaded, so nothing is fetched twice. If /who runs below, its
+                // list then replaces the roster, which drops anyone who left
+                // without a quit message.
+                java.util.List<String> typedInPregame = new java.util.ArrayList<>(chatTracked.values());
+                chatTracked.clear();
+
                 IntelManager.getInstance().clearAll();
                 IntelManager.getInstance().scanLobby();
+
+                String self = mc.thePlayer != null ? mc.thePlayer.getName() : "";
+                for (String typed : typedInPregame) {
+                    if (!typed.equalsIgnoreCase(self)) {
+                        IntelManager.getInstance().addManualPlayer(typed);
+                    }
+                }
 
                 if (autoWho.getValue() && mc.thePlayer != null) {
                     mc.thePlayer.sendChatMessage("/who");
@@ -657,6 +697,62 @@ public class LobbyIntel extends Module {
                 IntelManager.dbg("[Intel] /who replaced list: " + realNames);
             }
         }
+    }
+
+    /**
+     * Pregame lobby only: someone typing in chat is added to the roster right
+     * away (their stats start loading immediately), and a "has quit!" line
+     * removes them again. General-lobby chat is ignored; the pregame check
+     * reads the sidebar on the main thread.
+     */
+    private void handlePregameChat(String rawMessage) {
+        final String message = rawMessage == null ? "" : rawMessage.trim();
+
+        Matcher quit = PREGAME_QUIT.matcher(message);
+        if (quit.find()) {
+            final String leaver = quit.group(1);
+
+            if (chatTracked.remove(leaver.toLowerCase(java.util.Locale.ROOT)) != null) {
+                mc.addScheduledTask(() -> {
+                    removePlayerFromOverlay(leaver);
+                    IntelManager.dbg("[Intel] " + leaver + " left the pregame lobby — removed.");
+                });
+            }
+            return;
+        }
+
+        Matcher chat = PREGAME_CHAT.matcher(message);
+        if (!chat.matches()) return;
+
+        final String name = chat.group(1);
+        if (NOT_PLAYER_NAMES.contains(name.toLowerCase(java.util.Locale.ROOT))) return;
+        if (mc.thePlayer != null && name.equalsIgnoreCase(mc.thePlayer.getName())) return;
+
+        mc.addScheduledTask(() -> trackChatPlayer(name));
+    }
+
+    private void trackChatPlayer(String name) {
+        if (!trackPregameChat.getValue() || !PregameUtil.isPregameLobby()) return;
+
+        if (mc.getNetHandler() != null) {
+            net.minecraft.client.network.NetworkPlayerInfo info = mc.getNetHandler().getPlayerInfo(name);
+
+            if (info != null) {
+                if (IntelManager.isNpc(info)) return;
+
+                // A nick's tab UUID is version 1 — the tab scan marks it as nicked,
+                // so don't look the name up as if it were a real account.
+                java.util.UUID id = info.getGameProfile().getId();
+                if (id != null && id.version() == 1) return;
+            }
+        }
+
+        if (chatTracked.put(name.toLowerCase(java.util.Locale.ROOT), name) == null) {
+            IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — added to roster.");
+        }
+
+        // No-op if they're already tracked (tab scan or earlier message).
+        IntelManager.getInstance().addManualPlayer(name);
     }
 
     private void removePlayerFromOverlay(String playerName) {
