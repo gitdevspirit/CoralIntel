@@ -9,6 +9,7 @@ import coralintel.module.Setting;
 import coralintel.module.SliderSetting;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.PregameMessages;
+import coralintel.module.modules.StreamerMode;
 import coralintel.property.properties.TextProperty;
 import coralintel.command.CommandManager;
 import coralintel.config.Config;
@@ -85,7 +86,16 @@ public class ClickGui extends GuiScreen {
         int startY = 20;
         int columnGap = PANEL_W + 20;
 
+        // Streamer Mode gets its own second row, just under the header row, so the
+        // main row of panels keeps its layout. Both rows are draggable like any panel.
+        int secondRowY = startY + HEADER_H + 16;
+
         for (Module module : CoralIntel.moduleManager.modules.values()) {
+            if (module instanceof StreamerMode) {
+                panels.put(module, new PanelState(20, secondRowY));
+                continue;
+            }
+
             panels.put(module, new PanelState(startX, startY));
             startX += columnGap;
         }
@@ -263,7 +273,7 @@ public class ClickGui extends GuiScreen {
 
         // A leading "." would be run as a client command instead of sent.
         if (text.startsWith(CommandManager.PREFIX)) {
-            ChatUtil.sendFormatted("&cA pregame message can't start with \".\" \u2014 it would be run as a command.");
+            ChatUtil.sendFormatted("&cThis text can't start with \".\" \u2014 it would be run as a command.");
             return;
         }
 
@@ -608,6 +618,13 @@ public class ClickGui extends GuiScreen {
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
             rows.addAll(notificationRows());
+        }
+
+        if (module instanceof StreamerMode) {
+            StreamerMode streamer = (StreamerMode) module;
+            rows.add(new SectionLabelRow("YOUR NAMETAG (used when Own Nametag = Custom)"));
+            rows.add(new TextRow("Custom Nametag Text", streamer.nametagText));
+            rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
         }
 
         if (module instanceof PregameMessages) {
