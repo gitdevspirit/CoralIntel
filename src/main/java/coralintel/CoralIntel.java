@@ -33,6 +33,7 @@ import coralintel.module.modules.SessionStats;
 import coralintel.module.modules.StreamerMode;
 import coralintel.ui.intel.StatSnapshotManager;
 import coralintel.render.RenderEventBridge;
+import coralintel.render.SessionHudEvents;
 import net.minecraftforge.common.MinecraftForge;
 import coralintel.property.Property;
 import coralintel.property.PropertyManager;
@@ -103,6 +104,7 @@ public class CoralIntel {
         moduleManager.modules.put(StreamerMode.class, new StreamerMode());
         moduleManager.modules.put(SessionStats.class, new SessionStats());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
+        MinecraftForge.EVENT_BUS.register(new SessionHudEvents());
 
         // Reflection scan: pick up every Property<?> field declared on each module
         // and register it with the PropertyManager, same as the original client did.
