@@ -16,6 +16,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Resilient stats fetching** – Hypixel API with automatic keyless fallbacks (Bordic, Slothpixel). Already-loaded players are never reloaded when the roster is re-sorted.
 - **Stat cache** – fully loaded stats are saved to disk for 0–30 minutes (default 15, set it in the LobbyIntel settings), so re-queuing into the same players doesn't re-fetch them and eases rate limits. `.bw` always fetches fresh.
 - **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
+- **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
 - **Pregame messages** – up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay.
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Shift).
@@ -48,6 +49,32 @@ The jar ends up in `build/libs/`. The Gradle toolchain targets Java 8.
 
 Rebind them with `.bind`.
 
+## Session stats
+
+Tracks your own Bedwars progress. Your lifetime totals are fetched a few seconds after you join a server and everything shown is *current totals minus that baseline*.
+
+```
+Session Time: 3h 15m
+Finals: 1000 / FKDR: 3.00
+Beds: 300 / BBLR: 2.00
+Wins: 100 / WLR: 0.50
+Kills: 41 / Deaths: 12
+Stars: +0.61✫
+```
+
+- **Stars** are shown with the fraction, so progress through a level counts (`+0.61✫` is 61% of a star). The glyph and colour follow your prestige.
+- **FKDR / BBLR / WLR** are the ratios of what you gained *this session*, not your lifetime ratios.
+- **Chat summary** – after you finish a game, a one-line `This session » ...` summary is printed. `.session` prints it on demand and `.reset` restarts the session from your current stats.
+- **Settings** (SessionStats panel, second row of the ClickGUI):
+  - A *Show ...* toggle for each stat. Turning one off removes it from the HUD, and a line disappears when everything on it is off. Most toggles also apply to the chat summary.
+  - *HUD Background* – turn the dark box off to leave just the text.
+  - *Order: ...* sliders – decide which line goes where (lowest number on top).
+  - *Summary After Games* – the automatic chat summary.
+- **Moving the HUD** – hold `Ctrl` and click anywhere in the ClickGUI to put it there (keep the mouse down to fine-tune), or open your inventory and drag it. The position is saved with your settings.
+- **Reset button** – a `[Reset Session]` button appears under the HUD while your inventory is open, and does the same as `.reset`.
+
+Notes: the session lives in memory only, so every launch starts a new one. Hypixel's API lags a little behind the game, so a game you just finished can take a minute or two to show up. Stats refresh automatically after a world change, at most once every two minutes. While [Streamer mode](#features) is hiding your own stats, the automatic chat summaries are suppressed (`.session` still prints).
+
 ## Commands
 
 The command prefix is `.` (typed in chat, never sent to the server).
@@ -67,6 +94,8 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.safelist <player> [reason]` / `list` | `.sl` | Safelist a player |
 | `.unsafelist <player>` | `.unsl` | Remove a player from the safelist |
 | `.q <1s\|2s\|3s\|4s>` | `.queue` | Queue solos / doubles / 3v3v3v3 / 4v4v4v4 |
+| `.session` | `.sess` | Print your session stats (wins, kills, FKDR, BBLR, ... gained) |
+| `.reset` | | Restart your session stats from your current stats |
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
 | `.intelkey <key>` | `.ikey` | Set your Hypixel API key |
 | `.coralkey <key>` | `.urchinkey`, `.ukey` | Set your Coral API key |
