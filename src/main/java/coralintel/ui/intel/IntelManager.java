@@ -933,13 +933,23 @@ public class IntelManager {
      * is configured, so the tag can be shown alongside the stats.
      */
     public IntelPlayer fetchStandaloneStats(String name) {
+        return fetchStandaloneStats(name, false);
+    }
+
+    /** @param allowCache true to reuse fresh disk-cached stats (auto lookups); typed commands pass false. */
+    public IntelPlayer fetchStandaloneStats(String name, boolean allowCache) {
         IntelPlayer player = new IntelPlayer(name, null);
+
+        if (allowCache && statCacheTtlMs() > 0 && StatCache.getInstance().apply(player, statCacheTtlMs())) {
+            player.statsComplete = true;
+            player.statsFromCache = true;
+        }
 
         // One-off lookups have no 10s retry loop behind them, so retry here:
         // a rate limit, a Mojang hiccup or a partial answer (star only) gets
         // another go instead of being printed as-is. Bordic is always part of
         // the chain for these lookups, whatever the HUD's keyless settings say.
-        for (int attempt = 1; attempt <= STANDALONE_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= STANDALONE_ATTEMPTS && !player.statsFromCache; attempt++) {
             boolean rateLimited = false;
 
             try {
@@ -973,7 +983,7 @@ public class IntelManager {
         }
         player.loading = false;
 
-        if (player.statsComplete) {
+        if (player.statsComplete && !player.statsFromCache) {
             StatSnapshotManager.getInstance().record(player); // baseline for .daily / .monthly
         }
 
