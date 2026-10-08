@@ -60,6 +60,8 @@ public final class PregameUtil {
             }
         }
 
-        return hasMap && hasPlayers;
+        // Either line is enough: the general lobby and the in-match sidebar have neither,
+        // and requiring both made detection fail whenever one line was formatted oddly.
+        return hasMap || hasPlayers;
     }
 }
