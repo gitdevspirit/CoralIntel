@@ -19,6 +19,7 @@ import coralintel.command.commands.IntelPathCommand;
 import coralintel.command.commands.RemoveIntelPlayerCommand;
 import coralintel.command.commands.RoleCommand;
 import coralintel.command.commands.UrchinKeyCommand;
+import coralintel.command.commands.SessionCommand;
 import coralintel.command.commands.ViewCommand;
 import coralintel.config.Config;
 import coralintel.event.EventManager;
@@ -28,6 +29,7 @@ import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.BedwarsTag;
 import coralintel.module.modules.AntiCheat;
 import coralintel.module.modules.PregameMessages;
+import coralintel.module.modules.SessionStats;
 import coralintel.module.modules.StreamerMode;
 import coralintel.ui.intel.StatSnapshotManager;
 import coralintel.render.RenderEventBridge;
@@ -87,6 +89,8 @@ public class CoralIntel {
         commandManager.register(new UnsafelistCommand());
         commandManager.register(new UnblacklistCommand());
         commandManager.register(new ViewCommand());
+        commandManager.register(new SessionCommand(false));
+        commandManager.register(new SessionCommand(true));
         EventManager.register(commandManager);
         EventManager.register(moduleManager);
 
@@ -97,6 +101,7 @@ public class CoralIntel {
         moduleManager.modules.put(AntiCheat.class, new AntiCheat());
         moduleManager.modules.put(PregameMessages.class, new PregameMessages());
         moduleManager.modules.put(StreamerMode.class, new StreamerMode());
+        moduleManager.modules.put(SessionStats.class, new SessionStats());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
