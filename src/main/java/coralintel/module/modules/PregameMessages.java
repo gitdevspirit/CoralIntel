@@ -5,6 +5,7 @@ import coralintel.event.types.EventType;
 import coralintel.events.LoadWorldEvent;
 import coralintel.events.PacketEvent;
 import coralintel.module.Module;
+import coralintel.module.SliderSetting;
 import coralintel.property.properties.TextProperty;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.play.server.S02PacketChat;
@@ -12,9 +13,10 @@ import net.minecraft.util.IChatComponent;
 
 /**
  * Auto-sends up to three pregame chat messages when the Bedwars countdown
- * hits 10 seconds — message 1 immediately, then message 2 three seconds
- * later and message 3 three seconds after that (so all three land before
- * the game starts). Edit them in-game with .pgm1 / .pgm2 / .pgm3; they are
+ * hits 10 seconds — message 1 immediately, then message 2 and message 3 each
+ * "Message Delay" seconds after the previous one (3s by default, adjustable in
+ * the ClickGUI; keep it low enough that all three land before the game
+ * starts). Edit them in-game with .pgm1 / .pgm2 / .pgm3; they are
  * TextProperty fields, so Config persists them to
  * ./config/CoralIntel/default.json with the rest of the module settings.
  * An empty message is skipped.
@@ -22,8 +24,6 @@ import net.minecraft.util.IChatComponent;
 public class PregameMessages extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
-    /** Gap between consecutive messages. */
-    public static final int DELAY_MS = 3000;
     /** Hypixel's chat length limit. */
     public static final int MAX_LENGTH = 100;
 
@@ -33,6 +33,10 @@ public class PregameMessages extends Module {
 
     // Fields must stay public Property<?> instances: CoralIntel.init() finds
     // them by reflection and Config saves/loads them by property name.
+    /** Gap between consecutive messages, in seconds (saved with the module settings). */
+    public final SliderSetting messageDelay =
+            register(new SliderSetting("Message Delay (s)", 3.0, 0.5, 10.0, 0.1));
+
     public final TextProperty message1 = new TextProperty("pgm-1", "gl hf everyone!");
     public final TextProperty message2 = new TextProperty("pgm-2", "may the best team win, have fun!");
     public final TextProperty message3 = new TextProperty("pgm-3", "good luck, see you at the end!");
@@ -72,6 +76,7 @@ public class PregameMessages extends Module {
         sentThisLobby = true;
 
         final int gen = ++generation;
+        final long delayMs = Math.round(messageDelay.getValue() * 1000.0);
         final String[] messages = {
                 message1.getValue(), message2.getValue(), message3.getValue()
         };
@@ -87,7 +92,7 @@ public class PregameMessages extends Module {
 
                 if (!first) {
                     try {
-                        Thread.sleep(DELAY_MS);
+                        Thread.sleep(delayMs);
                     } catch (InterruptedException ignored) {
                         return;
                     }
