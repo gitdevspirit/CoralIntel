@@ -36,8 +36,6 @@ public class LobbyIntel extends Module {
     public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
     public final BooleanSetting trackPregameChat =
             register(new BooleanSetting("Track Pregame Chat", true));
-    public final coralintel.module.SliderSetting pregameChatHudSeconds =
-            register(new coralintel.module.SliderSetting("Pregame Chat: HUD Seconds", 1, 1, 10, 1));
     public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
     public final coralintel.module.SliderSetting focusCount =
             register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
@@ -224,6 +222,9 @@ public class LobbyIntel extends Module {
     private final IntelHudOverlay hudOverlay = new IntelHudOverlay();
     private boolean scannedThisSession = false;
     private boolean finalWhoSent = false;
+    // Set at "The game starts in 1 second": the pregame roster has been cleared and
+    // further chat is ignored until the next world load.
+    private boolean pregameClosed = false;
     private boolean pendingArenaWho = false;
     private int retryTickCounter = 0;
 
@@ -422,6 +423,7 @@ public class LobbyIntel extends Module {
 
         scannedThisSession = false;
         finalWhoSent = false;
+        pregameClosed = false;
         retryTickCounter = 0;
         chatTracked.clear();
         chatNicks.clear();
@@ -599,6 +601,18 @@ public class LobbyIntel extends Module {
             });
         }
 
+        // 1 second to go: clear everyone off the HUD. Loaded stats are stashed
+        // (soft clear), so the arena roster comes back with them already in.
+        if (!pregameClosed && message.contains("The game starts in 1 second")) {
+            pregameClosed = true;
+            mc.addScheduledTask(() -> {
+                chatTracked.clear();
+                chatNicks.clear();
+                IntelManager.getInstance().clearAll();
+                IntelManager.dbg("[Intel] 1 second to go — HUD cleared.");
+            });
+        }
+
         // A second /who right as the match actually begins — team
         // assignments are only finalized by this point, so this catches
         // anyone the 10-second scan's roster missed or had stale team data
@@ -715,6 +729,7 @@ public class LobbyIntel extends Module {
      */
     private void handlePregameChat(String rawMessage) {
         final String message = rawMessage == null ? "" : rawMessage.trim();
+        if (pregameClosed) return;
 
         Matcher quit = PREGAME_QUIT.matcher(message);
         if (quit.find()) {
@@ -745,7 +760,12 @@ public class LobbyIntel extends Module {
     }
 
     private void trackChatPlayer(String name) {
-        if (!trackPregameChat.getValue() || !PregameUtil.isPregameLobby()) return;
+        if (!trackPregameChat.getValue()) return;
+
+        if (!PregameUtil.isPregameLobby()) {
+            IntelManager.dbg("[Intel] chat from " + name + " ignored: pregame sidebar not detected.");
+            return;
+        }
 
         if (mc.getNetHandler() != null) {
             net.minecraft.client.network.NetworkPlayerInfo info = mc.getNetHandler().getPlayerInfo(name);
@@ -773,10 +793,9 @@ public class LobbyIntel extends Module {
             IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — added to roster.");
         }
 
-        // Added to the HUD with stats loading; parked off the HUD after the
-        // configured time while the stats keep loading. No-op if already tracked.
-        IntelManager.getInstance().addPregameChatter(name,
-                (long) (pregameChatHudSeconds.getValue() * 1000L));
+        // On the HUD straight away with stats loading; stays until "starts in 1
+        // second". No-op if already tracked.
+        IntelManager.getInstance().addPregameChatter(name);
     }
 
     private void removePlayerFromOverlay(String playerName) {
