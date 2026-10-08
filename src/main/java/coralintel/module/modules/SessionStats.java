@@ -493,20 +493,19 @@ public class SessionStats extends Module {
         }
 
         Gained g = gained();
-        String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.fkdr, 3, 6));
-        String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.wlr, 2, 4));
 
-        // null = that whole line is switched off.
+        // null = that whole line is switched off. The right-hand stat on each line
+        // (Deaths, FKDR, BBLR, WLR) is always green.
         String[] text = {
                 showTime.getValue() ? "&7Session Time: &b" + duration() : null,
                 join(showFinals.getValue() ? "&7Finals: &f" + g.finalKills : null,
-                        showFkdr.getValue() ? "&7FKDR: " + fkdrCode + fmt(g.fkdr) : null),
+                        showFkdr.getValue() ? "&7FKDR: &a" + fmt(g.fkdr) : null),
                 join(showBeds.getValue() ? "&7Beds: &f" + g.bedsBroken : null,
-                        showBblr.getValue() ? "&7BBLR: &f" + fmt(g.bblr) : null),
+                        showBblr.getValue() ? "&7BBLR: &a" + fmt(g.bblr) : null),
                 join(showWins.getValue() ? "&7Wins: &f" + g.wins : null,
-                        showWlr.getValue() ? "&7WLR: " + wlrCode + fmt(g.wlr) : null),
+                        showWlr.getValue() ? "&7WLR: &a" + fmt(g.wlr) : null),
                 join(showKills.getValue() ? "&7Kills: &f" + g.kills : null,
-                        showDeaths.getValue() ? "&7Deaths: &f" + g.deaths : null),
+                        showDeaths.getValue() ? "&7Deaths: &a" + g.deaths : null),
                 showStars.getValue()
                         ? "&7Stars: &f+" + fmt(g.stars) + PrestigeUtil.glyphColored(g.starNow) : null
         };
