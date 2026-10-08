@@ -18,6 +18,8 @@ import coralintel.command.commands.IntelPathCommand;
 import coralintel.command.commands.RemoveIntelPlayerCommand;
 import coralintel.command.commands.RoleCommand;
 import coralintel.command.commands.UrchinKeyCommand;
+import coralintel.command.commands.ViewCommand;
+import coralintel.command.commands.TagAddCommand;
 import coralintel.config.Config;
 import coralintel.event.EventManager;
 import coralintel.module.Module;
@@ -80,6 +82,8 @@ public class CoralIntel {
         commandManager.register(new SafelistCommand());
         commandManager.register(new UnsafelistCommand());
         commandManager.register(new UnblacklistCommand());
+        commandManager.register(new ViewCommand());
+        commandManager.register(new TagAddCommand());
         EventManager.register(commandManager);
         EventManager.register(moduleManager);
 
