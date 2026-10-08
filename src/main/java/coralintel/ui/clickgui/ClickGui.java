@@ -637,6 +637,7 @@ public class ClickGui extends GuiScreen {
                 rows.add(new SectionLabelRow(line));
             }
             rows.add(new SectionLabelRow(".reset restarts it, .session prints it"));
+            rows.add(new SectionLabelRow("Inventory: drag the HUD to move it"));
         }
 
         if (module instanceof PregameMessages) {
