@@ -13,6 +13,8 @@ public class IntelPlayer {
     // Hypixel BedWars stats
     public int    level       = 0;
     public int    star        = 0;
+    /** Star level with the fraction (e.g. 412.61), from Experience; 0 when only the whole star is known. */
+    public double starExact   = 0;
     public double fkdr        = 0;
     public double wlr         = 0;
     public int    winstreak   = 0;
