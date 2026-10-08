@@ -65,6 +65,8 @@ public class SessionStats extends Module {
 
     public final BooleanSetting showHud =
             register(new BooleanSetting("Show HUD", true));
+    public final BooleanSetting hudBackground =
+            register(new BooleanSetting("HUD Background", true));
     // Line order for the HUD: lowest number goes on top (ties keep the default order).
     public final SliderSetting orderTime =
             register(new SliderSetting("Order: Session Time", 1, 1, 4, 1));
@@ -307,6 +309,8 @@ public class SessionStats extends Module {
     private int btnX, btnY, btnW, btnH;
     private boolean dragging;
     private int dragOffX, dragOffY;
+    /** True while the ClickGUI has Ctrl held: the box gets an outline so it's easy to see. */
+    private boolean placing;
 
     /** Normal in-game drawing; the inventory draws it itself (see SessionHudEvents). */
     @EventTarget
@@ -340,8 +344,18 @@ public class SessionStats extends Module {
         int x = clamp((int) hudX.getValue(), 0, Math.max(0, sr.getScaledWidth() - w));
         int y = clamp((int) hudY.getValue(), 0, Math.max(0, sr.getScaledHeight() - h));
 
-        Gui.drawRect(x, y, x + w, y + h, 0x90000000);
-        Gui.drawRect(x, y, x + 1, y + h, 0xFF55FFFF);
+        if (hudBackground.getValue()) {
+            Gui.drawRect(x, y, x + w, y + h, 0x90000000);
+            Gui.drawRect(x, y, x + 1, y + h, 0xFF55FFFF);
+        }
+
+        if (placing && !inventory) {
+            int c = 0xFF55FFFF;
+            Gui.drawRect(x - 1, y - 1, x + w + 1, y, c);
+            Gui.drawRect(x - 1, y + h, x + w + 1, y + h + 1, c);
+            Gui.drawRect(x - 1, y, x, y + h, c);
+            Gui.drawRect(x + w, y, x + w + 1, y + h, c);
+        }
 
         for (int i = 0; i < lines.size(); i++) {
             font.drawStringWithShadow(lines.get(i), x + pad, y + pad + i * lineH, 0xFFFFFFFF);
@@ -370,6 +384,36 @@ public class SessionStats extends Module {
         btnY = by;
         btnW = bw;
         btnH = bh;
+    }
+
+    // ── Placing the HUD from the ClickGUI (Ctrl+click / Ctrl+drag) ───────
+
+    public void setPlacing(boolean placing) {
+        this.placing = placing;
+    }
+
+    /**
+     * Ctrl+click in the ClickGUI. Clicking on the box grabs it where you clicked;
+     * clicking anywhere else puts the box's center on the cursor. Keep dragging to
+     * fine-tune. @return false when the HUD isn't showing (nothing to move).
+     */
+    public boolean beginMove(int mx, int my) {
+        if (!isEnabled() || !showHud.getValue() || boxW <= 0) return false;
+
+        boolean inside = mx >= boxX && mx < boxX + boxW && my >= boxY && my < boxY + boxH;
+        dragOffX = inside ? mx - boxX : boxW / 2;
+        dragOffY = inside ? my - boxY : boxH / 2;
+        dragging = true;
+        onInventoryDrag(mx, my);
+        return true;
+    }
+
+    public void moveTo(int mx, int my) {
+        onInventoryDrag(mx, my);
+    }
+
+    public void endMove() {
+        dragging = false;
     }
 
     /** Mouse press in the inventory. @return true if it was ours (the click is then swallowed). */
