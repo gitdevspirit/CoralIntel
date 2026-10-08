@@ -1,6 +1,6 @@
 # CoralIntel
 
-A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your lobby before the game starts. It reads stats for everyone in the lobby, flags cheaters, and shows it all in a draggable HUD overlay, an enhanced tab list and a ClickGUI.
+A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It reads stats for everyone in the lobby, flags cheaters, and shows it all in a HUD overlay, and an enhanced tab list.
 
 <img width="500" height="460" alt="add players" src="https://github.com/user-attachments/assets/c9ecc4f9-8257-4a05-b192-eb6a83081f5c" />
 
