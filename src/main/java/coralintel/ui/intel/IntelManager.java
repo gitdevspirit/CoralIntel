@@ -106,7 +106,9 @@ public class IntelManager {
             if (p.statsComplete && !p.statsFetchFailed) {
                 p.loading = false;
                 p.statsFinal = true; // fully loaded: every stat is in
-                StatSnapshotManager.getInstance().record(p); // baseline for .daily / .monthly
+                if (!p.statsFromCache) {
+                    StatSnapshotManager.getInstance().record(p); // baseline for .daily / .monthly
+                }
                 return;
             }
 
@@ -819,6 +821,7 @@ public class IntelManager {
         // Soft clear: loaded stats are kept aside and reused when the same
         // players show up again (pregame -> arena, countdown rescans, /who).
         retainLoadedPlayers();
+        StatCache.getInstance().flush();
 
         players.clear();
         manualPlayers.clear();
@@ -1006,6 +1009,17 @@ public class IntelManager {
         // saw the account without its Bedwars stats.
         player.statsComplete = false;
         player.statsHidden = false;
+        player.statsFromCache = false;
+
+        // Seen recently? Reuse the saved stats — no API calls at all. One-off lookups
+        // (.bw / .daily / .monthly) always fetch fresh data.
+        if (!forceBordic && !player.isNicked && statCacheTtlMs() > 0
+                && StatCache.getInstance().apply(player, statCacheTtlMs())) {
+            player.statsComplete = true;
+            player.statsFromCache = true;
+            dbg("[Intel] " + player.name + " stats served from cache.");
+            return;
+        }
 
         // Optional: Bordic first (keyless). Skipped for nicked players: a nick's
         // name can coincide with a real account's, so a by-name lookup would
@@ -1047,6 +1061,10 @@ public class IntelManager {
         if (limited != null && !player.statsComplete) {
             throw limited;
         }
+
+        if (player.statsComplete && !player.isNicked) {
+            StatCache.getInstance().put(player);
+        }
         // loading is decided by runStatsFetch: it stays true until fully loaded.
     }
 
@@ -1059,6 +1077,16 @@ public class IntelManager {
     private static final String BORDIC_URL = "https://api.bordic.xyz/v3/cache/hypixel?uuid=";
     private static final long BORDIC_CACHE_TTL_MS = 120_000L;
     private final java.util.Map<String, Object[]> bordicCache = new java.util.HashMap<>();
+
+    private long statCacheTtlMs() {
+        try {
+            coralintel.module.modules.LobbyIntel lobbyIntel =
+                    (coralintel.module.modules.LobbyIntel) CoralIntel.moduleManager.getModule("LobbyIntel");
+            return lobbyIntel == null ? 0L : (long) (lobbyIntel.statCacheMinutes.getValue() * 60_000L);
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
 
     private boolean isBordicFallbackEnabled() {
         try {
