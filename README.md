@@ -82,3 +82,7 @@ Settings are saved to `config/CoralIntel/` inside your Minecraft folder. Use the
 ## Disclaimer
 
 CoralIntel only reads public stats and information the game already sends your client. Make sure any use complies with the rules of the server you play on. As all mods are, CoralIntel is strictly use at your own risk, we do not take any responsibility for **any** bans whatsoever.
+
+## Credits
+
+@spiritualizes on discord for any ideas, issues, or queries.
