@@ -612,7 +612,7 @@ public class ClickGui extends GuiScreen {
 
         if (module instanceof PregameMessages) {
             PregameMessages pgm = (PregameMessages) module;
-            rows.add(new SectionLabelRow("MESSAGES (sent 3s apart at 10s)"));
+            rows.add(new SectionLabelRow("MESSAGES (sent at 10s, spaced by Message Delay)"));
             rows.add(new TextRow("Message 1", pgm.message1));
             rows.add(new TextRow("Message 2", pgm.message2));
             rows.add(new TextRow("Message 3", pgm.message3));
