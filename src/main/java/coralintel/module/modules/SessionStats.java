@@ -1,15 +1,25 @@
 package coralintel.module.modules;
 
+import coralintel.enums.ChatColors;
 import coralintel.event.EventTarget;
 import coralintel.events.LoadWorldEvent;
+import coralintel.events.Render2DEvent;
 import coralintel.module.BooleanSetting;
 import coralintel.module.Module;
+import coralintel.module.SliderSetting;
 import coralintel.ui.intel.IntelColors;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import coralintel.util.ChatUtil;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiChat;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.gui.inventory.GuiInventory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -25,6 +35,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *  - After a world change (e.g. back to the lobby after a game) your stats are
  *    re-fetched and a one-line summary is printed if you played a game since the
  *    last one. .session prints it on demand, .reset restarts the session.
+ *
+ * HUD: a small box on screen with the session time, finals / FKDR, beds / BBLR
+ * and wins / WLR. The order of the four lines is set in the ClickGUI (Order: ...).
+ * Open your inventory to get a [Reset Session] button and to drag the box to
+ * a new spot (the position is saved with the other settings).
  *
  * Hypixel's API lags a little behind the game, so a game you just finished can
  * take a minute or two to show up. The numbers are only kept in memory.
@@ -48,6 +63,23 @@ public class SessionStats extends Module {
     public final BooleanSetting autoSummary =
             register(new BooleanSetting("Summary After Games", true));
 
+    public final BooleanSetting showHud =
+            register(new BooleanSetting("Show HUD", true));
+    // Line order for the HUD: lowest number goes on top (ties keep the default order).
+    public final SliderSetting orderTime =
+            register(new SliderSetting("Order: Session Time", 1, 1, 4, 1));
+    public final SliderSetting orderFinals =
+            register(new SliderSetting("Order: Finals / FKDR", 2, 1, 4, 1));
+    public final SliderSetting orderBeds =
+            register(new SliderSetting("Order: Beds / BBLR", 3, 1, 4, 1));
+    public final SliderSetting orderWins =
+            register(new SliderSetting("Order: Wins / WLR", 4, 1, 4, 1));
+    // Saved with the other settings but dragged in the inventory, so not shown in the ClickGUI.
+    private final SliderSetting hudX =
+            register(new SliderSetting("HUD X", 6, 0, 4000, 1, () -> false));
+    private final SliderSetting hudY =
+            register(new SliderSetting("HUD Y", 40, 0, 4000, 1, () -> false));
+
     private static final class Totals {
         final int wins, losses, kills, finalKills, finalDeaths, bedsBroken, bedsLost;
 
@@ -63,8 +95,8 @@ public class SessionStats extends Module {
     }
 
     private static final class Gained {
-        int wins, games, kills, finalKills, finalDeaths, bedsBroken, bedsLost;
-        double fkdr, bblr;
+        int wins, losses, games, kills, finalKills, finalDeaths, bedsBroken, bedsLost;
+        double fkdr, bblr, wlr;
 
         boolean isEmpty() {
             return games == 0 && kills == 0 && finalKills == 0 && finalDeaths == 0
@@ -186,7 +218,9 @@ public class SessionStats extends Module {
         long now = System.currentTimeMillis();
 
         if (!first) {
-            if (!autoSummary.getValue() || now - lastAutoAt < AUTO_MIN_GAP_MS) return;
+            // The HUD needs fresh numbers too, not just the chat summary.
+            boolean wantsRefresh = autoSummary.getValue() || showHud.getValue();
+            if (!wantsRefresh || now - lastAutoAt < AUTO_MIN_GAP_MS) return;
             lastAutoAt = now;
         }
 
@@ -264,6 +298,157 @@ public class SessionStats extends Module {
         return new String[]{first.toString(), second.toString()};
     }
 
+    // ── HUD ──────────────────────────────────────────────────────────────
+
+    private static final String RESET_LABEL = "[Reset Session]";
+
+    // Bounds from the last draw (scaled GUI pixels), used for clicking and dragging.
+    private int boxX, boxY, boxW, boxH;
+    private int btnX, btnY, btnW, btnH;
+    private boolean dragging;
+    private int dragOffX, dragOffY;
+
+    /** Normal in-game drawing; the inventory draws it itself (see SessionHudEvents). */
+    @EventTarget
+    public void onRender2D(Render2DEvent event) {
+        if (mc.currentScreen != null && !(mc.currentScreen instanceof GuiChat)) return;
+        if (mc.gameSettings.showDebugInfo) return;
+        drawHud(false, 0, 0);
+    }
+
+    /** Draws the box, plus the reset button when the inventory is open. */
+    public void drawHud(boolean inventory, int mouseX, int mouseY) {
+        btnW = 0;
+        boxW = 0;
+
+        if (!isEnabled() || !showHud.getValue() || mc.thePlayer == null) return;
+
+        FontRenderer font = mc.fontRendererObj;
+        List<String> lines = hudLines();
+
+        int pad = 4;
+        int lineH = font.FONT_HEIGHT + 2;
+        int textW = 0;
+        for (String line : lines) {
+            textW = Math.max(textW, font.getStringWidth(line));
+        }
+
+        int w = textW + pad * 2;
+        int h = lines.size() * lineH - 2 + pad * 2;
+
+        ScaledResolution sr = new ScaledResolution(mc);
+        int x = clamp((int) hudX.getValue(), 0, Math.max(0, sr.getScaledWidth() - w));
+        int y = clamp((int) hudY.getValue(), 0, Math.max(0, sr.getScaledHeight() - h));
+
+        Gui.drawRect(x, y, x + w, y + h, 0x90000000);
+        Gui.drawRect(x, y, x + 1, y + h, 0xFF55FFFF);
+
+        for (int i = 0; i < lines.size(); i++) {
+            font.drawStringWithShadow(lines.get(i), x + pad, y + pad + i * lineH, 0xFFFFFFFF);
+        }
+
+        boxX = x;
+        boxY = y;
+        boxW = w;
+        boxH = h;
+
+        if (!inventory) return;
+
+        int bw = font.getStringWidth(RESET_LABEL) + 8;
+        int bh = font.FONT_HEIGHT + 4;
+        int bx = x;
+        int by = y + h + 3;
+        if (by + bh > sr.getScaledHeight()) {
+            by = y - bh - 3; // no room underneath, put it above the box
+        }
+
+        boolean hover = mouseX >= bx && mouseX < bx + bw && mouseY >= by && mouseY < by + bh;
+        Gui.drawRect(bx, by, bx + bw, by + bh, hover ? 0xD0404050 : 0xA0000000);
+        font.drawStringWithShadow((hover ? "\u00a7a" : "\u00a7f") + RESET_LABEL, bx + 4, by + 2, 0xFFFFFFFF);
+
+        btnX = bx;
+        btnY = by;
+        btnW = bw;
+        btnH = bh;
+    }
+
+    /** Mouse press in the inventory. @return true if it was ours (the click is then swallowed). */
+    public boolean onInventoryPress(int mx, int my) {
+        if (boxW <= 0) return false;
+
+        if (btnW > 0 && mx >= btnX && mx < btnX + btnW && my >= btnY && my < btnY + btnH) {
+            start(true);
+            return true;
+        }
+
+        if (mx >= boxX && mx < boxX + boxW && my >= boxY && my < boxY + boxH) {
+            dragging = true;
+            dragOffX = mx - boxX;
+            dragOffY = my - boxY;
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Mouse moved with the button held. @return true while a drag is in progress. */
+    public boolean onInventoryDrag(int mx, int my) {
+        if (!dragging) return false;
+        hudX.setValue(mx - dragOffX);
+        hudY.setValue(my - dragOffY);
+        return true;
+    }
+
+    /** Mouse released. @return true if a drag just ended. */
+    public boolean onInventoryRelease() {
+        boolean was = dragging;
+        dragging = false;
+        return was;
+    }
+
+    /** The four HUD lines, already color-formatted, in the order set in the ClickGUI. */
+    private List<String> hudLines() {
+        List<String> out = new ArrayList<>();
+
+        if (baseline == null || latest == null) {
+            out.add(ChatColors.formatColor("&7Session: &fstarting..."));
+            return out;
+        }
+
+        Gained g = gained();
+        String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.fkdr, 3, 6));
+        String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(g.wlr, 2, 4));
+
+        String[] text = {
+                "&7Session Time: &b" + duration(),
+                "&7Finals: &f" + g.finalKills + " &8/ &7FKDR: " + fkdrCode + fmt(g.fkdr),
+                "&7Beds: &f" + g.bedsBroken + " &8/ &7BBLR: &f" + fmt(g.bblr),
+                "&7Wins: &f" + g.wins + " &8/ &7WLR: " + wlrCode + fmt(g.wlr)
+        };
+        double[] order = {
+                orderTime.getValue(), orderFinals.getValue(), orderBeds.getValue(), orderWins.getValue()
+        };
+
+        // Selection sort on (order value, default position): tiny list, keeps ties stable.
+        boolean[] used = new boolean[4];
+        for (int n = 0; n < 4; n++) {
+            int best = -1;
+            for (int i = 0; i < 4; i++) {
+                if (!used[i] && (best == -1 || order[i] < order[best])) {
+                    best = i;
+                }
+            }
+            used[best] = true;
+            out.add(ChatColors.formatColor(text[best]));
+        }
+
+        return out;
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     // ── Internals ────────────────────────────────────────────────────────
 
     private Gained gained() {
@@ -273,7 +458,8 @@ public class SessionStats extends Module {
         if (b == null || l == null) return g;
 
         g.wins = diff(l.wins, b.wins);
-        g.games = g.wins + diff(l.losses, b.losses);
+        g.losses = diff(l.losses, b.losses);
+        g.games = g.wins + g.losses;
         g.kills = diff(l.kills, b.kills);
         g.finalKills = diff(l.finalKills, b.finalKills);
         g.finalDeaths = diff(l.finalDeaths, b.finalDeaths);
@@ -281,6 +467,7 @@ public class SessionStats extends Module {
         g.bedsLost = diff(l.bedsLost, b.bedsLost);
         g.fkdr = g.finalDeaths == 0 ? g.finalKills : (double) g.finalKills / g.finalDeaths;
         g.bblr = g.bedsLost == 0 ? g.bedsBroken : (double) g.bedsBroken / g.bedsLost;
+        g.wlr = g.losses == 0 ? g.wins : (double) g.wins / g.losses;
         return g;
     }
 
