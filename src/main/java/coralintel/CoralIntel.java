@@ -111,6 +111,7 @@ public class CoralIntel {
         moduleManager.modules.put(SessionStats.class, new SessionStats());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
         MinecraftForge.EVENT_BUS.register(new SessionHudEvents());
+        MinecraftForge.EVENT_BUS.register(new coralintel.render.KeyEventBridge());
 
         // Reflection scan: pick up every Property<?> field declared on each module
         // and register it with the PropertyManager, same as the original client did.
