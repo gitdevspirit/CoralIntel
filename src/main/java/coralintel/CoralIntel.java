@@ -99,6 +99,7 @@ public class CoralIntel {
         commandManager.register(new SessionCommand(false));
         commandManager.register(new SessionCommand(true));
         EventManager.register(commandManager);
+        EventManager.register(new coralintel.ui.intel.ReminderAlerts());
         EventManager.register(moduleManager);
 
         // Only two modules in this standalone build.
