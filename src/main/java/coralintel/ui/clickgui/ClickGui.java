@@ -10,6 +10,7 @@ import coralintel.module.SliderSetting;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.PregameMessages;
 import coralintel.module.modules.SessionStats;
+import coralintel.module.modules.SnipeMessages;
 import coralintel.module.modules.StreamerMode;
 import coralintel.property.properties.TextProperty;
 import coralintel.command.CommandManager;
@@ -18,6 +19,7 @@ import coralintel.util.ChatUtil;
 import net.minecraft.util.ChatAllowedCharacters;
 import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
+import coralintel.ui.intel.ReminderManager;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import org.lwjgl.input.Mouse;
@@ -60,6 +62,11 @@ public class ClickGui extends GuiScreen {
 
     private final Map<Object, PanelState> panels = new LinkedHashMap<>();
     private static final String BLACKLIST_SAFELIST = "Blacklist/Safelist";
+    // One "Chat" panel holds both message modules as sub-sections.
+    private static final String CHAT = "Chat";
+    private static final String REMINDERS = "Reminders";
+    private boolean pregameOpen = true;
+    private boolean snipeOpen = true;
     private SliderRow draggingSlider = null;
     // Ctrl+click / Ctrl+drag in the ClickGUI moves the session HUD.
     private boolean movingHud = false;
@@ -102,11 +109,22 @@ public class ClickGui extends GuiScreen {
                 continue;
             }
 
+            // Pregame + snipe messages share one "Chat" panel (built in chatRows()).
+            if (module instanceof PregameMessages) {
+                panels.put(CHAT, new PanelState(startX, startY));
+                startX += columnGap;
+                continue;
+            }
+            if (module instanceof SnipeMessages) {
+                continue;
+            }
+
             panels.put(module, new PanelState(startX, startY));
             startX += columnGap;
         }
 
         panels.put(BLACKLIST_SAFELIST, new PanelState(startX, startY));
+        panels.put(REMINDERS, new PanelState(secondRowX, secondRowY));
     }
 
     @Override
@@ -133,6 +151,80 @@ public class ClickGui extends GuiScreen {
         SectionLabelRow(String text) { this.text = text; this.h = 16; }
         void render(int x, int y, int w, int mouseX, int mouseY) {
             mc.fontRendererObj.drawString(text, x, y, TEXT_DIM, false);
+        }
+    }
+
+    /** Clickable sub-section title inside a panel (used by the Chat panel). */
+    private class SubHeaderRow extends Row {
+        final String title;
+        final BooleanSupplier open;
+        final Runnable toggle;
+
+        SubHeaderRow(String title, BooleanSupplier open, Runnable toggle) {
+            this.title = title;
+            this.open = open;
+            this.toggle = toggle;
+            this.h = 16;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            boolean hovered = hit(mouseX, mouseY, x, y, w, h);
+            RoundedUtils.drawRoundedRect(x, y, w, h, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+            mc.fontRendererObj.drawString(title, x + 5, y + 4, ACCENT, false);
+            mc.fontRendererObj.drawString(open.getAsBoolean() ? "\u25BC" : "\u25B6",
+                    x + w - 12, y + 4, TEXT_DIM, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, x, y, w, h)) {
+                toggle.run();
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** One reminder — click the x to drop it (after you've tagged them in Coral). */
+    private class ReminderRow extends Row {
+        final ReminderManager.Reminder reminder;
+        int removeX, removeY;
+
+        ReminderRow(ReminderManager.Reminder reminder) {
+            this.reminder = reminder;
+            this.h = 22;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            removeX = x + w - 12;
+            removeY = y;
+
+            boolean removeHovered = hit(mouseX, mouseY, removeX - 2, removeY, 14, 20);
+
+            mc.fontRendererObj.drawString(reminder.name, x, y, 0xFFFFCC55, false);
+            if (reminder.seen > 1) {
+                mc.fontRendererObj.drawString("x" + reminder.seen,
+                        x + mc.fontRendererObj.getStringWidth(reminder.name) + 5, y, TEXT_DIM, false);
+            }
+            mc.fontRendererObj.drawString("\u2715", removeX, removeY,
+                    removeHovered ? 0xFFFF5555 : TEXT_DIM, false);
+
+            String note = reminder.latestNote();
+            String shown = note.isEmpty() ? "(no note)" : note;
+            int maxW = w - 16;
+            while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown + "\u2026") > maxW) {
+                shown = shown.substring(0, shown.length() - 1);
+            }
+            if (!shown.equals(note) && !note.isEmpty()) shown += "\u2026";
+
+            mc.fontRendererObj.drawString(shown, x, y + 10, TEXT_DIM, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, removeX - 2, removeY, 14, 20)) {
+                ReminderManager.getInstance().remove(reminder.name);
+                return true;
+            }
+            return false;
         }
     }
 
@@ -596,17 +688,8 @@ public class ClickGui extends GuiScreen {
         return rows;
     }
 
-    private List<Row> buildRows(Object panelKey) {
-        if (panelKey == BLACKLIST_SAFELIST) {
-            List<Row> rows = new ArrayList<>();
-            rows.addAll(blacklistRows());
-            rows.addAll(safelistRows());
-            return rows;
-        }
-
-        Module module = (Module) panelKey;
-        List<Row> rows = new ArrayList<>();
-
+    /** Rows for every visible Setting a module registered. */
+    private void addSettingRows(List<Row> rows, Module module) {
         for (Setting setting : module.getSettings()) {
             if (!setting.isVisible()) continue;
 
@@ -620,6 +703,75 @@ public class ClickGui extends GuiScreen {
                 rows.add(new KeybindRow((KeybindSetting) setting));
             }
         }
+    }
+
+    /** The Chat panel: Pregame Messages and Snipe Messages as two collapsible sub-sections. */
+    private List<Row> chatRows() {
+        List<Row> rows = new ArrayList<>();
+
+        Module pgmModule = CoralIntel.moduleManager.getModule(PregameMessages.class);
+        if (pgmModule instanceof PregameMessages) {
+            PregameMessages pgm = (PregameMessages) pgmModule;
+            rows.add(new SubHeaderRow("Pregame Messages", () -> pregameOpen, () -> pregameOpen = !pregameOpen));
+            if (pregameOpen) {
+                rows.add(new ToggleRow("Enabled", pgm::isEnabled, pgm::setEnabled));
+                addSettingRows(rows, pgm);
+                rows.add(new SectionLabelRow("Sent at 10s, spaced by Message Delay"));
+                rows.add(new TextRow("Message 1 (.pgm1)", pgm.message1));
+                rows.add(new TextRow("Message 2 (.pgm2)", pgm.message2));
+                rows.add(new TextRow("Message 3 (.pgm3)", pgm.message3));
+            }
+        }
+
+        Module snipeModule = CoralIntel.moduleManager.getModule(SnipeMessages.class);
+        if (snipeModule instanceof SnipeMessages) {
+            SnipeMessages snipe = (SnipeMessages) snipeModule;
+            rows.add(new SubHeaderRow("Snipe Messages", () -> snipeOpen, () -> snipeOpen = !snipeOpen));
+            if (snipeOpen) {
+                rows.add(new ToggleRow("Enabled", snipe::isEnabled, snipe::setEnabled));
+                addSettingRows(rows, snipe);
+                rows.add(new SectionLabelRow("Sent to all chat with /shout"));
+                rows.add(new TextRow("Snipe Message (.sm1)", snipe.message1));
+            }
+        }
+
+        rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
+        return rows;
+    }
+
+    private List<Row> reminderRows() {
+        List<Row> rows = new ArrayList<>();
+        List<ReminderManager.Reminder> all = ReminderManager.getInstance().getAll();
+
+        rows.add(new SectionLabelRow("REMINDERS (" + all.size() + ")"));
+
+        if (all.isEmpty()) {
+            rows.add(new SectionLabelRow("Empty \u2014 .remind <player> [note]"));
+        } else {
+            for (ReminderManager.Reminder r : all) {
+                rows.add(new ReminderRow(r));
+            }
+            rows.add(new SectionLabelRow("Tag them in Coral, then click x"));
+        }
+
+        return rows;
+    }
+
+    private List<Row> buildRows(Object panelKey) {
+        if (panelKey == BLACKLIST_SAFELIST) {
+            List<Row> rows = new ArrayList<>();
+            rows.addAll(blacklistRows());
+            rows.addAll(safelistRows());
+            return rows;
+        }
+
+        if (panelKey == CHAT) return chatRows();
+        if (panelKey == REMINDERS) return reminderRows();
+
+        Module module = (Module) panelKey;
+        List<Row> rows = new ArrayList<>();
+
+        addSettingRows(rows, module);
 
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
@@ -641,15 +793,6 @@ public class ClickGui extends GuiScreen {
             rows.add(new SectionLabelRow(".reset restarts it, .session prints it"));
             rows.add(new SectionLabelRow("Ctrl+click here to place the HUD"));
             rows.add(new SectionLabelRow("(or drag it in your inventory)"));
-        }
-
-        if (module instanceof PregameMessages) {
-            PregameMessages pgm = (PregameMessages) module;
-            rows.add(new SectionLabelRow("MESSAGES (sent at 10s, spaced by Message Delay)"));
-            rows.add(new TextRow("Message 1", pgm.message1));
-            rows.add(new TextRow("Message 2", pgm.message2));
-            rows.add(new TextRow("Message 3", pgm.message3));
-            rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
         }
 
         return rows;
