@@ -20,6 +20,15 @@ public class RoundedUtils {
 
         GlStateManager.pushMatrix();
         GlStateManager.enableBlend();
+        // GlStateManager caches state, so if anything else toggled blending
+        // with raw GL calls the cache can say "enabled" while the real GL
+        // state is off. With blending off, every fragment that passes the
+        // alpha test is written fully opaque, which looks like opacity jumping
+        // from invisible straight to solid black. Force the real state on.
+        GL11.glEnable(GL11.GL_BLEND);
+        // Low alpha values would otherwise be discarded by the default alpha
+        // test (GREATER 0.1) and never reach the blend stage at all.
+        GlStateManager.disableAlpha();
         GlStateManager.disableTexture2D();
         // The 3D world pass that runs right before this 2D overlay pass
         // typically leaves GL_CULL_FACE enabled. This fan's winding order
@@ -68,6 +77,7 @@ public class RoundedUtils {
 
         GlStateManager.enableTexture2D();
         GlStateManager.enableCull();
+        GlStateManager.enableAlpha();
         GlStateManager.disableBlend();
         GL11.glColor4f(1f, 1f, 1f, 1f); // reset color
         GlStateManager.popMatrix();
