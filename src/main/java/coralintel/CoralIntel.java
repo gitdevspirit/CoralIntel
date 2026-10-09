@@ -5,6 +5,8 @@ import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.QueueCommand;
 import coralintel.command.commands.PregameMessageCommand;
+import coralintel.command.commands.ReminderCommand;
+import coralintel.command.commands.SnipeMessageCommand;
 import coralintel.command.commands.PeriodStatsCommand;
 import coralintel.command.commands.BindCommand;
 import coralintel.command.commands.BlacklistCommand;
@@ -30,9 +32,9 @@ import coralintel.module.modules.BedwarsTag;
 import coralintel.module.modules.AntiCheat;
 import coralintel.module.modules.PregameMessages;
 import coralintel.module.modules.SessionStats;
+import coralintel.module.modules.SnipeMessages;
 import coralintel.module.modules.StreamerMode;
 import coralintel.ui.intel.StatSnapshotManager;
-import coralintel.render.KeyInputBridge;
 import coralintel.render.RenderEventBridge;
 import coralintel.render.SessionHudEvents;
 import net.minecraftforge.common.MinecraftForge;
@@ -85,6 +87,8 @@ public class CoralIntel {
         commandManager.register(new PregameMessageCommand(1));
         commandManager.register(new PregameMessageCommand(2));
         commandManager.register(new PregameMessageCommand(3));
+        commandManager.register(new SnipeMessageCommand());
+        commandManager.register(new ReminderCommand());
         commandManager.register(new BlacklistCommand());
         commandManager.register(new ConfigCommand());
         commandManager.register(new SafelistCommand());
@@ -102,10 +106,10 @@ public class CoralIntel {
         moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
         moduleManager.modules.put(AntiCheat.class, new AntiCheat());
         moduleManager.modules.put(PregameMessages.class, new PregameMessages());
+        moduleManager.modules.put(SnipeMessages.class, new SnipeMessages());
         moduleManager.modules.put(StreamerMode.class, new StreamerMode());
         moduleManager.modules.put(SessionStats.class, new SessionStats());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
-        MinecraftForge.EVENT_BUS.register(new KeyInputBridge());
         MinecraftForge.EVENT_BUS.register(new SessionHudEvents());
 
         // Reflection scan: pick up every Property<?> field declared on each module
