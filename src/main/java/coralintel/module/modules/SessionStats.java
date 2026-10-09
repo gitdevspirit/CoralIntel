@@ -2,7 +2,9 @@ package coralintel.module.modules;
 
 import coralintel.enums.ChatColors;
 import coralintel.event.EventTarget;
+import coralintel.event.types.EventType;
 import coralintel.events.LoadWorldEvent;
+import coralintel.events.PacketEvent;
 import coralintel.events.Render2DEvent;
 import coralintel.module.BooleanSetting;
 import coralintel.module.Module;
@@ -18,32 +20,47 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.client.network.NetworkPlayerInfo;
+import net.minecraft.network.play.server.S02PacketChat;
+import net.minecraft.network.play.server.S45PacketTitle;
+import net.minecraft.util.IChatComponent;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Session stats: your own Bedwars wins, kills, FKDR and BBLR gained since you
- * launched the game, or since the last .reset.
+ * Session stats: your own Bedwars progress since you launched the game, or since
+ * the last .reset.
  *
- *  - The baseline is your lifetime totals, fetched a few seconds after the first
- *    world loads (retried on later world loads if that fetch fails).
- *  - Everything shown is "current totals minus baseline". FKDR / BBLR are the
- *    ratios of what you gained this session (finals / final deaths, beds broken /
- *    beds lost), worked out the same way as .daily / .monthly.
- *  - After a world change (e.g. back to the lobby after a game) your stats are
- *    re-fetched and a one-line summary is printed if you played a game since the
- *    last one. .session prints it on demand, .reset restarts the session.
+ * Wins, losses, kills, deaths, final kills, final deaths, beds broken and beds
+ * lost are counted live from the game chat (the same lines that end up in
+ * latest.log), so a kill shows up the moment it happens. Each one has its own
+ * counter and they are never mixed:
  *
- * HUD: a small box on screen with the session time, finals / FKDR, beds / BBLR
- * and wins / WLR. The order of the four lines is set in the ClickGUI (Order: ...).
- * Open your inventory to get a [Reset Session] button and to drag the box to
- * a new spot (the position is saved with the other settings).
+ *  - FINAL KILL! lines  -> final kills (you are the killer) / final deaths (you are the victim)
+ *  - other kill lines   -> kills / deaths
+ *  - BED DESTRUCTION    -> beds broken (you broke it) / beds lost ("Your Bed")
+ *  - end-of-game block  -> a win (VICTORY title / your name on the winning team) or a loss
  *
- * Hypixel's API lags a little behind the game, so a game you just finished can
- * take a minute or two to show up. The numbers are only kept in memory.
+ * FKDR / BBLR / WLR are the ratios of what you gained this session, worked out
+ * the same way as .daily / .monthly. Stars can't be read from chat, so those are
+ * still the difference between your Hypixel API stats now and at the start of
+ * the session (the API lags a little behind the game). The "Track From Chat"
+ * setting switches everything back to API differences if Hypixel ever changes
+ * its chat messages.
+ *
+ * HUD: a small box on screen with the session time, finals / FKDR, beds / BBLR,
+ * wins / WLR, kills / deaths and stars. The order of the lines is set in the
+ * ClickGUI (Order: ...). Open your inventory to get a [Reset Session] button and
+ * to drag the box to a new spot (the position is saved with the other settings).
+ *
+ * The numbers are only kept in memory.
  */
 public class SessionStats extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
@@ -52,6 +69,9 @@ public class SessionStats extends Module {
     private static final long AUTO_DELAY_MS = 8000L;
     /** At most one automatic refresh per this long (spares the API key). */
     private static final long AUTO_MIN_GAP_MS = 120_000L;
+
+    public final BooleanSetting trackFromChat =
+            register(new BooleanSetting("Track From Chat", true));
 
     // Each toggle controls BOTH the HUD and the chat summary (where the stat exists there).
     public final BooleanSetting showWins =
@@ -133,10 +153,17 @@ public class SessionStats extends Module {
 
     private volatile Totals baseline;
     private volatile Totals latest;
-    private volatile long startedAt;
+    private volatile long startedAt = System.currentTimeMillis();
     private volatile long lastAutoAt;
     private volatile int announcedGames;
     private final AtomicBoolean busy = new AtomicBoolean(false);
+
+    // Live counters filled from chat. Everything below is guarded by lock.
+    private final Object lock = new Object();
+    private int cWins, cLosses, cKills, cDeaths, cFinalKills, cFinalDeaths, cBedsBroken, cBedsLost;
+    private boolean gameActive;
+    private boolean sawVictory;
+    private final Set<String> winners = new HashSet<>();
 
     public SessionStats() {
         super("SessionStats", true);
@@ -145,14 +172,38 @@ public class SessionStats extends Module {
     @Override
     public void onEnabled() {
         if (baseline == null && mc.thePlayer != null) {
-            start(false);
+            captureBaseline(false);
         }
     }
 
-    // ── Session control ──────────────────────────────────────────────────
+    // -- Session control --------------------------------------------------
 
-    /** Starts (or restarts) the session from your current lifetime stats. */
+    /** Restarts the session: counters to zero, timer to now, stars baseline re-fetched. */
     public void start(final boolean announce) {
+        synchronized (lock) {
+            cWins = cLosses = cKills = cDeaths = 0;
+            cFinalKills = cFinalDeaths = cBedsBroken = cBedsLost = 0;
+            winners.clear();
+            sawVictory = false;
+        }
+        startedAt = System.currentTimeMillis();
+        announcedGames = 0;
+
+        Totals known = latest;
+        if (known != null) {
+            baseline = known; // stars restart right away; a fresh fetch follows below
+        }
+
+        if (trackFromChat.getValue()) {
+            if (announce) say("&aSession reset. &7Counting from now.");
+            captureBaseline(false);
+        } else {
+            captureBaseline(announce);
+        }
+    }
+
+    /** Fetches your lifetime stats as the starting point for stars (and for API mode). */
+    private void captureBaseline(final boolean announce) {
         final String name = ownName();
         if (name == null) {
             if (announce) say("&cCouldn't work out your username.");
@@ -172,8 +223,6 @@ public class SessionStats extends Module {
                 if (totals != null) {
                     baseline = totals;
                     latest = totals;
-                    startedAt = System.currentTimeMillis();
-                    announcedGames = 0;
                 }
 
                 final boolean ok = totals != null;
@@ -189,12 +238,19 @@ public class SessionStats extends Module {
     }
 
     /**
-     * Re-fetches your stats. A manual refresh always prints the summary; an
-     * automatic one only prints when you've played a game since the last summary.
+     * .session: prints the summary. With chat tracking it prints right away from the
+     * live counters and refreshes stars in the background; in API mode it re-fetches
+     * first. Automatic refreshes only print (API mode) when a game was played.
      */
     public void refresh(final boolean manual) {
+        final boolean chat = trackFromChat.getValue();
+
+        if (manual && chat) {
+            say(summaryLine());
+        }
+
         if (baseline == null) {
-            start(manual);
+            captureBaseline(manual && !chat);
             return;
         }
 
@@ -202,11 +258,11 @@ public class SessionStats extends Module {
         if (name == null) return;
 
         if (!busy.compareAndSet(false, true)) {
-            if (manual) say("&7Still fetching your stats, try again in a moment.");
+            if (manual && !chat) say("&7Still fetching your stats, try again in a moment.");
             return;
         }
 
-        if (manual) say("&7Fetching your current stats...");
+        if (manual && !chat) say("&7Fetching your current stats...");
 
         new Thread(() -> {
             try {
@@ -217,6 +273,8 @@ public class SessionStats extends Module {
 
                 final boolean ok = totals != null;
                 mc.addScheduledTask(() -> {
+                    if (chat) return; // chat mode prints at the end of each game; this only updates stars
+
                     if (!ok) {
                         if (manual) say("&cCouldn't load your stats.");
                         return;
@@ -239,13 +297,20 @@ public class SessionStats extends Module {
 
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
+        // A new world means the previous game is over (or was never entered).
+        synchronized (lock) {
+            gameActive = false;
+            sawVictory = false;
+            winners.clear();
+        }
+
         if (!isEnabled()) return;
 
         final boolean first = baseline == null;
         long now = System.currentTimeMillis();
 
         if (!first) {
-            // The HUD needs fresh numbers too, not just the chat summary.
+            // Stars come from the API, so keep them fresh for the HUD.
             boolean wantsRefresh = autoSummary.getValue() || showHud.getValue();
             if (!wantsRefresh || now - lastAutoAt < AUTO_MIN_GAP_MS) return;
             lastAutoAt = now;
@@ -263,23 +328,286 @@ public class SessionStats extends Module {
             if (!isEnabled()) return;
 
             if (first) {
-                if (baseline == null) start(false);
+                if (baseline == null) captureBaseline(false);
             } else {
                 refresh(false);
             }
         }, "CoralIntel-Session-Auto").start();
     }
 
-    // ── Text ─────────────────────────────────────────────────────────────
+    // -- Live tracking from chat ------------------------------------------
+
+    private static final Pattern CODES = Pattern.compile("\u00a7.");
+
+    // "BED DESTRUCTION > Red Bed was destroyed by Name!"  /  "... > Your Bed was destroyed by Name!"
+    private static final Pattern BED_PATTERN = Pattern.compile(
+            "^BED DESTRUCTION > (\\w+) (?:Bed|Square|Star|Heart) .*\\b(?:by|for|to|seeing) (\\w{1,16})[!.']");
+
+    // Final kill lines: "<victim> was killed by <killer>. FINAL KILL!"
+    private static final Pattern FINAL_VICTIM = Pattern.compile("^(\\w{1,16})(?:'| )");
+    private static final Pattern FINAL_NUMBERED = Pattern.compile("^\\w{1,16} was (\\w{1,16})'s final #[\\d,]+\\.");
+    private static final Pattern KILLER_PLAIN = Pattern.compile(
+            "\\b(?:by|fighting|to|for|with|from|of|against|meet) (\\w{1,16})[.!']");
+
+    // Normal kill lines keep their colours: "(color)<victim> (grey)was killed by (color)<killer>(grey)."
+    private static final Pattern KILL_RAW = Pattern.compile(
+            "^\u00a7[0-9a-f](\\w{1,16}) \u00a77.*\\b(?:by|for|to|with|from|of|against|fighting|meet) \u00a7[0-9a-f](\\w{1,16})\u00a77[.!]$");
+    // Deaths with no player killer: "(color)<victim> (grey)fell into the void."
+    private static final Pattern DEATH_RAW = Pattern.compile("^\u00a7[0-9a-f](\\w{1,16}) \u00a77(.*)$");
+    private static final Pattern NOT_A_DEATH = Pattern.compile(
+            "(?i)\\b(?:disconnected|reconnected|joined|quit|respawn\\w*|eliminated)\\b");
+
+    // End of game: one "Red - [MVP+] Name" line per member of the winning team.
+    private static final Pattern WINNER_LINE = Pattern.compile(
+            "^(?:Red|Blue|Green|Yellow|Aqua|White|Pink|Gray) - (?:\\[[^\\]]*\\]\\s*)?(\\w{1,16})$");
+
+    @EventTarget
+    public void onPacket(PacketEvent event) {
+        if (!isEnabled() || !trackFromChat.getValue()) return;
+        if (event.getType() != EventType.RECEIVE) return;
+
+        try {
+            if (event.getPacket() instanceof S02PacketChat) {
+                S02PacketChat packet = (S02PacketChat) event.getPacket();
+                if (packet.getType() == 2) return; // action bar, not chat
+
+                IChatComponent component = packet.getChatComponent();
+                if (component != null) {
+                    handleChat(component.getFormattedText());
+                }
+            } else if (event.getPacket() instanceof S45PacketTitle) {
+                S45PacketTitle title = (S45PacketTitle) event.getPacket();
+                if (title.getType() == S45PacketTitle.Type.TITLE && title.getMessage() != null) {
+                    String text = CODES.matcher(title.getMessage().getUnformattedText()).replaceAll("");
+                    if (text.contains("VICTORY")) {
+                        synchronized (lock) {
+                            if (gameActive) sawVictory = true;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            IntelManager.dbg("[Session] chat parse error: " + e);
+        }
+    }
+
+    private void handleChat(String formatted) {
+        String raw = formatted.replace("\u00a7r", "");
+        String plain = CODES.matcher(raw).replaceAll("").trim();
+
+        // Player chat, shouts and party chat always have "Name:"; game events never do.
+        if (plain.isEmpty() || plain.indexOf(':') >= 0) return;
+
+        // A game is starting (or you are back in one after a respawn / reconnect).
+        if (plain.contains("Protect your bed and destroy the enemy beds.")) {
+            synchronized (lock) {
+                gameActive = true;
+                sawVictory = false;
+                winners.clear();
+            }
+            return;
+        }
+        if (plain.contains("You will respawn because you still have a bed!")) {
+            synchronized (lock) {
+                gameActive = true;
+            }
+            return;
+        }
+
+        // Beds. Only exist in a game, so they also mark one as running (e.g. after a reconnect).
+        if (plain.startsWith("BED DESTRUCTION >")) {
+            Matcher m = BED_PATTERN.matcher(plain);
+            if (m.find()) {
+                boolean yours = m.group(1).equalsIgnoreCase("Your");
+                boolean broken = !yours && isMe(m.group(2));
+                synchronized (lock) {
+                    gameActive = true;
+                    if (yours) cBedsLost++;
+                    else if (broken) cBedsBroken++;
+                }
+                if (yours || broken) {
+                    IntelManager.dbg("[Session] " + (yours ? "bed lost" : "bed broken") + ": " + plain);
+                }
+            }
+            return;
+        }
+
+        // Final kills / final deaths. Kept apart from normal kills / deaths below.
+        if (plain.endsWith("FINAL KILL!")) {
+            handleFinalKill(plain);
+            return;
+        }
+
+        boolean active;
+        synchronized (lock) {
+            active = gameActive;
+        }
+        if (!active) return;
+
+        // End of game: winners first, then the "1st Killer" block / reward summary.
+        Matcher winner = WINNER_LINE.matcher(plain);
+        if (winner.find()) {
+            synchronized (lock) {
+                winners.add(winner.group(1).toLowerCase(Locale.ROOT));
+            }
+            return;
+        }
+        if (plain.startsWith("1st Killer") || plain.contains("Reward Summary")) {
+            finishGame();
+            return;
+        }
+
+        // Normal kills / deaths (not final).
+        Matcher kill = KILL_RAW.matcher(raw);
+        if (kill.find()) {
+            boolean killedMe = isMe(kill.group(1));
+            boolean killerMe = !killedMe && isMe(kill.group(2));
+            synchronized (lock) {
+                gameActive = true;
+                if (killedMe) cDeaths++;
+                else if (killerMe) cKills++;
+            }
+            if (killedMe || killerMe) {
+                IntelManager.dbg("[Session] " + (killedMe ? "death" : "kill") + ": " + plain);
+            }
+            return;
+        }
+
+        // Died with no player involved (void, fall, a golem...). Only counts when it's you.
+        Matcher death = DEATH_RAW.matcher(raw);
+        if (death.find() && isMe(death.group(1))) {
+            String rest = CODES.matcher(death.group(2)).replaceAll("").trim();
+            if ((rest.endsWith(".") || rest.endsWith("!")) && !NOT_A_DEATH.matcher(rest).find()) {
+                synchronized (lock) {
+                    cDeaths++;
+                }
+                IntelManager.dbg("[Session] death: " + plain);
+            }
+        }
+    }
+
+    private void handleFinalKill(String plain) {
+        String body = plain.substring(0, plain.length() - "FINAL KILL!".length()).trim();
+
+        Matcher victimMatcher = FINAL_VICTIM.matcher(body);
+        if (!victimMatcher.find()) return;
+        String victim = victimMatcher.group(1);
+
+        String killer = null;
+        Matcher numbered = FINAL_NUMBERED.matcher(body);
+        if (numbered.find()) {
+            killer = numbered.group(1);
+        } else {
+            Matcher killerMatcher = KILLER_PLAIN.matcher(body);
+            while (killerMatcher.find()) {
+                killer = killerMatcher.group(1); // the last "by Name." wins
+            }
+        }
+
+        boolean victimMe = isMe(victim);
+        boolean killerMe = !victimMe && killer != null && isMe(killer);
+
+        synchronized (lock) {
+            gameActive = true;
+            if (victimMe) cFinalDeaths++;
+            else if (killerMe) cFinalKills++;
+        }
+
+        if (victimMe || killerMe) {
+            IntelManager.dbg("[Session] " + (victimMe ? "final death" : "final kill") + ": " + plain);
+        }
+    }
+
+    private void finishGame() {
+        boolean counted;
+        boolean won;
+
+        synchronized (lock) {
+            if (!gameActive) return;
+            gameActive = false;
+
+            boolean onWinningTeam = false;
+            for (String name : winners) {
+                if (isMe(name)) {
+                    onWinningTeam = true;
+                    break;
+                }
+            }
+
+            won = sawVictory || onWinningTeam;
+            counted = sawVictory || !winners.isEmpty();
+            if (counted) {
+                if (won) cWins++;
+                else cLosses++;
+            }
+
+            winners.clear();
+            sawVictory = false;
+        }
+
+        IntelManager.dbg("[Session] game over: " + (counted ? (won ? "win" : "loss") : "result unknown, not counted"));
+        afterGame();
+    }
+
+    /** Prints the summary a moment after the end-of-game spam, then refreshes stars. */
+    private void afterGame() {
+        new Thread(() -> {
+            try {
+                Thread.sleep(1500L);
+            } catch (InterruptedException ignored) {
+                return;
+            }
+
+            if (!isEnabled()) return;
+
+            mc.addScheduledTask(() -> {
+                String name = ownName();
+                if (autoSummary.getValue() && !StreamerMode.hidesStatsFor(name)) {
+                    say(summaryLine());
+                }
+            });
+
+            try {
+                Thread.sleep(9000L);
+            } catch (InterruptedException ignored) {
+                return;
+            }
+
+            if (isEnabled()) refresh(false); // stars only; Hypixel's API may need longer
+        }, "CoralIntel-Session-GameEnd").start();
+    }
+
+    /** Is this name you? Also checks your tab-list name in case you're nicked. */
+    private static boolean isMe(String name) {
+        if (name == null) return false;
+
+        String real = ownName();
+        if (real != null && name.equalsIgnoreCase(real)) return true;
+
+        try {
+            if (mc.thePlayer != null && mc.getNetHandler() != null) {
+                NetworkPlayerInfo info = mc.getNetHandler().getPlayerInfo(mc.thePlayer.getUniqueID());
+                if (info != null && info.getGameProfile() != null
+                        && name.equalsIgnoreCase(info.getGameProfile().getName())) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        return false;
+    }
+
+    // -- Text -------------------------------------------------------------
 
     /** Colored chat line, or a "not started" notice. */
     public String summaryLine() {
-        if (baseline == null || latest == null) {
+        if (!hasSession()) {
             return "&7No session yet. Run &f.reset &7to start one.";
         }
 
         Gained g = gained();
-        StringBuilder line = new StringBuilder("&bThis session &7» ");
+        StringBuilder line = new StringBuilder("&bThis session &7\u00bb ");
 
         if (g.isEmpty()) {
             return line.append("&7no games yet &8(").append(duration()).append(")").toString();
@@ -294,12 +622,22 @@ public class SessionStats extends Module {
         if (showDeaths.getValue()) {
             line.append("&7Deaths &f+").append(g.deaths).append("  ");
         }
+        if (showFinals.getValue()) {
+            line.append("&7Finals &f+").append(g.finalKills).append("  ");
+        }
         if (showFkdr.getValue()) {
             String code = IntelColors.nearestCode(IntelColors.getStatColor(g.fkdr, 3, 6));
             line.append("&7FKDR ").append(code).append(fmt(g.fkdr)).append("  ");
         }
+        if (showBeds.getValue()) {
+            line.append("&7Beds &f+").append(g.bedsBroken).append("  ");
+        }
         if (showBblr.getValue()) {
             line.append("&7BBLR &f").append(fmt(g.bblr)).append("  ");
+        }
+        if (showWlr.getValue()) {
+            String code = IntelColors.nearestCode(IntelColors.getStatColor(g.wlr, 2, 4));
+            line.append("&7WLR ").append(code).append(fmt(g.wlr)).append("  ");
         }
 
         if (showStars.getValue()) {
@@ -313,7 +651,7 @@ public class SessionStats extends Module {
 
     /** Two plain-text lines for the ClickGUI panel (kept short to fit the panel). */
     public String[] guiLines() {
-        if (baseline == null || latest == null) {
+        if (!hasSession()) {
             return new String[]{"Not started yet", "Starts after you join a server"};
         }
 
@@ -332,7 +670,7 @@ public class SessionStats extends Module {
         return new String[]{first.toString(), second.toString()};
     }
 
-    // ── HUD ──────────────────────────────────────────────────────────────
+    // -- HUD --------------------------------------------------------------
 
     private static final String RESET_LABEL = "[Reset Session]";
 
@@ -419,7 +757,7 @@ public class SessionStats extends Module {
         btnH = bh;
     }
 
-    // ── Placing the HUD from the ClickGUI (Ctrl+click / Ctrl+drag) ───────
+    // -- Placing the HUD from the ClickGUI (Ctrl+click / Ctrl+drag) -------
 
     public void setPlacing(boolean placing) {
         this.placing = placing;
@@ -487,7 +825,7 @@ public class SessionStats extends Module {
     private List<String> hudLines() {
         List<String> out = new ArrayList<>();
 
-        if (baseline == null || latest == null) {
+        if (!hasSession()) {
             out.add(ChatColors.formatColor("&7Session: &fstarting..."));
             return out;
         }
@@ -543,25 +881,49 @@ public class SessionStats extends Module {
         return Math.max(min, Math.min(max, value));
     }
 
-    // ── Internals ────────────────────────────────────────────────────────
+    // -- Internals --------------------------------------------------------
+
+    /** True once there is something to show: always with chat tracking, else once stats loaded. */
+    private boolean hasSession() {
+        return trackFromChat.getValue() || (baseline != null && latest != null);
+    }
 
     private Gained gained() {
         Totals b = baseline;
         Totals l = latest;
         Gained g = new Gained();
-        if (b == null || l == null) return g;
 
-        g.wins = diff(l.wins, b.wins);
-        g.losses = diff(l.losses, b.losses);
+        if (trackFromChat.getValue()) {
+            // Live counters from chat. Each stat has its own counter.
+            synchronized (lock) {
+                g.wins = cWins;
+                g.losses = cLosses;
+                g.kills = cKills;
+                g.deaths = cDeaths;
+                g.finalKills = cFinalKills;
+                g.finalDeaths = cFinalDeaths;
+                g.bedsBroken = cBedsBroken;
+                g.bedsLost = cBedsLost;
+            }
+        } else if (b != null && l != null) {
+            // API mode: current lifetime totals minus the baseline.
+            g.wins = diff(l.wins, b.wins);
+            g.losses = diff(l.losses, b.losses);
+            g.kills = diff(l.kills, b.kills);
+            g.deaths = diff(l.deaths, b.deaths);
+            g.finalKills = diff(l.finalKills, b.finalKills);
+            g.finalDeaths = diff(l.finalDeaths, b.finalDeaths);
+            g.bedsBroken = diff(l.bedsBroken, b.bedsBroken);
+            g.bedsLost = diff(l.bedsLost, b.bedsLost);
+        }
+
+        // Stars can't be read from chat: always the API difference.
+        if (b != null && l != null) {
+            g.stars = Math.max(0.0, l.star - b.star);
+            g.starNow = (int) l.star;
+        }
+
         g.games = g.wins + g.losses;
-        g.kills = diff(l.kills, b.kills);
-        g.deaths = diff(l.deaths, b.deaths);
-        g.stars = Math.max(0.0, l.star - b.star);
-        g.starNow = (int) l.star;
-        g.finalKills = diff(l.finalKills, b.finalKills);
-        g.finalDeaths = diff(l.finalDeaths, b.finalDeaths);
-        g.bedsBroken = diff(l.bedsBroken, b.bedsBroken);
-        g.bedsLost = diff(l.bedsLost, b.bedsLost);
         g.fkdr = g.finalDeaths == 0 ? g.finalKills : (double) g.finalKills / g.finalDeaths;
         g.bblr = g.bedsLost == 0 ? g.bedsBroken : (double) g.bedsBroken / g.bedsLost;
         g.wlr = g.losses == 0 ? g.wins : (double) g.wins / g.losses;
