@@ -29,7 +29,7 @@ public abstract class MixinNetworkManager {
             at = {@At("HEAD")},
             cancellable = true
     )
-    private void channelRead0(ChannelHandlerContext channelHandlerContext, Packet<?> packet, CallbackInfo callbackInfo) {
+    private void coralintel$channelRead0(ChannelHandlerContext channelHandlerContext, Packet<?> packet, CallbackInfo callbackInfo) {
         if (!packet.getClass().getName().startsWith("net.minecraft.network.play.client")) {
             PacketEvent event = new PacketEvent(EventType.RECEIVE, packet);
             EventManager.call(event);
@@ -44,7 +44,7 @@ public abstract class MixinNetworkManager {
             at = {@At("HEAD")},
             cancellable = true
     )
-    private void sendPacket(Packet<?> packet, CallbackInfo callbackInfo) {
+    private void coralintel$sendPacket(Packet<?> packet, CallbackInfo callbackInfo) {
         if (!packet.getClass().getName().startsWith("net.minecraft.network.play.server")) {
             PacketEvent event = new PacketEvent(EventType.SEND, packet);
             EventManager.call(event);
@@ -59,7 +59,7 @@ public abstract class MixinNetworkManager {
             at = {@At("HEAD")},
             cancellable = true
     )
-    private void sendPacket2(
+    private void coralintel$sendPacket2(
             Packet<?> packet,
             GenericFutureListener<? extends java.util.concurrent.Future<? super Void>> genericFutureListener,
             GenericFutureListener<? extends java.util.concurrent.Future<? super Void>>[] arr,
