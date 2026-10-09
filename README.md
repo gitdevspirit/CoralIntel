@@ -17,10 +17,10 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Stat cache** – fully loaded stats are saved to disk for 0–30 minutes (default 15, set it in the LobbyIntel settings), so re-queuing into the same players doesn't re-fetch them and eases rate limits. `.bw` always fetches fresh.
 - **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
 - **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, active time, average game length, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained, all tracked live from chat (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
-- **Chat** – one ClickGUI panel with two sub-sections. *Pregame Messages*: up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay. *Snipe Messages*: one message sent to all chat with `/shout` (at game start by default, or at the 10-second countdown), set with `.sm1`.
+- **Chat** – one ClickGUI panel with two sub-sections. *Pregame Messages*: up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay. *Snipe Messages*: one message you set with `.sm1` and send to all chat with `/shout` by typing `.sm` (it is never sent automatically).
 - **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
-- **ClickGUI** – every setting in one place (default key: Right Shift).
+- **ClickGUI** – every setting in one place (default key: Right Control).
 
 ## Installation
 
@@ -46,9 +46,20 @@ The jar ends up in `build/libs/`. The Gradle toolchain targets Java 8.
 | --- | --- |
 | `H` | Toggle the HUD |
 | `L` | Open the Intel GUI |
-| `Right Shift` | Open the ClickGUI |
+| `Right Control` | Open the ClickGUI |
 
-Rebind them with `.bind`.
+Rebind them with `.bind`. If you saved a config on an older version, your ClickGUI key may still be `Right Shift`; run `.bind clickgui RCONTROL` to switch.
+
+## Using CoralIntel with other mods
+
+CoralIntel is built so it can sit next to other client mods (including other mixin-based ones) without either breaking the other:
+
+- **Key presses** use Forge's shared key event, not a Mixin hook. Only one mod can hook a given spot in Minecraft, so a hook-based key listener silently stops working when two mods try; Forge's event has no such limit.
+- **Mixins only use stacking injectors** (`@Inject`, `@ModifyArg`, `@ModifyVariable`), never `@Redirect` / `@Overwrite` / `@ModifyConstant`, and every handler is named `coralintel$...` so it can't share a name with another mod's code. The tab-list logic lives in a normal class (`TabListFormatter`), not inside the mixin.
+- **Separate files and config**: everything is saved under `config/CoralIntel/`, and the mixin config / refmap are named `coralintel`.
+- **Same key in two mods**: if another mod opens its own screen on one of CoralIntel's keys, that mod's screen wins and you get a one-time chat hint. Pick a free key with `.bind clickgui <key>` or `.bind gui <key>`. `.clickgui` always works.
+
+For contributors: `python3 scripts/check_mixins.py` enforces the mixin rules above, and CI runs it on every push, so a future change can't quietly reintroduce a clash.
 
 ## Session stats
 
@@ -118,7 +129,8 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.session` | `.sess` | Print your session stats (wins, kills, FKDR, BBLR, ... gained) |
 | `.reset` | | Restart your session stats from your current stats |
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
-| `.sm1 <text\|clear>` | `.sm` | Set your snipe message (sent with `/shout`) |
+| `.sm1 <text\|clear>` | | Set your snipe message |
+| `.sm` | | Send your snipe message to all chat with `/shout` |
 | `.remind <player> [note]` / `list` / `view <player>` / `done <player>` | `.reminder`, `.rem` | Note a possible cheater to tag in Coral later |
 | `.intelkey <key>` | `.ikey` | Set your Hypixel API key |
 | `.coralkey <key>` | `.urchinkey`, `.ukey` | Set your Coral API key |
