@@ -8,17 +8,24 @@ import coralintel.module.modules.SnipeMessages;
 import coralintel.property.properties.TextProperty;
 
 /**
- * .sm1 / .sm — view or set your snipe message (sent with /shout).
+ * .sm  — send your snipe message to all chat (/shout). The only way it is ever sent.
+ * .sm1 — view or set that message.
  *
+ *   .sm                  send it now
  *   .sm1                 show the current message
  *   .sm1 <text...>       set it (saved to the config file immediately)
- *   .sm1 clear           blank it, so nothing is sent
+ *   .sm1 clear           blank it
  */
 public class SnipeMessageCommand extends Command {
 
-    public SnipeMessageCommand() {
-        super("sm1", "sm");
-        setDescription("Set your snipe message (sent with /shout). Usage: .sm1 <text|clear>");
+    private final boolean send;
+
+    public SnipeMessageCommand(boolean send) {
+        super(send ? new String[]{"sm"} : new String[]{"sm1"});
+        this.send = send;
+        setDescription(send
+                ? "Send your snipe message to all chat with /shout. Usage: .sm"
+                : "Set your snipe message. Usage: .sm1 <text|clear>");
     }
 
     @Override
@@ -29,15 +36,21 @@ public class SnipeMessageCommand extends Command {
 
         TextProperty property = module.message1;
 
+        if (send) {
+            String problem = module.send();
+            if (problem != null) reply("&c" + problem);
+            return;
+        }
+
         if (args.length == 0) {
             String current = property.getValue();
             reply("&7Snipe message: "
                     + (current == null || current.trim().isEmpty()
                     ? "&c(empty \u2014 nothing is sent)"
                     : "&f" + current));
-            reply("&7Sent with &f/shout &7"
-                    + (module.isEnabled() ? "" : "&c(SnipeMessages is off) ")
-                    + "&7\u2014 set it with &f.sm1 <text> &7or blank it with &f.sm1 clear&7.");
+            reply("&7Type &f.sm &7to send it with /shout"
+                    + (module.isEnabled() ? "" : " &c(SnipeMessages is off)")
+                    + "&7. Change it with &f.sm1 <text> &7or &f.sm1 clear&7.");
             return;
         }
 
