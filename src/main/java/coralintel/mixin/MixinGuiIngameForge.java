@@ -27,7 +27,7 @@ public abstract class MixinGuiIngameForge {
                     remap = false
             )}
     )
-    private void renderGameOverlay(float partialTicks, CallbackInfo callbackInfo) {
+    private void coralintel$renderGameOverlay(float partialTicks, CallbackInfo callbackInfo) {
         EventManager.call(new Render2DEvent(partialTicks));
     }
 }
