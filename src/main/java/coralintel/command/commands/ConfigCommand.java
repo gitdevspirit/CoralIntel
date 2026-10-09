@@ -16,7 +16,7 @@ import java.util.List;
  */
 public class ConfigCommand extends Command {
     // Data files that share the config directory; .c must not overwrite them
-    private static final List<String> RESERVED_NAMES = Arrays.asList("blacklist", "safelist", "roles", "snapshots");
+    private static final List<String> RESERVED_NAMES = Arrays.asList("blacklist", "safelist", "roles", "snapshots", "reminders");
 
     public ConfigCommand() {
         super("c", "config");
