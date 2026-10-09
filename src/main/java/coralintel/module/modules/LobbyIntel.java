@@ -171,6 +171,26 @@ public class LobbyIntel extends Module {
     public final coralintel.module.SliderSetting tabBgOpacity =
             register(new coralintel.module.SliderSetting("Tab: Background Opacity", 33, 0, 255, 1));
 
+    // ---- Seraph-style Bed Wars tab overlay (coralintel.ui.tab.TabOverlay) ----
+    public final BooleanSetting tabOverlay =
+            register(new BooleanSetting("Tab: Overlay (Bed Wars)", true));
+    public final coralintel.module.SliderSetting tabOverlaySize =
+            register(new coralintel.module.SliderSetting("Tab: Overlay Size %", 75, 50, 150, 5));
+    public final BooleanSetting tabOverlayShadow =
+            register(new BooleanSetting("Tab: Overlay Text Shadow", true));
+    public final BooleanSetting tabGrayOwnTeam =
+            register(new BooleanSetting("Tab: Gray Own Team", false));
+    public final BooleanSetting tabRespawnTimer =
+            register(new BooleanSetting("Tab: Respawn Timer", true));
+    public final BooleanSetting tabKeepDisconnected =
+            register(new BooleanSetting("Tab: Keep Disconnected", true));
+    public final DropdownSetting tabCol1 = register(new DropdownSetting("Tab: Column 1", 0, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+    public final DropdownSetting tabCol2 = register(new DropdownSetting("Tab: Column 2", 1, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+    public final DropdownSetting tabCol3 = register(new DropdownSetting("Tab: Column 3", 2, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+    public final DropdownSetting tabCol4 = register(new DropdownSetting("Tab: Column 4", 3, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+    public final DropdownSetting tabCol5 = register(new DropdownSetting("Tab: Column 5", 4, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+    public final DropdownSetting tabCol6 = register(new DropdownSetting("Tab: Column 6", 5, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
+
     /** Applies the current color-dropdown selections to the overlay — called every frame, cheap. */
     private void syncOverlayColors() {
         int bgIndex = bgColorChoice.getIndex();

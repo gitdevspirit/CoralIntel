@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -51,5 +52,16 @@ public abstract class MixinGuiPlayerTabOverlay {
     @Inject(method = "getPlayerName", at = @At("RETURN"), cancellable = true)
     private void coralintel$decorateName(NetworkPlayerInfo info, CallbackInfoReturnable<String> cir) {
         cir.setReturnValue(TabListFormatter.decorateName(cir.getReturnValue(), info));
+    }
+
+    /** Footer text, remembered for the Bed Wars overlay (non-fatal if the target name differs). */
+    @Inject(method = "setFooter", at = @At("HEAD"), require = 0)
+    private void coralintel$noteFooter(IChatComponent footer, CallbackInfo ci) {
+        coralintel.ui.tab.TabOverlay.noteFooter(footer);
+    }
+
+    @Inject(method = "resetFooterHeader", at = @At("HEAD"), require = 0)
+    private void coralintel$clearHeaderFooter(CallbackInfo ci) {
+        coralintel.ui.tab.TabOverlay.clearHeaderFooter();
     }
 }

@@ -114,6 +114,9 @@ public class CoralIntel {
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
         MinecraftForge.EVENT_BUS.register(new SessionHudEvents());
         MinecraftForge.EVENT_BUS.register(new coralintel.render.KeyEventBridge());
+        coralintel.ui.tab.TabOverlay tabOverlay = new coralintel.ui.tab.TabOverlay();
+        EventManager.register(tabOverlay);
+        MinecraftForge.EVENT_BUS.register(tabOverlay);
 
         // Reflection scan: pick up every Property<?> field declared on each module
         // and register it with the PropertyManager, same as the original client did.

@@ -48,6 +48,7 @@ public final class TabListFormatter {
      * the method to look at first.
      */
     public static IChatComponent seraphHeader(IChatComponent header) {
+        coralintel.ui.tab.TabOverlay.noteHeader(header);
         LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
         if (lobbyIntel == null || !lobbyIntel.tabStats.getValue() || !lobbyIntel.seraphStyle.getValue()) {
             return header;
