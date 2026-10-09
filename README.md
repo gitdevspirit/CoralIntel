@@ -106,6 +106,7 @@ Saw someone who might be cheating but don't want to stop and tag them mid-game? 
 - `.remind view <player>` – every note on one player.
 - `.remind done <player>` – remove them once you've tagged them in Coral (or click the x in the **Reminders** panel of the ClickGUI).
 - If a noted player shows up in a later lobby, you get a `[Reminder]` chat alert with your latest note.
+- **End of game** – when a game ends, you get a chat reminder listing the noted players who were in it (met in the lobby, or noted during the game), with your latest note, so you can tag them right away. If you leave a game early there's no alert.
 
 ## Commands
 
