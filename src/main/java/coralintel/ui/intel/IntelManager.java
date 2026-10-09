@@ -708,6 +708,8 @@ public class IntelManager {
                 if (player.blacklisted) {
                     notifyBlacklisted(player);
                 }
+
+                notifyReminder(player);
             }
 
             player.rankPrefix = extractRankPrefix(info, name);
@@ -1563,6 +1565,21 @@ public class IntelManager {
             while (recentFlags.size() > MAX_RECENT_FLAGS) {
                 recentFlags.remove(recentFlags.size() - 1);
             }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** Alerts you (once per encounter) when someone from your .remind list is in the lobby. */
+    private void notifyReminder(IntelPlayer player) {
+        try {
+            ReminderManager.Reminder reminder = ReminderManager.getInstance().recordEncounter(player.name);
+            if (reminder == null) return;
+
+            String note = reminder.latestNote();
+            coralintel.util.ChatUtil.sendFormatted(
+                    "&e[Reminder] &f" + player.name + " &7is on your list &8(met " + reminder.seen + "x) &7\u2014 "
+                            + (note.isEmpty() ? "no note" : note)
+            );
         } catch (Exception ignored) {
         }
     }
