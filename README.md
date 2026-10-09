@@ -16,7 +16,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Resilient stats fetching** – Hypixel API with automatic keyless fallbacks (Bordic, Slothpixel). Already-loaded players are never reloaded when the roster is re-sorted.
 - **Stat cache** – fully loaded stats are saved to disk for 0–30 minutes (default 15, set it in the LobbyIntel settings), so re-queuing into the same players doesn't re-fetch them and eases rate limits. `.bw` always fetches fresh.
 - **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
-- **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
+- **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained, all tracked live from chat (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
 - **Pregame messages** – up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay.
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Shift).
@@ -51,7 +51,14 @@ Rebind them with `.bind`.
 
 ## Session stats
 
-Tracks your own Bedwars progress. Your lifetime totals are fetched a few seconds after you join a server and everything shown is *current totals minus that baseline*.
+Tracks your own Bedwars progress **live from the game chat** (the same lines that end up in `latest.log`), so a kill shows up the moment it happens instead of waiting for Hypixel's API. Every stat has its own counter and they are never mixed:
+
+| Stat | Counted when |
+| --- | --- |
+| Kills / Deaths | you kill / die to someone in a normal (non-final) kill message, or die to the void, a fall and so on |
+| Finals / Final deaths | you are the killer / the victim in a `FINAL KILL!` message |
+| Beds broken / Beds lost | a `BED DESTRUCTION` message names you as the breaker / says `Your Bed` |
+| Wins / Losses | at the end of a game: the `VICTORY!` title or your name on the winning team is a win, otherwise a loss |
 
 ```
 Session Time: 3h 15m
@@ -62,18 +69,19 @@ Kills: 41 / Deaths: 12
 Stars: +0.61✫
 ```
 
-- **Stars** are shown with the fraction, so progress through a level counts (`+0.61✫` is 61% of a star). The glyph and colour follow your prestige.
+- **Stars** can't be read from chat, so they are the difference between your Hypixel API stats now and when the session started (they lag behind the game, see the notes). They are shown with the fraction, so progress through a level counts (`+0.61✫` is 61% of a star). The glyph and colour follow your prestige.
 - **FKDR / BBLR / WLR** are the ratios of what you gained *this session*, not your lifetime ratios.
-- **Chat summary** – after you finish a game, a one-line `This session » ...` summary is printed. `.session` prints it on demand and `.reset` restarts the session from your current stats.
+- **Chat summary** – as soon as a game ends, a one-line `This session » ...` summary is printed. `.session` prints it on demand and `.reset` restarts the session from your current stats.
 - **Settings** (SessionStats panel, second row of the ClickGUI):
   - A *Show ...* toggle for each stat. Turning one off removes it from the HUD, and a line disappears when everything on it is off. Most toggles also apply to the chat summary.
   - *HUD Background* – turn the dark box off to leave just the text.
   - *Order: ...* sliders – decide which line goes where (lowest number on top).
   - *Summary After Games* – the automatic chat summary.
+  - *Track From Chat* – on by default. Turn it off to fall back to API differences (the old behaviour) if Hypixel ever changes its chat messages.
 - **Moving the HUD** – hold `Ctrl` and click anywhere in the ClickGUI to put it there (keep the mouse down to fine-tune), or open your inventory and drag it. The position is saved with your settings.
 - **Reset button** – a `[Reset Session]` button appears under the HUD while your inventory is open, and does the same as `.reset`.
 
-Notes: the session lives in memory only, so every launch starts a new one. Hypixel's API lags a little behind the game, so a game you just finished can take a minute or two to show up. Stats refresh automatically after a world change, at most once every two minutes. While [Streamer mode](#features) is hiding your own stats, the automatic chat summaries are suppressed (`.session` still prints).
+Notes: the session lives in memory only, so every launch starts a new one. Stars (and the starting point for them) come from Hypixel's API, which lags a little behind the game, so the stars from a game you just finished can take a minute or two to show up; they refresh after each game and after a world change, at most once every two minutes. A game you leave before it ends isn't counted as a win or a loss. If you're nicked, your nick is matched through your tab-list name, which is best-effort. Run `.idebug log` to see each event the tracker counted. While [Streamer mode](#features) is hiding your own stats, the automatic chat summaries are suppressed (`.session` still prints).
 
 ## Commands
 
