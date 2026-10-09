@@ -16,8 +16,9 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Resilient stats fetching** – Hypixel API with automatic keyless fallbacks (Bordic, Slothpixel). Already-loaded players are never reloaded when the roster is re-sorted.
 - **Stat cache** – fully loaded stats are saved to disk for 0–30 minutes (default 15, set it in the LobbyIntel settings), so re-queuing into the same players doesn't re-fetch them and eases rate limits. `.bw` always fetches fresh.
 - **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
-- **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained, all tracked live from chat (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
-- **Pregame messages** – up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay.
+- **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, active time, average game length, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained, all tracked live from chat (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
+- **Chat** – one ClickGUI panel with two sub-sections. *Pregame Messages*: up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay. *Snipe Messages*: one message sent to all chat with `/shout` (at game start by default, or at the 10-second countdown), set with `.sm1`.
+- **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Shift).
 
@@ -61,7 +62,8 @@ Tracks your own Bedwars progress **live from the game chat** (the same lines tha
 | Wins / Losses | at the end of a game: the `VICTORY!` title or your name on the winning team is a win, otherwise a loss |
 
 ```
-Session Time: 3h 15m
+Session Time: 3h 15m / Active: 2h 40m
+Avg Game: 14m 10s
 Finals: 1000 / FKDR: 3.00
 Beds: 300 / BBLR: 2.00
 Wins: 100 / WLR: 0.50
@@ -69,10 +71,12 @@ Kills: 41 / Deaths: 12
 Stars: +0.61✫
 ```
 
+- **Active time** – the session time only keeps running while you're inside a game; sitting in the lobby, queue or pregame pauses it. It sits next to the total session time, with the average length of the games you played to the end (a game you leave early or rejoin mid-way counts toward active time but not the average). It works even with *Track From Chat* off.
 - **Stars** can't be read from chat, so they are the difference between your Hypixel API stats now and when the session started (they lag behind the game, see the notes). They are shown with the fraction, so progress through a level counts (`+0.61✫` is 61% of a star). The glyph and colour follow your prestige.
 - **FKDR / BBLR / WLR** are the ratios of what you gained *this session*, not your lifetime ratios.
 - **Chat summary** – as soon as a game ends, a one-line `This session » ...` summary is printed. `.session` prints it on demand and `.reset` restarts the session from your current stats.
 - **Settings** (SessionStats panel, second row of the ClickGUI):
+  - *Show Session Time*, *Show Active Time* and *Show Avg Game Length* sit at the top.
   - A *Show ...* toggle for each stat. Turning one off removes it from the HUD, and a line disappears when everything on it is off. Most toggles also apply to the chat summary.
   - *HUD Background* – turn the dark box off to leave just the text.
   - *Order: ...* sliders – decide which line goes where (lowest number on top).
@@ -82,6 +86,15 @@ Stars: +0.61✫
 - **Reset button** – a `[Reset Session]` button appears under the HUD while your inventory is open, and does the same as `.reset`.
 
 Notes: the session lives in memory only, so every launch starts a new one. Stars (and the starting point for them) come from Hypixel's API, which lags a little behind the game, so the stars from a game you just finished can take a minute or two to show up; they refresh after each game and after a world change, at most once every two minutes. A game you leave before it ends isn't counted as a win or a loss. If you're nicked, your nick is matched through your tab-list name, which is best-effort. Run `.idebug log` to see each event the tracker counted. While [Streamer mode](#features) is hiding your own stats, the automatic chat summaries are suppressed (`.session` still prints).
+
+## Reminders
+
+Saw someone who might be cheating but don't want to stop and tag them mid-game? `.remind <player> [note]` saves them (and a note) to `config/CoralIntel/reminders.json`. Run it again to add more notes.
+
+- `.remind list` – everyone you've noted, newest first, with how many times you've met them.
+- `.remind view <player>` – every note on one player.
+- `.remind done <player>` – remove them once you've tagged them in Coral (or click the x in the **Reminders** panel of the ClickGUI).
+- If a noted player shows up in a later lobby, you get a `[Reminder]` chat alert with your latest note.
 
 ## Commands
 
@@ -105,6 +118,8 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.session` | `.sess` | Print your session stats (wins, kills, FKDR, BBLR, ... gained) |
 | `.reset` | | Restart your session stats from your current stats |
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
+| `.sm1 <text\|clear>` | `.sm` | Set your snipe message (sent with `/shout`) |
+| `.remind <player> [note]` / `list` / `view <player>` / `done <player>` | `.reminder`, `.rem` | Note a possible cheater to tag in Coral later |
 | `.intelkey <key>` | `.ikey` | Set your Hypixel API key |
 | `.coralkey <key>` | `.urchinkey`, `.ukey` | Set your Coral API key |
 | `.intelpath` | `.ipath` | Set the log path used for API key auto-detection |
