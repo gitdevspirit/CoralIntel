@@ -55,7 +55,7 @@ public class LobbyIntel extends Module {
     public final KeybindSetting guiKeybind =
             register(new KeybindSetting("Open GUI Key", Keyboard.KEY_L));
     public final KeybindSetting clickGuiKeybind =
-            register(new KeybindSetting("Open ClickGUI Key", Keyboard.KEY_RSHIFT));
+            register(new KeybindSetting("Open ClickGUI Key", Keyboard.KEY_RCONTROL));
 
     // .bw command — which fields to include in the chat output
     public final BooleanSetting bwShowStar =
