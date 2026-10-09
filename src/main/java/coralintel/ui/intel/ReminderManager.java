@@ -7,9 +7,11 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Personal reminders: quick notes about players who might be cheating, so you
@@ -58,6 +60,9 @@ public class ReminderManager {
 
     private final File file = new File("./config/CoralIntel/reminders.json");
     private final Map<String, Reminder> entries = new LinkedHashMap<>();
+    // Reminded players you've been in a game with (met in the lobby, or noted during it).
+    // Not saved: it only feeds the end-of-game "tag them" alert (see ReminderAlerts).
+    private final Set<String> inThisGame = new LinkedHashSet<>();
 
     private ReminderManager() {
         load();
@@ -102,6 +107,8 @@ public class ReminderManager {
             while (r.notes.size() > MAX_NOTES) r.notes.remove(0);
         }
 
+        inThisGame.add(key);
+
         save();
         return r;
     }
@@ -123,13 +130,36 @@ public class ReminderManager {
         return r;
     }
 
+    /** A reminded player is in your current game. No-op for anyone not on the list. */
+    public synchronized void markInGame(String name) {
+        String key = name.toLowerCase(Locale.ROOT);
+        if (entries.containsKey(key)) inThisGame.add(key);
+    }
+
+    /** The reminded players from the game that just ended (and forgets them). */
+    public synchronized List<Reminder> takeInGame() {
+        List<Reminder> out = new ArrayList<>();
+        for (String key : inThisGame) {
+            Reminder r = entries.get(key);
+            if (r != null) out.add(r);
+        }
+        inThisGame.clear();
+        return out;
+    }
+
+    public synchronized void clearInGame() {
+        inThisGame.clear();
+    }
+
     private static void touch(Reminder r, long now) {
         if (now - r.lastSeen >= ENCOUNTER_GAP_MS) r.seen++;
         r.lastSeen = now;
     }
 
     public synchronized boolean remove(String name) {
-        boolean removed = entries.remove(name.toLowerCase(Locale.ROOT)) != null;
+        String key = name.toLowerCase(Locale.ROOT);
+        inThisGame.remove(key);
+        boolean removed = entries.remove(key) != null;
         if (removed) save();
         return removed;
     }
@@ -137,6 +167,7 @@ public class ReminderManager {
     public synchronized int clear() {
         int n = entries.size();
         entries.clear();
+        inThisGame.clear();
         save();
         return n;
     }
