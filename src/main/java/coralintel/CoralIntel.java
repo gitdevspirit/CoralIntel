@@ -87,7 +87,8 @@ public class CoralIntel {
         commandManager.register(new PregameMessageCommand(1));
         commandManager.register(new PregameMessageCommand(2));
         commandManager.register(new PregameMessageCommand(3));
-        commandManager.register(new SnipeMessageCommand());
+        commandManager.register(new SnipeMessageCommand(false));
+        commandManager.register(new SnipeMessageCommand(true));
         commandManager.register(new ReminderCommand());
         commandManager.register(new BlacklistCommand());
         commandManager.register(new ConfigCommand());
