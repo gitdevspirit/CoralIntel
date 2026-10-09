@@ -109,9 +109,9 @@ public class BedwarsTag extends Module {
             if (onlyIntel.getValue() && (intel == null || intel.loading)) continue;
 
             // ── 3D billboard setup ─────────────────────────────────────────
-            double px = RenderUtil.lerpDouble(player.posX, player.lastTickPosX, event.getPartialTicks()) - rm.getRenderPosX();
-            double py = RenderUtil.lerpDouble(player.posY, player.lastTickPosY, event.getPartialTicks()) - rm.getRenderPosY();
-            double pz = RenderUtil.lerpDouble(player.posZ, player.lastTickPosZ, event.getPartialTicks()) - rm.getRenderPosZ();
+            double px = RenderUtil.lerpDouble(player.posX, player.lastTickPosX, event.getPartialTicks()) - rm.coralintel$getRenderPosX();
+            double py = RenderUtil.lerpDouble(player.posY, player.lastTickPosY, event.getPartialTicks()) - rm.coralintel$getRenderPosY();
+            double pz = RenderUtil.lerpDouble(player.posZ, player.lastTickPosZ, event.getPartialTicks()) - rm.coralintel$getRenderPosZ();
             double dist = viewEntity.getDistanceToEntity(player);
 
             // Position above head — offset above vanilla nametag
