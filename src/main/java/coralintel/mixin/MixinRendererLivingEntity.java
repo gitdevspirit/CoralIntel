@@ -36,7 +36,7 @@ public abstract class MixinRendererLivingEntity<T extends EntityLivingBase> exte
             at = {@At("HEAD")},
             cancellable = true
     )
-    private void canRenderName(T entityLivingBase, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+    private void coralintel$canRenderName(T entityLivingBase, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
         if (CoralIntel.moduleManager == null) return;
         if (!(entityLivingBase instanceof EntityPlayer)) return;
 
