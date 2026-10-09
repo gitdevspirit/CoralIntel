@@ -32,6 +32,7 @@ import coralintel.module.modules.PregameMessages;
 import coralintel.module.modules.SessionStats;
 import coralintel.module.modules.StreamerMode;
 import coralintel.ui.intel.StatSnapshotManager;
+import coralintel.render.KeyInputBridge;
 import coralintel.render.RenderEventBridge;
 import coralintel.render.SessionHudEvents;
 import net.minecraftforge.common.MinecraftForge;
@@ -104,6 +105,7 @@ public class CoralIntel {
         moduleManager.modules.put(StreamerMode.class, new StreamerMode());
         moduleManager.modules.put(SessionStats.class, new SessionStats());
         MinecraftForge.EVENT_BUS.register(new RenderEventBridge());
+        MinecraftForge.EVENT_BUS.register(new KeyInputBridge());
         MinecraftForge.EVENT_BUS.register(new SessionHudEvents());
 
         // Reflection scan: pick up every Property<?> field declared on each module
