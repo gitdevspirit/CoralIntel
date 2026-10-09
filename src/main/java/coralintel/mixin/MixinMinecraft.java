@@ -3,7 +3,6 @@ package coralintel.mixin;
 import coralintel.CoralIntel;
 import coralintel.init.Initializer;
 import coralintel.event.EventManager;
-import coralintel.events.KeyEvent;
 import coralintel.events.LoadWorldEvent;
 import coralintel.events.TickEvent;
 import coralintel.event.types.EventType;
@@ -12,14 +11,12 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
 import net.minecraft.client.multiplayer.WorldClient;
-import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -83,20 +80,6 @@ public abstract class MixinMinecraft {
     private void postRunTick(CallbackInfo callbackInfo) {
         if (this.theWorld != null && this.thePlayer != null) {
             EventManager.call(new TickEvent(EventType.POST));
-        }
-    }
-
-    @Redirect(
-            method = {"runTick"},
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/settings/KeyBinding;setKeyBindState(IZ)V"
-            )
-    )
-    private void setKeyBindState(int keyCode, boolean pressed) {
-        KeyBinding.setKeyBindState(keyCode, pressed);
-        if (pressed && this.currentScreen == null) {
-            EventManager.call(new KeyEvent(keyCode));
         }
     }
 }
