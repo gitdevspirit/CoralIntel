@@ -55,6 +55,10 @@ import java.util.regex.Pattern;
  * setting switches everything back to API differences if Hypixel ever changes
  * its chat messages.
  *
+ * Active time: the session time only counts while you are inside a game; sitting in
+ * the lobby, queue or pregame pauses it. It is shown next to the total session time,
+ * together with the average length of the games that ran to their end.
+ *
  * HUD: a small box on screen with the session time, finals / FKDR, beds / BBLR,
  * wins / WLR, kills / deaths and stars. The order of the lines is set in the
  * ClickGUI (Order: ...). Open your inventory to get a [Reset Session] button and
@@ -69,6 +73,14 @@ public class SessionStats extends Module {
     private static final long AUTO_DELAY_MS = 8000L;
     /** At most one automatic refresh per this long (spares the API key). */
     private static final long AUTO_MIN_GAP_MS = 120_000L;
+
+    // Session timing first: total time, active (in-game) time and average game length.
+    public final BooleanSetting showTime =
+            register(new BooleanSetting("Show Session Time", true));
+    public final BooleanSetting showActive =
+            register(new BooleanSetting("Show Active Time", true));
+    public final BooleanSetting showAvgGame =
+            register(new BooleanSetting("Show Avg Game Length", true));
 
     public final BooleanSetting trackFromChat =
             register(new BooleanSetting("Track From Chat", true));
@@ -89,8 +101,6 @@ public class SessionStats extends Module {
     public final BooleanSetting showStars =
             register(new BooleanSetting("Show Stars", true));
     // HUD only:
-    public final BooleanSetting showTime =
-            register(new BooleanSetting("Show Session Time", true));
     public final BooleanSetting showFinals =
             register(new BooleanSetting("Show Finals", true));
     public final BooleanSetting showBeds =
@@ -105,17 +115,19 @@ public class SessionStats extends Module {
             register(new BooleanSetting("HUD Background", true));
     // Line order for the HUD: lowest number goes on top (ties keep the default order).
     public final SliderSetting orderTime =
-            register(new SliderSetting("Order: Session Time", 1, 1, 6, 1));
+            register(new SliderSetting("Order: Session / Active Time", 1, 1, 7, 1));
+    public final SliderSetting orderAvgGame =
+            register(new SliderSetting("Order: Avg Game Length", 2, 1, 7, 1));
     public final SliderSetting orderFinals =
-            register(new SliderSetting("Order: Finals / FKDR", 2, 1, 6, 1));
+            register(new SliderSetting("Order: Finals / FKDR", 3, 1, 7, 1));
     public final SliderSetting orderBeds =
-            register(new SliderSetting("Order: Beds / BBLR", 3, 1, 6, 1));
+            register(new SliderSetting("Order: Beds / BBLR", 4, 1, 7, 1));
     public final SliderSetting orderWins =
-            register(new SliderSetting("Order: Wins / WLR", 4, 1, 6, 1));
+            register(new SliderSetting("Order: Wins / WLR", 5, 1, 7, 1));
     public final SliderSetting orderKills =
-            register(new SliderSetting("Order: Kills / Deaths", 5, 1, 6, 1));
+            register(new SliderSetting("Order: Kills / Deaths", 6, 1, 7, 1));
     public final SliderSetting orderStars =
-            register(new SliderSetting("Order: Stars", 6, 1, 6, 1));
+            register(new SliderSetting("Order: Stars", 7, 1, 7, 1));
     // Saved with the other settings but dragged in the inventory, so not shown in the ClickGUI.
     private final SliderSetting hudX =
             register(new SliderSetting("HUD X", 6, 0, 4000, 1, () -> false));
@@ -165,6 +177,13 @@ public class SessionStats extends Module {
     private boolean sawVictory;
     private final Set<String> winners = new HashSet<>();
 
+    // Active time: only the time spent inside a game. Guarded by lock.
+    private long activeAccumMs;   // time from games that already ended
+    private long activeSince;     // when the running game started counting; 0 = not in a game
+    private long gameStartedAt;   // when the running game really started; 0 = unknown (joined mid-game)
+    private int timedGames;       // games that ran to their end, with a known start
+    private long timedGamesMs;    // their total length
+
     public SessionStats() {
         super("SessionStats", true);
     }
@@ -185,6 +204,11 @@ public class SessionStats extends Module {
             cFinalKills = cFinalDeaths = cBedsBroken = cBedsLost = 0;
             winners.clear();
             sawVictory = false;
+
+            activeAccumMs = 0L;
+            if (activeSince != 0L) activeSince = System.currentTimeMillis();
+            timedGames = 0;
+            timedGamesMs = 0L;
         }
         startedAt = System.currentTimeMillis();
         announcedGames = 0;
@@ -303,6 +327,7 @@ public class SessionStats extends Module {
             sawVictory = false;
             winners.clear();
         }
+        endActive(false); // left the game (or never entered one): active time pauses
 
         if (!isEnabled()) return;
 
@@ -363,7 +388,7 @@ public class SessionStats extends Module {
 
     @EventTarget
     public void onPacket(PacketEvent event) {
-        if (!isEnabled() || !trackFromChat.getValue()) return;
+        if (!isEnabled()) return;
         if (event.getType() != EventType.RECEIVE) return;
 
         try {
@@ -373,9 +398,11 @@ public class SessionStats extends Module {
 
                 IChatComponent component = packet.getChatComponent();
                 if (component != null) {
-                    handleChat(component.getFormattedText());
+                    String formatted = component.getFormattedText();
+                    trackGameState(formatted); // active time works with or without chat tracking
+                    if (trackFromChat.getValue()) handleChat(formatted);
                 }
-            } else if (event.getPacket() instanceof S45PacketTitle) {
+            } else if (trackFromChat.getValue() && event.getPacket() instanceof S45PacketTitle) {
                 S45PacketTitle title = (S45PacketTitle) event.getPacket();
                 if (title.getType() == S45PacketTitle.Type.TITLE && title.getMessage() != null) {
                     String text = CODES.matcher(title.getMessage().getUnformattedText()).replaceAll("");
@@ -388,6 +415,67 @@ public class SessionStats extends Module {
             }
         } catch (Exception e) {
             IntelManager.dbg("[Session] chat parse error: " + e);
+        }
+    }
+
+    /** Starts / stops the active-time clock from the game's own chat lines. */
+    private void trackGameState(String formatted) {
+        String plain = CODES.matcher(formatted.replace("\u00a7r", "")).replaceAll("").trim();
+
+        // Player chat always has "Name:"; game events never do.
+        if (plain.isEmpty() || plain.indexOf(':') >= 0) return;
+
+        if (plain.contains("Protect your bed and destroy the enemy beds.")) {
+            beginActive(true);
+        } else if (plain.contains("You will respawn because you still have a bed!")
+                || plain.startsWith("BED DESTRUCTION >")) {
+            beginActive(false); // already in a game: reconnected or joined late
+        } else if (plain.startsWith("1st Killer") || plain.contains("Reward Summary")) {
+            endActive(true);
+        }
+    }
+
+    private void beginActive(boolean realStart) {
+        synchronized (lock) {
+            long now = System.currentTimeMillis();
+            if (activeSince == 0L) {
+                activeSince = now;
+                gameStartedAt = realStart ? now : 0L;
+            } else if (realStart) {
+                // A new game started before the old one was closed out: close it, don't time it.
+                activeAccumMs += now - activeSince;
+                activeSince = now;
+                gameStartedAt = now;
+            }
+        }
+    }
+
+    /** @param finished true when the game ran to its end (its length then counts toward the average) */
+    private void endActive(boolean finished) {
+        synchronized (lock) {
+            if (activeSince == 0L) return;
+
+            long now = System.currentTimeMillis();
+            activeAccumMs += now - activeSince;
+            if (finished && gameStartedAt != 0L) {
+                timedGames++;
+                timedGamesMs += now - gameStartedAt;
+            }
+            activeSince = 0L;
+            gameStartedAt = 0L;
+        }
+    }
+
+    private long activeMs() {
+        synchronized (lock) {
+            return activeAccumMs + (activeSince != 0L ? System.currentTimeMillis() - activeSince : 0L);
+        }
+    }
+
+    /** Average length of the games that ran to their end this session; -1 when there are none yet. */
+    private long avgGameMs() {
+        synchronized (lock) {
+            return timedGames == 0 ? -1L : timedGamesMs / timedGames;
         }
     }
 
@@ -610,7 +698,9 @@ public class SessionStats extends Module {
         StringBuilder line = new StringBuilder("&bThis session &7\u00bb ");
 
         if (g.isEmpty()) {
-            return line.append("&7no games yet &8(").append(duration()).append(")").toString();
+            return line.append("&7no games yet &8(").append(duration())
+                    .append(showActive.getValue() ? ", " + fmtMinutes(activeMs()) + " active" : "")
+                    .append(")").toString();
         }
 
         if (showWins.getValue()) {
@@ -645,7 +735,12 @@ public class SessionStats extends Module {
         }
 
         line.append("&8(").append(g.games).append(g.games == 1 ? " game, " : " games, ")
-                .append(duration()).append(")");
+                .append(duration());
+        if (showActive.getValue()) line.append(", ").append(fmtMinutes(activeMs())).append(" active");
+        if (showAvgGame.getValue() && avgGameMs() >= 0) {
+            line.append(", avg ").append(fmtClock(avgGameMs()));
+        }
+        line.append(")");
         return line.toString();
     }
 
@@ -656,8 +751,16 @@ public class SessionStats extends Module {
         }
 
         Gained g = gained();
+        StringBuilder timing = new StringBuilder();
         StringBuilder first = new StringBuilder();
         StringBuilder second = new StringBuilder();
+
+        if (showTime.getValue()) timing.append("Session ").append(duration()).append("  ");
+        if (showActive.getValue()) timing.append("Active ").append(fmtMinutes(activeMs())).append("  ");
+        if (showAvgGame.getValue()) {
+            long avg = avgGameMs();
+            timing.append("Avg game ").append(avg < 0 ? "--" : fmtClock(avg));
+        }
 
         if (showWins.getValue()) first.append("Wins +").append(g.wins).append("  ");
         if (showKills.getValue()) first.append("Kills +").append(g.kills).append("  ");
@@ -665,9 +768,11 @@ public class SessionStats extends Module {
 
         if (showFkdr.getValue()) second.append("FKDR ").append(fmt(g.fkdr)).append("  ");
         if (showBblr.getValue()) second.append("BBLR ").append(fmt(g.bblr)).append("  ");
-        second.append("(").append(duration()).append(")");
 
-        return new String[]{first.toString(), second.toString()};
+        if (timing.toString().trim().isEmpty()) {
+            return new String[]{first.toString(), second.toString().trim()};
+        }
+        return new String[]{timing.toString().trim(), first.toString(), second.toString().trim()};
     }
 
     // -- HUD --------------------------------------------------------------
@@ -834,8 +939,11 @@ public class SessionStats extends Module {
 
         // null = that whole line is switched off. The right-hand stat on each line
         // (Deaths, FKDR, BBLR, WLR) is always green.
+        long avg = avgGameMs();
         String[] text = {
-                showTime.getValue() ? "&7Session Time: &b" + duration() : null,
+                join(showTime.getValue() ? "&7Session Time: &b" + duration() : null,
+                        showActive.getValue() ? "&7Active: &b" + fmtMinutes(activeMs()) : null),
+                showAvgGame.getValue() ? "&7Avg Game: &b" + (avg < 0 ? "--" : fmtClock(avg)) : null,
                 join(showFinals.getValue() ? "&7Finals: &f" + g.finalKills : null,
                         showFkdr.getValue() ? "&7FKDR: &a" + fmt(g.fkdr) : null),
                 join(showBeds.getValue() ? "&7Beds: &f" + g.bedsBroken : null,
@@ -848,7 +956,7 @@ public class SessionStats extends Module {
                         ? "&7Stars: &f+" + fmt(g.stars) + PrestigeUtil.glyphColored(g.starNow) : null
         };
         double[] order = {
-                orderTime.getValue(), orderFinals.getValue(), orderBeds.getValue(),
+                orderTime.getValue(), orderAvgGame.getValue(), orderFinals.getValue(), orderBeds.getValue(),
                 orderWins.getValue(), orderKills.getValue(), orderStars.getValue()
         };
 
@@ -935,9 +1043,20 @@ public class SessionStats extends Module {
     }
 
     private String duration() {
-        long minutes = Math.max(0L, (System.currentTimeMillis() - startedAt) / 60000L);
+        return fmtMinutes(System.currentTimeMillis() - startedAt);
+    }
+
+    /** 48m / 1h 12m. */
+    private static String fmtMinutes(long ms) {
+        long minutes = Math.max(0L, ms / 60000L);
         if (minutes < 60) return minutes + "m";
         return (minutes / 60) + "h " + (minutes % 60) + "m";
+    }
+
+    /** 14m 10s, for the average game length. */
+    private static String fmtClock(long ms) {
+        long seconds = Math.max(0L, ms / 1000L);
+        return (seconds / 60) + "m " + (seconds % 60) + "s";
     }
 
     private static String fmt(double value) {
