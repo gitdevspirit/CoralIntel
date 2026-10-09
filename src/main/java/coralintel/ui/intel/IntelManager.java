@@ -1572,6 +1572,7 @@ public class IntelManager {
     /** Alerts you (once per encounter) when someone from your .remind list is in the lobby. */
     private void notifyReminder(IntelPlayer player) {
         try {
+            ReminderManager.getInstance().markInGame(player.name); // for the end-of-game "tag them" alert
             ReminderManager.Reminder reminder = ReminderManager.getInstance().recordEncounter(player.name);
             if (reminder == null) return;
 
