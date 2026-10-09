@@ -730,7 +730,7 @@ public class ClickGui extends GuiScreen {
             if (snipeOpen) {
                 rows.add(new ToggleRow("Enabled", snipe::isEnabled, snipe::setEnabled));
                 addSettingRows(rows, snipe);
-                rows.add(new SectionLabelRow("Sent to all chat with /shout"));
+                rows.add(new SectionLabelRow("Type .sm to send it (via /shout)"));
                 rows.add(new TextRow("Snipe Message (.sm1)", snipe.message1));
             }
         }
