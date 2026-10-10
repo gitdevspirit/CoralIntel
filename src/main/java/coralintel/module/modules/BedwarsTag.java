@@ -49,6 +49,7 @@ public class BedwarsTag extends Module {
     public final SliderSetting   scale      = register(new SliderSetting("Scale",          1.0, 0.5, 2.0, 0.05));
     public final BooleanSetting  background = register(new BooleanSetting("Background",    true));
     public final BooleanSetting  onlyIntel  = register(new BooleanSetting("Intel Only",    false));
+    public final BooleanSetting  throughWalls = register(new BooleanSetting("Through Walls", false));
 
     public BedwarsTag() { super("BedWarsTag", false); }
 
@@ -205,6 +206,22 @@ public class BedwarsTag extends Module {
             // still hides the tag, but not writing to the depth buffer
             // avoids z-fighting against the player model sitting right next
             // to it, which was causing the tag to flicker in and out.
+            // Set the full state we rely on, exactly like vanilla's nametag: this runs at the very end of
+            // world rendering, and whatever the renderers before us left behind (lighting on, a different
+            // blend/alpha function, depth func) made tags come out gray or not appear at all.
+            GlStateManager.disableLighting();
+            GlStateManager.enableTexture2D();
+            GlStateManager.enableBlend();
+            GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+            GlStateManager.enableAlpha();
+            GlStateManager.alphaFunc(516, 0.1f);
+            GlStateManager.depthFunc(515);
+            if (throughWalls.getValue()) {
+                GlStateManager.disableDepth();
+            } else {
+                GlStateManager.enableDepth();
+            }
+            GlStateManager.color(1f, 1f, 1f, 1f);
             GlStateManager.depthMask(false);
 
             // Background — no longer disables depth, so it's occluded by walls too.
@@ -239,9 +256,12 @@ public class BedwarsTag extends Module {
                 IntelManager.dbg("[BedWarsTag] tag for " + player.getName() + " failed: " + e);
             } finally {
                 GlStateManager.depthMask(true);
+                GlStateManager.enableDepth();
                 GlStateManager.popMatrix();
             }
         }
+        GlStateManager.disableBlend();
+        GlStateManager.color(1f, 1f, 1f, 1f);
     }
 
     private static final java.util.regex.Pattern MATCH_TEAM_PREFIX =
