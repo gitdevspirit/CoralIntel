@@ -148,6 +148,7 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
 | `.sm1 <text\|clear>` | | Set your snipe message |
 | `.sm` | | Send your snipe message to all chat with `/shout` |
+| `.tab [on\|off\|size\|bg\|shadow\|gray\|respawn\|dc\|col <1-6> <stat>\|reset]` | `.tabo` | Change the Bed Wars tab overlay from chat |
 | `.denick [nick]` | | Find who is behind a nick (Bedlify) |
 | `.bedlify key <key>` / `clear` | | Set or remove your Bedlify API key |
 | `.remind <player> [note]` / `list` / `view <player>` / `done <player>` | `.reminder`, `.rem` | Note a possible cheater to tag in Coral later |
