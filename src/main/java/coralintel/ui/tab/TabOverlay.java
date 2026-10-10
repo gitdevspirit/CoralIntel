@@ -509,14 +509,16 @@ public final class TabOverlay {
     }
 
     private String statusText(LobbyIntel li, String name) {
-        if (disconnected.contains(name)) {
-            return li.tabKeepDisconnected.getValue() ? "§cDC" : null;
-        }
+        if (disconnected.contains(name)) return "§cDC";
         Long end = respawnEnd.get(name);
-        if (end != null && li.tabRespawnTimer.getValue()) {
+        if (end != null) {
+            if (!li.tabRespawnTimer.getValue()) return "§cDead";
             long remaining = (long) Math.ceil((end - System.currentTimeMillis()) / 1000.0);
             return "§c" + Math.max(0L, remaining) + "s";
         }
+        // Not in the tab list for some other reason (death message not recognised, respawn grace,
+        // tab flicker): still shown, until a FINAL KILL / team elimination removes them.
+        if (!inPregame && !present.contains(name) && known(name)) return "§7?";
         return null;
     }
 
@@ -603,10 +605,12 @@ public final class TabOverlay {
         for (Snap snap : snaps.values()) {
             if (eliminated.contains(snap.name)) continue;
             // Players Hypixel removed from the tab (dead / disconnected) are drawn from their snapshot.
-            if (present.contains(snap.name) || statusText(li, snap.name) != null) all.add(snap);
+            // In a running game nobody leaves until they are final killed (see markEliminated).
+            if (present.contains(snap.name) || statusText(li, snap.name) != null || !inPregame) all.add(snap);
         }
         for (Snap ghost : ghosts.values()) {
-            if (!present.contains(ghost.name) && !eliminated.contains(ghost.name) && statusText(li, ghost.name) != null) {
+            if (!present.contains(ghost.name) && !eliminated.contains(ghost.name)
+                    && (statusText(li, ghost.name) != null || !inPregame)) {
                 all.add(ghost);
             }
         }

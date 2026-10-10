@@ -686,6 +686,11 @@ public class LobbyIntel extends Module {
             }).start();
         }
 
+        Matcher teamOut = Pattern.compile("^TEAM ELIMINATED > (\\w+) Team").matcher(message.trim());
+        if (teamOut.find()) {
+            IntelManager.getInstance().markTeamEliminated(teamOut.group(1));
+        }
+
         if (message.contains("FINAL KILL!")) {
             Pattern killPattern = Pattern.compile(
                     "^([A-Za-z0-9_]+) (?:was |fell |drowned|died|hit |got )"
@@ -695,6 +700,7 @@ public class LobbyIntel extends Module {
 
             if (matcher.find()) {
                 String killedPlayer = matcher.group(1);
+                IntelManager.getInstance().markFinalKilled(killedPlayer);
                 removePlayerFromOverlay(killedPlayer);
                 IntelManager.dbg("[Intel] Final kill: " + killedPlayer);
 

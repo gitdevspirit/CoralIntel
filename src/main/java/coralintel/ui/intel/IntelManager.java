@@ -662,6 +662,45 @@ public class IntelManager {
         }
     }
 
+    // Players who have been final killed (or whose team was eliminated while they were gone).
+    // In a running game a player who drops out of the tab list (dead, disconnected, tab flicker) is
+    // KEPT on the HUD / tab overlay; only these names leave. Reset by clearAll() (new world/game).
+    private final java.util.Set<String> finalKilled =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
+
+    public void markFinalKilled(String name) {
+        if (name != null) finalKilled.add(name.toLowerCase());
+    }
+
+    /** "TEAM ELIMINATED > Red Team": members who are no longer in the tab list can't come back. */
+    public void markTeamEliminated(String teamColor) {
+        if (teamColor == null) return;
+        Minecraft minecraft = Minecraft.getMinecraft();
+        java.util.Set<String> inTab = new java.util.HashSet<>();
+        if (minecraft.getNetHandler() != null) {
+            for (NetworkPlayerInfo info : minecraft.getNetHandler().getPlayerInfoMap()) {
+                String n = info.getGameProfile().getName();
+                if (n != null) inTab.add(n.toLowerCase());
+            }
+        }
+
+        boolean changed = false;
+        for (IntelPlayer p : new ArrayList<>(players)) {
+            String key = p.name.toLowerCase();
+            if (p.team != null && p.team.equalsIgnoreCase(teamColor) && !inTab.contains(key)) {
+                finalKilled.add(key);
+                players.remove(p);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            List<IntelPlayer> refreshed = combined();
+            if (gui != null) gui.setPlayers(refreshed);
+            if (hudOverlay != null) hudOverlay.setPlayers(refreshed);
+        }
+    }
+
     public void scanLobby() {
         fetching = true;
 
@@ -697,6 +736,10 @@ public class IntelManager {
 
             if (isNpc(info)) {
                 continue;
+            }
+
+            if (name != null && finalKilled.contains(name.toLowerCase())) {
+                continue; // final killed: gone for the rest of the game
             }
 
             String team = detectTeam(info);
@@ -760,6 +803,20 @@ public class IntelManager {
                 synchronized (uuidCache) {
                     uuidCache.put(name, uuid.toString());
                 }
+            }
+        }
+
+        // In a running game (team assigned) keep players who dropped out of the tab list (dead,
+        // disconnected, ...) until they are final killed. The pregame lobby (no teams) still
+        // drops people who leave.
+        java.util.Set<String> inNewRoster = new java.util.HashSet<>();
+        for (IntelPlayer p : newRoster) inNewRoster.add(p.name.toLowerCase());
+        for (IntelPlayer old : new ArrayList<>(players)) {
+            String key = old.name.toLowerCase();
+            if (inNewRoster.contains(key) || finalKilled.contains(key)) continue;
+            if (old.team != null && !old.team.isEmpty()) {
+                newRoster.add(old);
+                inNewRoster.add(key);
             }
         }
 
@@ -862,6 +919,7 @@ public class IntelManager {
         // players show up again (pregame -> arena, countdown rescans, /who).
         retainLoadedPlayers();
         StatCache.getInstance().flush();
+        finalKilled.clear();
 
         players.clear();
         manualPlayers.clear();
