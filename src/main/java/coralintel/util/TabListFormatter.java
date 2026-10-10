@@ -115,9 +115,20 @@ public final class TabListFormatter {
             return coloredName;
         }
 
+        // Denicked (Bedlify): once the real player's stats are loaded, show THEIR stats on the
+        // nick's row (name stays, with the real name next to it).
+        IntelPlayer nickRow = null;
+        if (player.isNicked && lobbyIntel.tabShowRealStats.getValue()) {
+            IntelPlayer real = player.realStats;
+            if (real != null && !real.loading) {
+                nickRow = player;
+                player = real;
+            }
+        }
+
         // Nicked players have no real stats — show a [NICK] tag in the tab
         // list instead of a meaningless 0-star badge and zeroed stats.
-        if (player.isNicked && lobbyIntel.tabShowNick.getValue()
+        if (nickRow == null && player.isNicked && lobbyIntel.tabShowNick.getValue()
                 && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
             // Denicked (Bedlify): the likely real name, if we found one.
             String real = lobbyIntel.tabShowRealName.getValue() ? player.realName : null;
@@ -132,9 +143,15 @@ public final class TabListFormatter {
         String prefix = "";
         String stats;
         if (lobbyIntel.seraphStyle.getValue()) {
+            if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
+                coloredName = "\u00A7e" + nickRow.realName + " \u00A78(\u00A7r" + coloredName + "\u00A78)";
+            }
             coloredName = fitPixelsLeft(coloredName, NAME_COL_WIDTH);
             stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
         } else {
+            if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
+                coloredName = coloredName + " \u00A77(\u00A7e" + nickRow.realName + "\u00A77)\u00A7r";
+            }
             // Star and the cheater-tag badge sit to the LEFT of the name;
             // every other stat (HP, FKDR, WLR, etc.) stays on the right,
             // same as before.

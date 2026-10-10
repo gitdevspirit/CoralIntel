@@ -9,7 +9,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Intel HUD overlay** – every player's star, FKDR, WLR, winstreak and threat level in a compact table. Sortable, grouped by team with team-coloured names, adjustable column width, opacity, scale and colours.
 - **Pregame scouting** – players who talk in the pregame lobby are picked up automatically and their stats load in the background. Nicked players are announced in chat and shown on the HUD.
 - **Nick detection** – based on [Mellow](https://github.com/Roxiun/Mellow)'s logic: nicks are never looked up as real accounts.
-- **Enhanced tab list** – prestige-coloured stars, FKDR/WLR and other stats, `[NICK]` tags, optional HP and Seraph-style layout.
+- **Enhanced tab list** – prestige-coloured stars, FKDR/WLR and other stats, `[NICK]` tags, optional HP and Seraph-style layout. The Bed Wars overlay version of the Seraph-style tab list is based on [Zoobooo/tabstats](https://github.com/Zoobooo/tabstats).
 - **Cheater tags** – Coral tag lookups (`.coralkey`), blacklist / safelist, and `CC` (closet cheater) / `CCC` (confirmed cheater) tags.
 - **BedWarsTag** – floating star / FKDR / threat tag above players' heads (depth-tested, no wall-hack).
 - **AntiCheat** – heuristic movement/combat checks (NoSlow, AutoBlock, Sprint, Velocity, Rotation, Scaffold) that only inform you about other players.
@@ -106,11 +106,11 @@ CoralIntel can look up who is behind a nick through the Bedlify API.
 1. Get a key: join `bedlify.xyz` in Minecraft (1.8+) to get a 6-digit code, then DM `/link <code>` to the Bedlify bot on Discord ([discord.gg/antisniper](https://discord.gg/antisniper)). The bot DMs you your key.
 2. In game, run `.bedlify key <your key>`.
 
-From then on every nicked player in your lobby is looked up in the background. You get a chat line like `[NICK] Nick is likely RealName (seen 3h ago, 2 games)`, the tab list shows `[NICK] Nick (RealName)`, and `.bw RealName` gets you their stats.
+From then on every nicked player in your lobby is looked up in the background. You get a chat line like `[NICK] Nick is likely RealName (seen 3h ago, 2 games)`, and the tab list shows the **real player's stats** on the nick's row, in both the normal and Seraph tab styles (once they've loaded): `Nick (RealName)` with their star, FKDR, WLR, tag badge and so on. `.bw RealName` gets you the full stats.
 
 - `.denick <nick>` looks up any nick; `.denick` alone redoes every nicked player in the lobby.
 - `.bedlify` shows whether a key is set (masked) and how many requests you have left; `.bedlify clear` removes it.
-- Settings (LobbyIntel panel): *Denick Nicks (Bedlify)*, *Denick: Chat Alert*, *Tab: Show Denicked Name*.
+- Settings (LobbyIntel panel): *Denick Nicks (Bedlify)*, *Denick: Chat Alert*, *Tab: Show Denicked Name*, *Tab: Show Denicked Stats*.
 
 Notes: a nick can be reused by different players over time, so the newest match is a best guess; the age and game count are there so you can judge. Your key is personal (Bedlify's rules: don't share or publish it), so it is **never part of the mod**. It is saved only on your machine in `config/CoralIntel/bedlify.json`, sent in a request header, never shown in full, and never sent to the Minecraft server (`.` commands stay local). Don't share your `config/CoralIntel` folder. Lookups are cached and stay far under Bedlify's 120 requests/minute limit.
 
@@ -169,3 +169,4 @@ CoralIntel only reads public stats and information the game already sends your c
 ## Credits
 
 @spiritualizes on discord for any ideas, issues, or queries.
+- [Zoobooo/tabstats](https://github.com/Zoobooo/tabstats) – the Seraph-style tab list (label band, columns, respawn / DC status) that `TabOverlay` is ported from.

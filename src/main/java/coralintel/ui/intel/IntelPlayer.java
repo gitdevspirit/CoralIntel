@@ -32,6 +32,9 @@ public class IntelPlayer {
     public volatile String realName     = null;
     public volatile long   realNameSeen = 0L;   // unix seconds the real name was last seen with this nick
     public volatile boolean denickRequested = false;
+    // The real player's full stats (fetched like a normal lobby player) once a nick is denicked.
+    // The tab list shows these on the nick's row. Null until the lookup finishes.
+    public volatile IntelPlayer realStats = null;
 
     // Coral / Urchin
     public boolean cheater      = false;

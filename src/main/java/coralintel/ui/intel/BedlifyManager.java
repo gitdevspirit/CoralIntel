@@ -112,6 +112,12 @@ public class BedlifyManager {
         t.setDaemon(true);
         return t;
     });
+    // Separate threads for the (slower) stats fetches, so they never hold up nick lookups.
+    private final ExecutorService statsPool = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "CoralIntel-DenickStats");
+        t.setDaemon(true);
+        return t;
+    });
 
     private volatile String key = "";
     private volatile long blockedUntil = 0L;
@@ -360,13 +366,37 @@ public class BedlifyManager {
 
                 if (!result.candidates.isEmpty()) {
                     Candidate best = result.candidates.get(0);
+                    boolean changed = !best.name.equalsIgnoreCase(p.realName);
                     p.realName = best.name;
                     p.realNameSeen = best.lastSeen;
+                    if (changed || p.realStats == null) fetchRealStats(p, best.name, refresh);
                 }
 
                 if (refresh != null) refresh.run();
                 if (denickChatEnabled()) announce(nick, result);
             });
+        });
+    }
+
+    /**
+     * Loads the real player's stats (the same way a normal lobby player's are loaded: Hypixel API,
+     * cache, Coral tag) so the tab list can show them on the nick's row.
+     */
+    private void fetchRealStats(final IntelPlayer nicked, final String realName, final Runnable refresh) {
+        statsPool.submit(() -> {
+            try {
+                final IntelPlayer real = IntelManager.getInstance().fetchStandaloneStats(realName, true);
+
+                Minecraft.getMinecraft().addScheduledTask(() -> {
+                    // Ignore it if the lookup was redone and now points at someone else.
+                    if (realName.equalsIgnoreCase(nicked.realName)) {
+                        nicked.realStats = real;
+                        if (refresh != null) refresh.run();
+                    }
+                });
+            } catch (Exception e) {
+                IntelManager.dbg("[Bedlify] stats fetch failed for " + realName + ": " + e);
+            }
         });
     }
 

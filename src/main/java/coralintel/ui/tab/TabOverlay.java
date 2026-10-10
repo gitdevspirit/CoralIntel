@@ -53,7 +53,7 @@ import java.util.regex.Pattern;
  * Finals, KDR ... plus HP), one row per player (head, stat columns, name), the server's tab header
  * and footer, and a right-hand status column that counts respawns down and marks disconnects (DC).
  *
- * Ported from the "Tab Stats" plugin. Differences: the stats come from CoralIntel's own scan
+ * Ported from the "Tab Stats" plugin (https://github.com/Zoobooo/tabstats, thanks Zoobooo). Differences: the stats come from CoralIntel's own scan
  * (IntelManager) instead of a Hypixel API key, heads come from the tab list's own skin textures
  * instead of downloaded PNGs, and only Bed Wars is handled (CoralIntel is a Bed Wars tool).
  *
@@ -166,6 +166,7 @@ public final class TabOverlay {
     private static final class Row {
         Snap snap;
         IntelPlayer stats;
+        IntelPlayer nicked; // set when stats are the REAL player's (denicked): the nicked lobby entry
         String nameText;
         Integer hp;
         String status;
@@ -635,6 +636,14 @@ public final class TabOverlay {
             Row row = new Row();
             row.snap = snap;
             row.stats = IntelManager.getInstance().getPlayer(snap.name);
+            // Denicked (Bedlify): show the real player's stats on the nick's row.
+            if (row.stats != null && row.stats.isNicked && li.tabShowRealStats.getValue()) {
+                IntelPlayer real = row.stats.realStats;
+                if (real != null && !real.loading) {
+                    row.nicked = row.stats;
+                    row.stats = real;
+                }
+            }
             row.status = statusText(li, snap.name);
             if (listObjective != null) {
                 Map<ScoreObjective, Score> scores = sb.getObjectivesForEntity(snap.name);
@@ -675,7 +684,20 @@ public final class TabOverlay {
 
         IntelPlayer p = row.stats;
         if (p != null && !p.loading && !StreamerMode.hidesTagsFor(snap.name)) {
-            if (p.isNicked && li.tabShowNick.getValue()) {
+            if (row.nicked != null) {
+                // Denicked: [NICK] (Real), then the real player's own tag badge.
+                if (li.tabShowNick.getValue()) text.append(" §5[NICK]");
+                if (li.tabShowRealName.getValue() && row.nicked.realName != null) {
+                    text.append(" §7(§e").append(row.nicked.realName).append("§7)");
+                }
+                if (li.tabShowTag.getValue()) {
+                    String badge = StreamerMode.badgeFor(p);
+                    if (!badge.isEmpty()) {
+                        String code = badge.equals("CC") ? "§6" : coralintel.ui.intel.IntelColors.nearestCode(p.getTagColor());
+                        text.append(" ").append(code).append(badge);
+                    }
+                }
+            } else if (p.isNicked && li.tabShowNick.getValue()) {
                 text.append(" §5[NICK]");
                 if (li.tabShowRealName.getValue() && p.realName != null) {
                     text.append(" §7(§e").append(p.realName).append("§7)"); // denicked via Bedlify

@@ -108,6 +108,8 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Denick: Chat Alert", true));
     public final BooleanSetting tabShowRealName =
             register(new BooleanSetting("Tab: Show Denicked Name", true));
+    public final BooleanSetting tabShowRealStats =
+            register(new BooleanSetting("Tab: Show Denicked Stats", true));
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 
