@@ -90,16 +90,36 @@ public final class TabListFormatter {
                 && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
             // Denicked (Bedlify): the likely real name, if we found one.
             String real = lobbyIntel.tabShowRealName.getValue() ? player.realName : null;
-            return NICK_TAG + coloredName + (real != null ? " \u00A77(\u00A7e" + real + "\u00A77)" : "");
+            // A nick can still carry a tag of its own (e.g. your blacklist), so show that too.
+            String nickBadge = "";
+            String badge = coralintel.module.modules.StreamerMode.badgeFor(player);
+            if (!badge.isEmpty() && lobbyIntel.tabShowTag.getValue()) {
+                String code = badge.equals("CC") ? "\u00A76" : IntelColors.nearestCode(player.getTagColor());
+                nickBadge = " " + code + badge + "\u00A7r";
+            }
+            return NICK_TAG + coloredName + (real != null ? " \u00A77(\u00A7e" + real + "\u00A77)" : "") + nickBadge;
         }
 
         if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
             coloredName = coloredName + " \u00A77(\u00A7e" + nickRow.realName + "\u00A77)\u00A7r";
         }
         // Star and the cheater-tag badge sit to the LEFT of the name; HP, FKDR and WLR stay on the right.
-        String prefix = buildStatsPrefix(lobbyIntel, player);
+        // Denicked rows keep the [NICK] tag; the tag badge is the nick's own (blacklist) if it has
+        // one, otherwise the real player's.
+        IntelPlayer tagFrom = player;
+        String nickTag = "";
+        if (nickRow != null) {
+            if (lobbyIntel.tabShowNick.getValue()
+                    && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
+                nickTag = NICK_TAG;
+            }
+            if (!coralintel.module.modules.StreamerMode.badgeFor(nickRow).isEmpty()) {
+                tagFrom = nickRow;
+            }
+        }
+        String prefix = buildStatsPrefix(lobbyIntel, player, tagFrom);
         String stats = buildStatsSuffix(info, lobbyIntel, player);
-        return prefix + coloredName + stats;
+        return nickTag + prefix + coloredName + stats;
     }
 
     private static final String NICK_TAG = "\u00A75[NICK] ";
@@ -109,6 +129,11 @@ public final class TabListFormatter {
      * in the default (non-Seraph) tab format.
      */
     private static String buildStatsPrefix(LobbyIntel intel, IntelPlayer player) {
+        return buildStatsPrefix(intel, player, player);
+    }
+
+    /** Same, but the tag badge is read from {@code tagFrom} (a denicked nick's own tag, or the real player's). */
+    private static String buildStatsPrefix(LobbyIntel intel, IntelPlayer player, IntelPlayer tagFrom) {
         StringBuilder prefix = new StringBuilder();
         boolean wroteAny = false;
 
@@ -118,11 +143,11 @@ public final class TabListFormatter {
             wroteAny = true;
         }
 
-        String tag = coralintel.module.modules.StreamerMode.badgeFor(player);
+        String tag = coralintel.module.modules.StreamerMode.badgeFor(tagFrom);
         if (!tag.isEmpty() && intel.tabShowTag.getValue()) {
             // Closet cheater specifically renders gold in the tab list;
             // everything else uses the nearest code to its usual color.
-            String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor());
+            String tagCode = tag.equals("CC") ? "§6" : IntelColors.nearestCode(tagFrom.getTagColor());
             // §r after the badge so the tag color can never bleed onto the
             // name — the team color (or the rank colors) must stay in charge.
             prefix.append(tagCode).append(tag).append("\u00A7r ");

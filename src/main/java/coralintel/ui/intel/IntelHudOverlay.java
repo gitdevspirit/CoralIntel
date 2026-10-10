@@ -782,9 +782,17 @@ public class IntelHudOverlay {
             String displayText = "";
             int displayColor = TEXT_DIM;
 
-            if (player.isNicked && !player.loading) {
+            if (row.isNicked && !row.loading) {
+                // Always [NICK], even once denicked; a tag (the nick's own, else the real
+                // player's) is shown next to it.
                 displayText = "NICK";
                 displayColor = 0xFFAA00AA;
+                IntelPlayer tagFrom = row.getTagBadge().isEmpty() ? player : row;
+                String nickBadge = tagFrom.getTagBadge();
+                if (!nickBadge.isEmpty()) {
+                    displayText = "NICK/" + nickBadge;
+                    displayColor = tagFrom.getTagColor();
+                }
             } else if (player.cheater || player.blacklisted) {
                 displayText = player.getTagBadge();
                 displayColor = player.getTagColor();

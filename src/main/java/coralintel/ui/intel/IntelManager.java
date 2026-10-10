@@ -1103,6 +1103,7 @@ public class IntelManager {
 
         try {
             fetchUrchinBatch(java.util.Collections.singletonList(player));
+            fetchGhostBatch(java.util.Collections.singletonList(player)); // Ghost Intel tag too
             player.computeThreat();
         } catch (Exception exception) {
             dbg("[Intel] standalone Coral fetch failed for " + name
