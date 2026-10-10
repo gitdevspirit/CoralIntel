@@ -588,6 +588,10 @@ public class LobbyIntel extends Module {
 
         if (packet.getType() != 2) {
             if (PREGAME_JOIN_LINE.matcher(message.trim()).find()) {
+                if (!pregameJoinLinesSeen) {
+                    IntelManager.dbg("[Intel] pregame join line, text: " + message.trim()
+                            + " | formatted: " + component.getFormattedText().replace('\u00A7', '&'));
+                }
                 pregameJoinLinesSeen = true;
                 pregameLinesSeen = true;
             } else if (message.contains("The game starts in")) {
@@ -803,11 +807,31 @@ public class LobbyIntel extends Module {
         if (NOT_PLAYER_NAMES.contains(name.toLowerCase(java.util.Locale.ROOT))) return;
         if (mc.thePlayer != null && name.equalsIgnoreCase(mc.thePlayer.getName())) return;
 
-        mc.addScheduledTask(() -> trackChatPlayer(name));
+        IntelManager.dbg("[Intel] chat match: " + name);
+        mc.addScheduledTask(() -> {
+            try {
+                trackChatPlayer(name);
+            } catch (Throwable t) {
+                // Errors inside scheduled tasks vanish silently — surface this one.
+                IntelManager.dbg("[Intel] chat tracking crashed for " + name + ": " + t);
+                ChatUtil.sendFormatted("&c[Intel] Couldn't add &f" + name + " &cfrom chat: " + t);
+            }
+        });
+    }
+
+    /** Tells the player why a chatter wasn't added — only once we're sure this is a pregame lobby. */
+    private void chatterDropped(String name, String reason) {
+        IntelManager.dbg("[Intel] chat from " + name + " not added: " + reason);
+        if (pregameLinesSeen) {
+            ChatUtil.sendFormatted("&7[Intel] &cCouldn't add &f" + name + "&c: " + reason);
+        }
     }
 
     private void trackChatPlayer(String name) {
-        if (!trackPregameChat.getValue()) return;
+        if (!trackPregameChat.getValue()) {
+            chatterDropped(name, "Track Pregame Chat is off");
+            return;
+        }
         IntelManager.dbg("[Intel] chat from " + name + " — checking pregame lobby.");
 
         if (!PregameUtil.isPregameLobby() && !pregameLinesSeen) {
@@ -820,7 +844,7 @@ public class LobbyIntel extends Module {
 
             if (info != null) {
                 if (IntelManager.isNpc(info)) {
-                    IntelManager.dbg("[Intel] chat from " + name + " ignored: tab entry looks like an NPC.");
+                    chatterDropped(name, "their tab entry looks like an NPC");
                     return;
                 }
 
@@ -847,7 +871,10 @@ public class LobbyIntel extends Module {
 
         // On the HUD straight away with stats loading; stays until "starts in 1
         // second". No-op if already tracked.
-        IntelManager.getInstance().addPregameChatter(name);
+        if (!IntelManager.getInstance().addPregameChatter(name)) {
+            chatterDropped(name, "the roster refused them (their tab entry looks like an NPC)");
+            return;
+        }
 
         // Pregame tab names are obfuscated, so the tab can't vouch for this chatter. Check their
         // account by UUID in the background: no account = nick, otherwise match their tab entry.

@@ -318,13 +318,18 @@ public class IntelManager {
     private final Map<String, IntelPlayer> parked = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Adds a pregame chatter to the roster right away; their stats start loading immediately. */
-    public void addPregameChatter(String name) {
-        boolean alreadyShown = false;
-        for (IntelPlayer p : combined()) {
-            if (p.name.equalsIgnoreCase(name)) { alreadyShown = true; break; }
-        }
+    public boolean addPregameChatter(String name) {
+        boolean alreadyShown = isOnRoster(name);
         dbg("[Intel] adding chatter " + name + (alreadyShown ? " — already on the roster, nothing to add." : " to the HUD."));
         addManualPlayer(name);
+        return isOnRoster(name);
+    }
+
+    private boolean isOnRoster(String name) {
+        for (IntelPlayer p : combined()) {
+            if (p.name.equalsIgnoreCase(name)) return true;
+        }
+        return false;
     }
 
     /** Adds a nicked pregame chatter to the HUD. No stats lookup — a nick's name can match a stranger's account. */
