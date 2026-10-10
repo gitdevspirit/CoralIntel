@@ -768,7 +768,13 @@ public class LobbyIntel extends Module {
         }
 
         Matcher chat = PREGAME_CHAT.matcher(message);
-        if (!chat.matches()) return;
+        if (!chat.matches()) {
+            if (message.contains(": ")) {
+                IntelManager.dbg("[Intel] chat line not recognised as a player message: "
+                        + (message.length() > 90 ? message.substring(0, 90) + "..." : message));
+            }
+            return;
+        }
 
         final String name = chat.group(1);
         if (NOT_PLAYER_NAMES.contains(name.toLowerCase(java.util.Locale.ROOT))) return;
@@ -779,6 +785,7 @@ public class LobbyIntel extends Module {
 
     private void trackChatPlayer(String name) {
         if (!trackPregameChat.getValue()) return;
+        IntelManager.dbg("[Intel] chat from " + name + " — checking pregame lobby.");
 
         if (!PregameUtil.isPregameLobby()) {
             IntelManager.dbg("[Intel] chat from " + name + " ignored: pregame sidebar not detected.");
@@ -789,7 +796,10 @@ public class LobbyIntel extends Module {
             net.minecraft.client.network.NetworkPlayerInfo info = mc.getNetHandler().getPlayerInfo(name);
 
             if (info != null) {
-                if (IntelManager.isNpc(info)) return;
+                if (IntelManager.isNpc(info)) {
+                    IntelManager.dbg("[Intel] chat from " + name + " ignored: tab entry looks like an NPC.");
+                    return;
+                }
 
                 // A nick's tab UUID is version 1 (Mellow's check). Never look a nick
                 // up as if it were a real account — a stranger may own that name.

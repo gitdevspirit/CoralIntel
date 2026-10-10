@@ -319,6 +319,11 @@ public class IntelManager {
 
     /** Adds a pregame chatter to the roster right away; their stats start loading immediately. */
     public void addPregameChatter(String name) {
+        boolean alreadyShown = false;
+        for (IntelPlayer p : combined()) {
+            if (p.name.equalsIgnoreCase(name)) { alreadyShown = true; break; }
+        }
+        dbg("[Intel] adding chatter " + name + (alreadyShown ? " — already on the roster, nothing to add." : " to the HUD."));
         addManualPlayer(name);
     }
 

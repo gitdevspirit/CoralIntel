@@ -42,6 +42,7 @@ public final class PregameUtil {
 
         boolean hasMap = false;
         boolean hasPlayers = false;
+        boolean hasWaiting = false;
 
         Collection<Score> scores = scoreboard.getSortedScores(sidebar);
         for (Score score : scores) {
@@ -57,11 +58,15 @@ public final class PregameUtil {
                 hasMap = true;
             } else if (line.startsWith("players:")) {
                 hasPlayers = true;
+            } else if (line.startsWith("waiting") || line.startsWith("starting in")
+                    || line.contains("to start")) {
+                // "Waiting...", "Starting in 12s", "Waiting for 2 more players to start"
+                hasWaiting = true;
             }
         }
 
         // Either line is enough: the general lobby and the in-match sidebar have neither,
         // and requiring both made detection fail whenever one line was formatted oddly.
-        return hasMap || hasPlayers;
+        return hasMap || hasPlayers || hasWaiting;
     }
 }
