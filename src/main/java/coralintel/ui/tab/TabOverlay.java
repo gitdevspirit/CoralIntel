@@ -185,6 +185,9 @@ public final class TabOverlay {
     private boolean wasInGame;
     private long gameStartedAt;
     private boolean inGameCached;
+    /** Waiting / starting Bed Wars lobby (no teams yet): the overlay is shown there too. */
+    private boolean pregameCached;
+    private boolean inPregame;
     private long inGameCheckedAt;
 
     private static LobbyIntel lobbyIntel() {
@@ -209,6 +212,8 @@ public final class TabOverlay {
             clearGame();
             wasInGame = false;
             inGameCached = false;
+            pregameCached = false;
+            inPregame = false;
             inGameCheckedAt = 0L;
         }
 
@@ -220,12 +225,15 @@ public final class TabOverlay {
         }
 
         boolean inGame = inBedwarsGame();
-        if (inGame != wasInGame) {
+        boolean pre = !inGame && pregameCached;
+        boolean active = inGame || pre;
+        if (active != wasInGame || pre != inPregame) {
             clearGame();
             if (inGame) gameStartedAt = System.currentTimeMillis();
-            wasInGame = inGame;
+            wasInGame = active;
+            inPregame = pre;
         }
-        if (!inGame) return;
+        if (!active) return;
 
         snapshotPlayers();
         detectGhosts();
@@ -270,7 +278,8 @@ public final class TabOverlay {
             Snap snap = snaps.get(name);
             // New entries only count if they carry a Bed Wars team letter; this keeps lobby NPCs,
             // spectators and staff out of the table.
-            if (snap == null && !isLetterPrefix(prefix)) continue;
+            // (The pregame lobby has no team letters yet, so everyone in the tab list counts there.)
+            if (snap == null && !inPregame && !isLetterPrefix(prefix)) continue;
             if (eliminated.contains(name)) continue;
 
             if (snap == null) {
@@ -359,6 +368,7 @@ public final class TabOverlay {
         if (now - inGameCheckedAt < 250L) return inGameCached;
         inGameCheckedAt = now;
         inGameCached = false;
+        pregameCached = false;
         try {
             Scoreboard sb = mc.theWorld.getScoreboard();
             ScoreObjective sidebar = sb.getObjectiveInDisplaySlot(1);
@@ -382,8 +392,10 @@ public final class TabOverlay {
                 }
             }
             inGameCached = ingameLine && !pregame;
+            pregameCached = pregame; // (the pregame sidebar also has Map:/Mode: lines, so pregame wins)
         } catch (Exception ignored) {
             inGameCached = false;
+            pregameCached = false;
         }
         return inGameCached;
     }
@@ -645,7 +657,7 @@ public final class TabOverlay {
                 }
             }
             row.status = statusText(li, snap.name);
-            if (listObjective != null) {
+            if (listObjective != null && !inPregame) {
                 Map<ScoreObjective, Score> scores = sb.getObjectivesForEntity(snap.name);
                 Score score = scores == null ? null : scores.get(listObjective);
                 row.hp = score == null ? 0 : score.getScorePoints();
