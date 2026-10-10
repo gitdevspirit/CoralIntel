@@ -138,9 +138,9 @@ public class LobbyIntel extends Module {
     public final DropdownSetting columnColorChoice =
             register(new DropdownSetting("HUD: Column Color", 0, COLOR_PALETTE_NAMES));
 
-    // How the Intel HUD shows the lobby. Every mode groups players by team.
-    public final DropdownSetting hudMode =
-            register(new DropdownSetting("HUD: Mode", 0, "Full", "Compact", "Scout", "Threats", "Auto"));
+    // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
+    public final DropdownSetting hudStyle =
+            register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap"));
 
     /** Public so the tab mixin (different package) can read it directly. */
     public static final int[] TAB_BG_PALETTE = COLOR_PALETTE_BG;
@@ -184,7 +184,7 @@ public class LobbyIntel extends Module {
 
         int columnIndex = columnColorChoice.getIndex();
         hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
-        hudOverlay.setMode(hudMode.getValue());
+        hudOverlay.setStyle(hudStyle.getValue());
     }
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);

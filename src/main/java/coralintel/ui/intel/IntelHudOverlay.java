@@ -53,9 +53,13 @@ public class IntelHudOverlay {
     private boolean showUrchin = true;
     private boolean showTeamColor = true;
     private String sortMode = "threat";
-    /** "full", "compact", "scout", "threats" or "auto" — see applyMode(). Every mode groups by team. */
-    private String mode = "full";
+    /**
+     * Visual style: "classic", "minimal", "striped", "cards", "outline" or "heatmap".
+     * Styles only change how the panel looks — the columns, stats and players are identical.
+     */
+    private String style = "classic";
     private static final int TEAM_GAP = 3;
+    private static final int CARD_GAP = 8;
 
     private List<IntelPlayer> players = new ArrayList<>();
 
@@ -118,12 +122,12 @@ public class IntelHudOverlay {
         this.showTeamColor = show;
     }
 
-    public void setMode(String mode) {
-        this.mode = mode == null ? "full" : mode.toLowerCase(java.util.Locale.ROOT);
+    public void setStyle(String style) {
+        this.style = style == null ? "classic" : style.toLowerCase(java.util.Locale.ROOT);
     }
 
-    public String getMode() {
-        return mode;
+    public String getStyle() {
+        return style;
     }
 
     public void setSortMode(String mode) {
@@ -395,62 +399,7 @@ public class IntelHudOverlay {
 
         if (displayPlayers.isEmpty()) return;
 
-        // The mode only changes what is drawn this frame; the player's own column toggles are put back.
-        boolean[] saved = {showStar, showLevel, showFkdr, showWlr, showStreak, showThreat, showUrchin};
-        try {
-            displayPlayers = applyMode(displayPlayers);
-            if (displayPlayers.isEmpty()) return;
-            renderPanel(displayPlayers);
-        } finally {
-            showStar = saved[0]; showLevel = saved[1]; showFkdr = saved[2]; showWlr = saved[3];
-            showStreak = saved[4]; showThreat = saved[5]; showUrchin = saved[6];
-        }
-    }
-
-    /** Applies the HUD mode: which columns show, and which players (always still grouped by team). */
-    private List<IntelPlayer> applyMode(List<IntelPlayer> list) {
-        String m = mode;
-        if (m.equals("auto")) {
-            boolean teamsAssigned = false;
-            for (IntelPlayer p : list) {
-                if (p.team != null && !p.team.isEmpty()) { teamsAssigned = true; break; }
-            }
-            m = teamsAssigned ? "full" : "scout"; // pregame: who to watch; in game: everything
-        }
-
-        switch (m) {
-            case "compact":
-                showStar = true; showFkdr = true;
-                showLevel = false; showWlr = false; showStreak = false; showThreat = false; showUrchin = false;
-                return list;
-
-            case "scout": {
-                showStar = true; showFkdr = true; showStreak = true; showThreat = true; showUrchin = true;
-                showLevel = false; showWlr = false;
-                int keep = Math.min(maxPlayers, 8);
-                List<IntelPlayer> byThreat = new ArrayList<>(list);
-                byThreat.sort((a, b) -> Double.compare(b.threatScore, a.threatScore));
-                java.util.Set<IntelPlayer> top = new java.util.HashSet<>(
-                        byThreat.subList(0, Math.min(keep, byThreat.size())));
-                List<IntelPlayer> out = new ArrayList<>();
-                for (IntelPlayer p : list) if (top.contains(p)) out.add(p); // keeps the team grouping
-                return out;
-            }
-
-            case "threats": {
-                showStar = true; showFkdr = true; showThreat = true; showUrchin = true;
-                showLevel = false; showWlr = false; showStreak = false;
-                List<IntelPlayer> out = new ArrayList<>();
-                for (IntelPlayer p : list) {
-                    boolean flagged = p.blacklisted || p.isNicked || (p.cheater && !p.safelisted);
-                    if (flagged || (!p.safelisted && p.threatScore >= 50)) out.add(p);
-                }
-                return out;
-            }
-
-            default:
-                return list;
-        }
+        renderPanel(displayPlayers);
     }
 
     private void renderPanel(List<IntelPlayer> displayPlayers) {
@@ -466,37 +415,12 @@ public class IntelHudOverlay {
         for (int i = 1; i < displayCount; i++) {
             if (teamBreak(displayPlayers.get(i - 1), displayPlayers.get(i))) teamGaps++;
         }
-        int contentHeight = (LINE_HEIGHT * displayCount) + (TEAM_GAP * teamGaps) + (PADDING * 2);
+        int contentHeight = (LINE_HEIGHT * displayCount) + (teamGap() * teamGaps) + (PADDING * 2);
         int totalHeight = HEADER_HEIGHT + contentHeight;
-
-        int bgColor = (bgOpacity << 24) | bgColorRgb;
-
-        drawRoundedRect(
-                scaledX,
-                scaledY,
-                scaledX + width,
-                scaledY + totalHeight,
-                BORDER_RADIUS,
-                bgColor
-        );
-
-        // Border — drawn as an actual outline on top of the fill, so it wraps
-        // every edge of the panel (including the bottom) evenly, using the
-        // real borderOpacity setting instead of a hardcoded alpha.
-        int borderColor = (borderOpacity << 24) | borderColorRgb;
-        RoundedUtils.drawRoundedOutline(
-                scaledX,
-                scaledY,
-                width,
-                totalHeight,
-                BORDER_RADIUS,
-                1.5f,
-                borderColor
-        );
 
         int dividerY = scaledY + HEADER_HEIGHT;
         int headerLineColor = (columnLineOpacity << 24) | columnColorRgb;
-        fillRect(scaledX + 2, dividerY, width - 4, 1, headerLineColor);
+        drawPanelChrome(scaledX, scaledY, width, totalHeight, displayPlayers, displayCount);
 
         int headerY = scaledY + 3;
         int x = scaledX + PADDING;
@@ -557,7 +481,7 @@ public class IntelHudOverlay {
         }
 
         // Column separator lines, spanning the content area below the header.
-        if (!columnBoundaries.isEmpty()) {
+        if (!columnBoundaries.isEmpty() && style.equals("classic")) {
             // Drop the last boundary — no line needed after the final column.
             columnBoundaries.remove(columnBoundaries.size() - 1);
 
@@ -570,7 +494,10 @@ public class IntelHudOverlay {
         int y = scaledY + HEADER_HEIGHT + PADDING;
 
         for (int i = 0; i < displayCount; i++) {
-            if (i > 0 && teamBreak(displayPlayers.get(i - 1), displayPlayers.get(i))) y += TEAM_GAP;
+            if (i > 0 && teamBreak(displayPlayers.get(i - 1), displayPlayers.get(i))) y += teamGap();
+            boolean lastInTeam = i == displayCount - 1
+                    || teamBreak(displayPlayers.get(i), displayPlayers.get(i + 1));
+            drawRowBackground(displayPlayers.get(i), i, scaledX, y, width, lastInTeam);
             drawPlayerLine(
                     displayPlayers.get(i),
                     scaledX + PADDING,
@@ -581,6 +508,117 @@ public class IntelHudOverlay {
         }
 
         GlStateManager.popMatrix();
+    }
+
+    /** Space between team groups — the Cards style needs more room for the separate boxes. */
+    private int teamGap() {
+        return style.equals("cards") ? CARD_GAP : TEAM_GAP;
+    }
+
+    /** Draws the panel background/frame for the current style (text and columns are drawn afterwards). */
+    private void drawPanelChrome(int x, int y, int width, int totalHeight,
+                                 List<IntelPlayer> rows, int count) {
+        int bg = (bgOpacity << 24) | bgColorRgb;
+        int border = (borderOpacity << 24) | borderColorRgb;
+        int line = (columnLineOpacity << 24) | columnColorRgb;
+
+        switch (style) {
+            case "minimal":
+                // No panel at all: floating rows (see drawRowBackground) and a hairline under the header.
+                fillRect(x + 2, y + HEADER_HEIGHT, width - 4, 1, line);
+                break;
+
+            case "striped": {
+                // Square panel, tinted header bar, alternating row stripes.
+                fillRect(x, y, width, totalHeight, bg);
+                fillRect(x, y, width, HEADER_HEIGHT, (Math.min(255, columnLineOpacity * 3) << 24) | columnColorRgb);
+                drawSquareOutline(x, y, width, totalHeight, border);
+                break;
+            }
+
+            case "cards": {
+                // The header and every team get their own rounded box.
+                RoundedUtils.drawRoundedRect(x, y, width, HEADER_HEIGHT, BORDER_RADIUS, bg);
+                RoundedUtils.drawRoundedOutline(x, y, width, HEADER_HEIGHT, BORDER_RADIUS, 1.0f, border);
+                int ry = y + HEADER_HEIGHT + PADDING;
+                int groupTop = ry;
+                for (int i = 0; i < count; i++) {
+                    if (i > 0 && teamBreak(rows.get(i - 1), rows.get(i))) {
+                        drawCard(x, groupTop, width, ry, bg, border);
+                        ry += CARD_GAP;
+                        groupTop = ry;
+                    }
+                    ry += LINE_HEIGHT;
+                }
+                drawCard(x, groupTop, width, ry, bg, border);
+                break;
+            }
+
+            case "outline": {
+                // See-through panel with a bold frame.
+                RoundedUtils.drawRoundedRect(x, y, width, totalHeight, BORDER_RADIUS,
+                        (Math.min(bgOpacity, 60) << 24) | bgColorRgb);
+                RoundedUtils.drawRoundedOutline(x, y, width, totalHeight, BORDER_RADIUS, 1.5f,
+                        (Math.max(borderOpacity, 170) << 24) | borderColorRgb);
+                fillRect(x + 2, y + HEADER_HEIGHT, width - 4, 1, line);
+                break;
+            }
+
+            case "heatmap":
+            case "classic":
+            default:
+                RoundedUtils.drawRoundedRect(x, y, width, totalHeight, BORDER_RADIUS, bg);
+                RoundedUtils.drawRoundedOutline(x, y, width, totalHeight, BORDER_RADIUS, 1.5f, border);
+                fillRect(x + 2, y + HEADER_HEIGHT, width - 4, 1, line);
+                break;
+        }
+    }
+
+    private void drawCard(int x, int groupTop, int width, int groupBottom, int bg, int border) {
+        int top = groupTop - 2;
+        int height = (groupBottom - groupTop) + 4;
+        RoundedUtils.drawRoundedRect(x, top, width, height, BORDER_RADIUS, bg);
+        RoundedUtils.drawRoundedOutline(x, top, width, height, BORDER_RADIUS, 1.0f, border);
+    }
+
+    private void drawSquareOutline(int x, int y, int width, int height, int color) {
+        fillRect(x, y, width, 1, color);
+        fillRect(x, y + height - 1, width, 1, color);
+        fillRect(x, y, 1, height, color);
+        fillRect(x + width - 1, y, 1, height, color);
+    }
+
+    /** Per-row decoration for the current style. y is the top of the row. */
+    private void drawRowBackground(IntelPlayer player, int index, int x, int y, int width, boolean lastInTeam) {
+        switch (style) {
+            case "minimal":
+                RoundedUtils.drawRoundedRect(x + 1, y, width - 2, LINE_HEIGHT - 1, 2,
+                        (Math.max(30, bgOpacity / 2) << 24) | bgColorRgb);
+                break;
+
+            case "striped":
+                if (index % 2 == 1) {
+                    fillRect(x + 1, y, width - 2, LINE_HEIGHT, (22 << 24) | columnColorRgb);
+                }
+                break;
+
+            case "outline":
+                if (!lastInTeam) {
+                    fillRect(x + PADDING, y + LINE_HEIGHT - 1, width - PADDING * 2, 1,
+                            (columnLineOpacity << 24) | columnColorRgb);
+                }
+                break;
+
+            case "heatmap":
+                if (!player.loading) {
+                    int threat = getThreatColor((int) player.threatScore) & 0xFFFFFF;
+                    RoundedUtils.drawRoundedRect(x + 2, y, width - 4, LINE_HEIGHT - 1, 2, (55 << 24) | threat);
+                }
+                break;
+
+            default:
+                break;
+        }
     }
 
     /** True when two neighbouring rows belong to different teams (a small gap is drawn between teams). */

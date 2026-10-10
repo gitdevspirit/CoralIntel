@@ -6,7 +6,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 
 ## Features
 
-- **HUD modes** – *HUD: Mode* (LobbyIntel panel): Full, Compact (star + FKDR), Scout (the biggest threats, with tags), Threats (only flagged / nicked / high-threat players) or Auto (Scout in the pregame lobby, Full once teams exist). Every mode groups players by team.
+- **HUD styles** – *HUD: Style* (LobbyIntel panel): Classic, Minimal (floating rows), Striped, Cards (a box per team), Outline (see-through with a bold frame) or Heatmap (rows tinted by threat). Same columns and stats in every style; players are always grouped by team.
 - **Intel HUD overlay** – every player's star, FKDR, WLR, winstreak and threat level in a compact table. Sortable, grouped by team with team-coloured names, adjustable column width, opacity, scale and colours.
 - **Pregame scouting** – players who talk in the pregame lobby are picked up automatically and their stats load in the background. Nicked players are announced in chat and shown on the HUD.
 - **Nick detection** – based on [Mellow](https://github.com/Roxiun/Mellow)'s logic: nicks are never looked up as real accounts.
