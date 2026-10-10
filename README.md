@@ -18,6 +18,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Streamer mode** – hides your own stats and tags on the tab list, HUD and floating tag, and lets you show a custom name on your tag/tab row or disable your tag entirely. Lives in its own panel on the second row of the ClickGUI.
 - **Session stats** – a small HUD (plus a chat summary) showing what you've gained since launching the game or your last `.reset`: session time, active time, average game length, finals / FKDR, beds / BBLR, wins / WLR, kills / deaths and stars gained, all tracked live from chat (to two decimals, e.g. `+0.61✫`). Every stat can be toggled and reordered, the background can be turned off, and you can place it with Ctrl+click in the ClickGUI. See [Session stats](#session-stats).
 - **Chat** – one ClickGUI panel with two sub-sections. *Pregame Messages*: up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay. *Snipe Messages*: one message you set with `.sm1` and send to all chat with `/shout` by typing `.sm` (it is never sent automatically).
+- **Denick (Bedlify)** – shows who is likely behind a nicked player, in the tab list and in chat, using the [Bedlify API](https://api.bedlify.xyz/docs). Needs your own free key. See [Denick](#denick-bedlify).
 - **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Control).
@@ -98,6 +99,21 @@ Stars: +0.61✫
 
 Notes: the session lives in memory only, so every launch starts a new one. Stars (and the starting point for them) come from Hypixel's API, which lags a little behind the game, so the stars from a game you just finished can take a minute or two to show up; they refresh after each game and after a world change, at most once every two minutes. A game you leave before it ends isn't counted as a win or a loss. If you're nicked, your nick is matched through your tab-list name, which is best-effort. Run `.idebug log` to see each event the tracker counted. While [Streamer mode](#features) is hiding your own stats, the automatic chat summaries are suppressed (`.session` still prints).
 
+## Denick (Bedlify)
+
+CoralIntel can look up who is behind a nick through the Bedlify API.
+
+1. Get a key: join `bedlify.xyz` in Minecraft (1.8+) to get a 6-digit code, then DM `/link <code>` to the Bedlify bot on Discord ([discord.gg/antisniper](https://discord.gg/antisniper)). The bot DMs you your key.
+2. In game, run `.bedlify key <your key>`.
+
+From then on every nicked player in your lobby is looked up in the background. You get a chat line like `[NICK] Nick is likely RealName (seen 3h ago, 2 games)`, the tab list shows `[NICK] Nick (RealName)`, and `.bw RealName` gets you their stats.
+
+- `.denick <nick>` looks up any nick; `.denick` alone redoes every nicked player in the lobby.
+- `.bedlify` shows whether a key is set (masked) and how many requests you have left; `.bedlify clear` removes it.
+- Settings (LobbyIntel panel): *Denick Nicks (Bedlify)*, *Denick: Chat Alert*, *Tab: Show Denicked Name*.
+
+Notes: a nick can be reused by different players over time, so the newest match is a best guess; the age and game count are there so you can judge. Your key is personal (Bedlify's rules: don't share or publish it), so it is **never part of the mod**. It is saved only on your machine in `config/CoralIntel/bedlify.json`, sent in a request header, never shown in full, and never sent to the Minecraft server (`.` commands stay local). Don't share your `config/CoralIntel` folder. Lookups are cached and stay far under Bedlify's 120 requests/minute limit.
+
 ## Reminders
 
 Saw someone who might be cheating but don't want to stop and tag them mid-game? `.remind <player> [note]` saves them (and a note) to `config/CoralIntel/reminders.json`. Run it again to add more notes.
@@ -132,6 +148,8 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
 | `.sm1 <text\|clear>` | | Set your snipe message |
 | `.sm` | | Send your snipe message to all chat with `/shout` |
+| `.denick [nick]` | | Find who is behind a nick (Bedlify) |
+| `.bedlify key <key>` / `clear` | | Set or remove your Bedlify API key |
 | `.remind <player> [note]` / `list` / `view <player>` / `done <player>` | `.reminder`, `.rem` | Note a possible cheater to tag in Coral later |
 | `.intelkey <key>` | `.ikey` | Set your Hypixel API key |
 | `.coralkey <key>` | `.urchinkey`, `.ukey` | Set your Coral API key |

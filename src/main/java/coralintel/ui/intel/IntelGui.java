@@ -374,7 +374,8 @@ public class IntelGui extends GuiScreen {
         GlStateManager.popMatrix();
 
         // Star + team
-        String sub = (p.isNicked ? "\u00A75[NICK]" : coralintel.util.PrestigeUtil.format(p.star))
+        String sub = (p.isNicked ? "\u00A75[NICK]" + (p.realName != null ? " \u00A77\u2192 \u00A7e" + p.realName : "")
+                : coralintel.util.PrestigeUtil.format(p.star))
                 + (p.team != null ? "   \u00A77[" + p.team + "]" : "");
         mc.fontRendererObj.drawString(sub, x + 44f, y + 22f, IntelColors.getPrestigeColor(p.star), false);
         y += 48;

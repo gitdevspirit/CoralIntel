@@ -119,10 +119,14 @@ public final class TabListFormatter {
         // list instead of a meaningless 0-star badge and zeroed stats.
         if (player.isNicked && lobbyIntel.tabShowNick.getValue()
                 && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
+            // Denicked (Bedlify): the likely real name, if we found one.
+            String real = lobbyIntel.tabShowRealName.getValue() ? player.realName : null;
+
             if (lobbyIntel.seraphStyle.getValue()) {
-                return fitPixelsLeft(coloredName, NAME_COL_WIDTH) + buildSeraphNickSuffix(info, lobbyIntel);
+                String shown = real != null ? "\u00A7e" + real : coloredName;
+                return fitPixelsLeft(shown, NAME_COL_WIDTH) + buildSeraphNickSuffix(info, lobbyIntel);
             }
-            return NICK_TAG + coloredName;
+            return NICK_TAG + coloredName + (real != null ? " \u00A77(\u00A7e" + real + "\u00A77)" : "");
         }
 
         String prefix = "";

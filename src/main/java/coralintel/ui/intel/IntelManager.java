@@ -158,6 +158,34 @@ public class IntelManager {
         p.statsFetchFailed = false;
         p.statsFinal = true;
         p.computeThreat();
+        requestDenick(p);
+    }
+
+    /** Starts a background Bedlify lookup for a nicked player (if denicking is on and a key is set). */
+    private void requestDenick(IntelPlayer p) {
+        coralintel.module.modules.LobbyIntel intel = (coralintel.module.modules.LobbyIntel)
+                CoralIntel.moduleManager.getModule(coralintel.module.modules.LobbyIntel.class);
+        if (intel == null || !intel.denick.getValue()) return;
+
+        BedlifyManager.getInstance().denickPlayer(p, this::pushUpdate);
+    }
+
+    /**
+     * Looks up every nicked player in the roster.
+     * @param force also redo players that were already looked up (used by .denick)
+     * @return how many lookups were started
+     */
+    public int denickAll(boolean force) {
+        int started = 0;
+        for (IntelPlayer p : new ArrayList<>(combined())) {
+            if (!p.isNicked) continue;
+            if (!force && (p.realName != null || p.denickRequested)) continue;
+
+            p.denickRequested = false;
+            BedlifyManager.getInstance().denickPlayer(p, this::pushUpdate);
+            started++;
+        }
+        return started;
     }
 
     /**

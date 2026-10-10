@@ -28,6 +28,11 @@ public class IntelPlayer {
     public int    losses      = 0;
     public boolean isNicked   = false;
 
+    // Denick (Bedlify): who is likely behind this nick. Set from a background thread.
+    public volatile String realName     = null;
+    public volatile long   realNameSeen = 0L;   // unix seconds the real name was last seen with this nick
+    public volatile boolean denickRequested = false;
+
     // Coral / Urchin
     public boolean cheater      = false;
     // True when Hypixel found the account but its Bedwars stats specifically

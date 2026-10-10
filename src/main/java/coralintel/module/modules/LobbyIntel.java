@@ -101,6 +101,13 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Skip Own Stats (Tab/HUD)", false));
     public final BooleanSetting tabShowNick =
             register(new BooleanSetting("Tab: Show [NICK] Tag", true));
+    // Denick through Bedlify (needs a key: .bedlify key <key>).
+    public final BooleanSetting denick =
+            register(new BooleanSetting("Denick Nicks (Bedlify)", true));
+    public final BooleanSetting denickChat =
+            register(new BooleanSetting("Denick: Chat Alert", true));
+    public final BooleanSetting tabShowRealName =
+            register(new BooleanSetting("Tab: Show Denicked Name", true));
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 

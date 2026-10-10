@@ -5,6 +5,8 @@ import coralintel.command.commands.AddIntelPlayerCommand;
 import coralintel.command.commands.BedwarsStatsCommand;
 import coralintel.command.commands.QueueCommand;
 import coralintel.command.commands.PregameMessageCommand;
+import coralintel.command.commands.BedlifyCommand;
+import coralintel.command.commands.DenickCommand;
 import coralintel.command.commands.ReminderCommand;
 import coralintel.command.commands.SnipeMessageCommand;
 import coralintel.command.commands.PeriodStatsCommand;
@@ -90,6 +92,8 @@ public class CoralIntel {
         commandManager.register(new SnipeMessageCommand(false));
         commandManager.register(new SnipeMessageCommand(true));
         commandManager.register(new ReminderCommand());
+        commandManager.register(new DenickCommand());
+        commandManager.register(new BedlifyCommand());
         commandManager.register(new BlacklistCommand());
         commandManager.register(new ConfigCommand());
         commandManager.register(new SafelistCommand());

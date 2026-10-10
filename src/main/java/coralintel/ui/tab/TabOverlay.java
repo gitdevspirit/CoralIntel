@@ -677,6 +677,9 @@ public final class TabOverlay {
         if (p != null && !p.loading && !StreamerMode.hidesTagsFor(snap.name)) {
             if (p.isNicked && li.tabShowNick.getValue()) {
                 text.append(" §5[NICK]");
+                if (li.tabShowRealName.getValue() && p.realName != null) {
+                    text.append(" §7(§e").append(p.realName).append("§7)"); // denicked via Bedlify
+                }
             } else if (li.tabShowTag.getValue()) {
                 String badge = StreamerMode.badgeFor(p);
                 if (!badge.isEmpty()) {
