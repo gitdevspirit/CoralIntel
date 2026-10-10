@@ -123,6 +123,7 @@ public class CoralIntel {
         coralintel.ui.tab.TabOverlay tabOverlay = new coralintel.ui.tab.TabOverlay();
         EventManager.register(tabOverlay);
         MinecraftForge.EVENT_BUS.register(tabOverlay);
+        MinecraftForge.EVENT_BUS.register(new coralintel.render.ShopQuickBuy());
 
         // Reflection scan: pick up every Property<?> field declared on each module
         // and register it with the PropertyManager, same as the original client did.

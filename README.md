@@ -20,6 +20,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Chat** – one ClickGUI panel with two sub-sections. *Pregame Messages*: up to three auto-sent chat messages when the countdown hits 10 seconds, with a configurable delay. *Snipe Messages*: one message you set with `.sm1` and send to all chat with `/shout` by typing `.sm` (it is never sent automatically).
 - **Denick (Bedlify)** – shows who is likely behind a nicked player, in the tab list and in chat, using the [Bedlify API](https://api.bedlify.xyz/docs). Needs your own free key. See [Denick](#denick-bedlify).
 - **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
+- **Shop auto middle-click** – optional setting (LobbyIntel: *Shop: Auto Middle-Click (Quick Buy)*): in the Bed Wars shop's category pages (Blocks, Melee, Armor, Tools, Ranged, Potions, Utility) a left click buys the item and also sends the middle click, so it is added to Quick Buy without a second click. Off by default.
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Control).
 

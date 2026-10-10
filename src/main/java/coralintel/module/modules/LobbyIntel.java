@@ -110,6 +110,9 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Show Denicked Name", true));
     public final BooleanSetting tabShowRealStats =
             register(new BooleanSetting("Tab: Show Denicked Stats", true));
+    // Bed Wars shop: a left click on a category-page item also sends the middle click (adds it to Quick Buy).
+    public final BooleanSetting shopAutoMiddle =
+            register(new BooleanSetting("Shop: Auto Middle-Click (Quick Buy)", false));
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 
