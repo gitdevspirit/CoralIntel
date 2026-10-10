@@ -36,10 +36,10 @@ public class LobbyIntel extends Module {
     public final BooleanSetting autoWho = register(new BooleanSetting("Auto /who", true));
     public final BooleanSetting trackPregameChat =
             register(new BooleanSetting("Track Pregame Chat", true));
-    // On: someone typing in the pregame lobby gets an automatic .bw-style stats line in
-    // chat. Off: they are added to the Intel HUD instead (the older behaviour).
+    // Someone typing in the pregame lobby is always added to the Intel HUD right away.
+    // On: they ALSO get an automatic .bw-style stats line in chat.
     public final BooleanSetting pregameChatAutoBw =
-            register(new BooleanSetting("Pregame Chat: Auto .bw", true));
+            register(new BooleanSetting("Pregame Chat: Auto .bw", false));
     public final BooleanSetting autoKey = register(new BooleanSetting("Auto Detect API Key", true));
     public final BooleanSetting notifyCheaters =
             register(new BooleanSetting("Notify Cheaters", false));
@@ -801,22 +801,10 @@ public class LobbyIntel extends Module {
                         IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby but is nicked.");
                     }
 
-                    if (!pregameChatAutoBw.getValue()) {
-                        IntelManager.getInstance().addNickedChatter(name);
-                    }
+                    IntelManager.getInstance().addNickedChatter(name);
                     return;
                 }
             }
-        }
-
-        // Auto .bw: print their stats in chat instead of adding them to the HUD. Once per
-        // player per lobby; recently cached stats are reused to spare the API.
-        if (pregameChatAutoBw.getValue()) {
-            if (chatBwLooked.add(name.toLowerCase(java.util.Locale.ROOT))) {
-                IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — auto .bw.");
-                autoBw.lookup(name, false, true);
-            }
-            return;
         }
 
         if (chatTracked.put(name.toLowerCase(java.util.Locale.ROOT), name) == null) {
@@ -826,6 +814,13 @@ public class LobbyIntel extends Module {
         // On the HUD straight away with stats loading; stays until "starts in 1
         // second". No-op if already tracked.
         IntelManager.getInstance().addPregameChatter(name);
+
+        // Optional extra: also print their stats in chat (once per player per lobby; recently
+        // cached stats are reused to spare the API).
+        if (pregameChatAutoBw.getValue() && chatBwLooked.add(name.toLowerCase(java.util.Locale.ROOT))) {
+            IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — auto .bw.");
+            autoBw.lookup(name, false, true);
+        }
     }
 
     private void removePlayerFromOverlay(String playerName) {
