@@ -931,6 +931,12 @@ public class IntelHudOverlay {
     }
 
     private void fillRect(int x, int y, int width, int height, int color) {
+        // GlStateManager caches state: if anything toggled blending with raw GL the cache can say
+        // "enabled" while real GL blend is off, so Gui.drawRect writes fully opaque (low opacity
+        // then looks solid black). Force the real state on before drawing, like RoundedUtils does.
+        GlStateManager.enableBlend();
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_BLEND);
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
         Gui.drawRect(x, y, x + width, y + height, color);
     }
 
