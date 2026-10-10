@@ -176,6 +176,8 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Overlay (Bed Wars)", true));
     public final coralintel.module.SliderSetting tabOverlaySize =
             register(new coralintel.module.SliderSetting("Tab: Overlay Size %", 75, 50, 150, 5));
+    public final coralintel.module.SliderSetting tabOverlayBgOpacity =
+            register(new coralintel.module.SliderSetting("Tab: Overlay Background Opacity %", 50, 0, 100, 5));
     public final BooleanSetting tabOverlayShadow =
             register(new BooleanSetting("Tab: Overlay Text Shadow", true));
     public final BooleanSetting tabGrayOwnTeam =

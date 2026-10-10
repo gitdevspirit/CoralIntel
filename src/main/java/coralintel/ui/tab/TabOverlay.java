@@ -801,9 +801,13 @@ public final class TabOverlay {
         GlStateManager.translate(originX, originY, 0f);
         GlStateManager.scale(scale, scale, 1f);
 
-        rect(0, 0, width, height, PANEL_COLOR);
-        rect(0, labelsY, width, labelsY + ROW, LABEL_BAND_COLOR);
-        rect(0, rowsY, width, rowsY + rows.size() * ROW, ROWS_COLOR);
+        // Background opacity slider: 0 = no background at all, 50 = original look.
+        float bg = (float) li.tabOverlayBgOpacity.getValue() / 50f;
+        if (bg > 0f) {
+            rect(0, 0, width, height, scaleAlpha(PANEL_COLOR, bg));
+            rect(0, labelsY, width, labelsY + ROW, scaleAlpha(LABEL_BAND_COLOR, bg));
+            rect(0, rowsY, width, rowsY + rows.size() * ROW, scaleAlpha(ROWS_COLOR, bg));
+        }
 
         for (int i = 0; i < headerLines.size(); i++) {
             centered(headerLines.get(i), 0, width, i * LINE + LINE_TEXT, shadow);
@@ -868,6 +872,11 @@ public final class TabOverlay {
         }
         GlStateManager.disableBlend();
         GlStateManager.popMatrix();
+    }
+
+    private static int scaleAlpha(int argb, float factor) {
+        int a = Math.min(255, Math.round(((argb >>> 24) & 0xFF) * factor));
+        return (a << 24) | (argb & 0xFFFFFF);
     }
 
     /** Filled rectangle with fractional coordinates (Gui.drawRect only takes ints). */
