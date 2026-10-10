@@ -148,7 +148,7 @@ public class BedwarsTag extends Module {
             String namePart;
             int nameColor;
 
-            if (player.getTeam() != null) {
+            if (isMatchTeam(player)) {
                 namePart = shownName;
                 nameColor = TeamUtil.getTeamColor(player, 1f).getRGB() | 0xFF000000;
             } else {
@@ -216,6 +216,21 @@ public class BedwarsTag extends Module {
             GlStateManager.depthMask(true);
             GlStateManager.popMatrix();
         }
+    }
+
+    private static final java.util.regex.Pattern MATCH_TEAM_PREFIX =
+            java.util.regex.Pattern.compile("^\\p{Lu}\\s+$");
+
+    /**
+     * True only for a real Bed Wars match team (its scoreboard prefix is the team letter, e.g. "R ").
+     * Hypixel also puts players in scoreboard teams in lobbies (for tab sorting) with a plain gray or
+     * white rank colour, which used to be mistaken for a match team and turned the whole name gray.
+     */
+    private static boolean isMatchTeam(EntityPlayer player) {
+        if (!(player.getTeam() instanceof net.minecraft.scoreboard.ScorePlayerTeam)) return false;
+        String prefix = ((net.minecraft.scoreboard.ScorePlayerTeam) player.getTeam()).getColorPrefix();
+        String plain = net.minecraft.util.EnumChatFormatting.getTextWithoutFormattingCodes(prefix);
+        return plain != null && MATCH_TEAM_PREFIX.matcher(plain).matches();
     }
 
     // Builds the health suffix text based on the Health dropdown (NONE/HP/HEARTS/TAB)
