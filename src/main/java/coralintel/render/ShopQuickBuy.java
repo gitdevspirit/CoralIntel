@@ -5,7 +5,6 @@ import coralintel.module.modules.LobbyIntel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.ContainerChest;
@@ -46,40 +45,50 @@ public class ShopQuickBuy {
 
     @SubscribeEvent
     public void onMouse(GuiScreenEvent.MouseInputEvent.Pre event) {
-        if (!(event.gui instanceof GuiChest)) return;
+        if (!(event.gui instanceof GuiContainer)) return;
         if (!Mouse.getEventButtonState() || Mouse.getEventButton() != 0) return;
         if (mc.thePlayer == null || mc.playerController == null) return;
 
         LobbyIntel li = CoralIntel.moduleManager == null ? null
                 : (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
-        if (li == null || !li.shopAutoMiddle.getValue()) return;
+        if (li == null) return;
+        boolean everywhere = li.middleClickEverywhere.getValue();
+        boolean shop = li.shopAutoMiddle.getValue();
+        if (!everywhere && !shop) return;
 
         try {
-            GuiChest gui = (GuiChest) event.gui;
+            GuiContainer gui = (GuiContainer) event.gui;
             Container container = gui.inventorySlots;
-            if (!(container instanceof ContainerChest)) return;
-            ContainerChest chest = (ContainerChest) container;
+            if (container == null) return;
 
             Slot slot = slotUnderMouse(gui);
-            if (slot == null || slot.slotNumber < FIRST_ITEM_SLOT
-                    || slot.slotNumber >= chest.getLowerChestInventory().getSizeInventory()
-                    || !slot.getHasStack()) {
+            if (slot == null) {
+                IntelManager.dbg("[Shop] no slot under the mouse, nothing queued");
                 return;
             }
+            if (!slot.getHasStack()) return;
 
-            // Judge the item, not the window title: only items whose own tooltip talks about Quick
-            // Buy (and doesn't say "remove", which would take an item OUT of Quick Buy) qualify.
-            String lore = loreOf(slot.getStack());
-            if (!lore.contains("quick buy") || lore.contains("remove")) {
-                IntelManager.dbg("[Shop] skipped '" + title(chest) + "' slot " + slot.slotNumber
-                        + " (no 'add to quick buy' line in its lore)");
-                return;
+            if (!everywhere) {
+                // Shop-only mode: chest GUIs, item grid only, and never an item that is ALREADY in
+                // Quick Buy (its tooltip says "remove", and a middle click would take it back out).
+                if (!(container instanceof ContainerChest)) return;
+                ContainerChest chest = (ContainerChest) container;
+                if (slot.slotNumber < FIRST_ITEM_SLOT
+                        || slot.slotNumber >= chest.getLowerChestInventory().getSizeInventory()) {
+                    return;
+                }
+                String lore = loreOf(slot.getStack());
+                if (lore.contains("remove")) {
+                    IntelManager.dbg("[Shop] skipped slot " + slot.slotNumber + " (already in Quick Buy)");
+                    return;
+                }
             }
 
             pendingWindow = container.windowId;
             pendingSlot = slot.slotNumber;
-            IntelManager.dbg("[Shop] middle click queued for '" + title(chest) + "' slot " + slot.slotNumber);
-        } catch (Exception e) {
+            IntelManager.dbg("[Shop] middle click queued, window " + container.windowId
+                    + " slot " + slot.slotNumber + (everywhere ? " (everywhere mode)" : " (shop mode)"));
+        } catch (Throwable e) {
             IntelManager.dbg("[Shop] auto middle-click failed: " + e);
         }
     }

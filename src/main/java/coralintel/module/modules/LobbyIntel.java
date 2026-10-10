@@ -110,6 +110,9 @@ public class LobbyIntel extends Module {
     // Bed Wars shop: a left click on a category-page item also sends the middle click (adds it to Quick Buy).
     public final BooleanSetting shopAutoMiddle =
             register(new BooleanSetting("Shop: Auto Middle-Click (Quick Buy)", false));
+    // Every container GUI (any chest, shop, menu, inventory): a left click also sends the middle click.
+    public final BooleanSetting middleClickEverywhere =
+            register(new BooleanSetting("GUI: Left Click Also Middle-Clicks (All GUIs)", false));
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 
