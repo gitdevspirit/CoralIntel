@@ -152,8 +152,14 @@ public class BedwarsTag extends Module {
                 namePart = shownName;
                 nameColor = TeamUtil.getTeamColor(player, 1f).getRGB() | 0xFF000000;
             } else {
-                String rank = (intel != null && intel.rankPrefix != null && !intel.rankPrefix.isEmpty())
-                        ? intel.rankPrefix + " " : "";
+                // The rank prefix comes straight from the tab display name and ends in a
+                // colour code (non-ranked players are just "\u00A77"). Left as-is that colour
+                // bleeds into the name and paints it flat gray, so reset formatting after
+                // the rank and let the name use the normal white.
+                String plainRank = (intel != null && intel.rankPrefix != null)
+                        ? net.minecraft.util.EnumChatFormatting.getTextWithoutFormattingCodes(intel.rankPrefix) : null;
+                String rank = (plainRank != null && !plainRank.trim().isEmpty())
+                        ? intel.rankPrefix + "\u00A7r " : "";
                 namePart = rank + shownName;
                 nameColor = 0xFFFFFFFF;
             }
@@ -219,7 +225,7 @@ public class BedwarsTag extends Module {
     }
 
     private static final java.util.regex.Pattern MATCH_TEAM_PREFIX =
-            java.util.regex.Pattern.compile("^\\p{Lu}\\s+$");
+            java.util.regex.Pattern.compile("^\\[?\\p{Lu}\\]?\\s*$");
 
     /**
      * True only for a real Bed Wars match team (its scoreboard prefix is the team letter, e.g. "R ").
