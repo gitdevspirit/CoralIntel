@@ -880,6 +880,80 @@ public class IntelManager {
         manualPlayers.clear();
     }
 
+    public enum AccountCheck { EXISTS, NOT_FOUND, UNKNOWN }
+
+    /**
+     * Blocking Mojang lookup (call off the main thread) that tells "no such account" — which for a
+     * pregame chatter means a nick — apart from "couldn't check" (rate limit, network). On success the
+     * UUID is cached so the stats fetch reuses it instead of asking again.
+     */
+    public AccountCheck checkAccount(String name) {
+        synchronized (uuidCache) {
+            if (uuidCache.containsKey(name)) return AccountCheck.EXISTS;
+        }
+
+        try {
+            HttpURLConnection connection = (HttpURLConnection)
+                    new URL("https://api.mojang.com/users/profiles/minecraft/" + name).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            connection.setRequestProperty("User-Agent", "Spirit-Client/1.0");
+
+            int code = connection.getResponseCode();
+
+            if (code == 200) {
+                JsonObject object = new JsonParser().parse(readStream(connection.getInputStream())).getAsJsonObject();
+                if (object.has("id")) {
+                    String uuid = object.get("id").getAsString().replaceAll(
+                            "^(.{8})(.{4})(.{4})(.{4})(.{12})$", "$1-$2-$3-$4-$5");
+                    synchronized (uuidCache) {
+                        uuidCache.put(name, uuid);
+                    }
+                    dbg("[UUID] chatter " + name + " -> " + uuid);
+                    return AccountCheck.EXISTS;
+                }
+                return AccountCheck.UNKNOWN;
+            }
+
+            if (code == 204 || code == 404) {
+                dbg("[UUID] chatter " + name + " has no Mojang account (nick).");
+                return AccountCheck.NOT_FOUND;
+            }
+
+            dbg("[UUID] chatter check for " + name + " inconclusive: HTTP " + code);
+        } catch (Exception exception) {
+            dbg("[UUID] chatter check for " + name + " failed: " + exception.getMessage());
+        }
+
+        return AccountCheck.UNKNOWN;
+    }
+
+    /**
+     * With the pregame tab list obfuscated, a chatter can't be found in the tab by name. Once their
+     * real UUID is known, look the tab entry up by UUID and borrow its skin for the HUD head.
+     * Main thread only.
+     */
+    public void useTabSkinByUuid(String name) {
+        String uuid;
+        synchronized (uuidCache) {
+            uuid = uuidCache.get(name);
+        }
+
+        Minecraft minecraft = Minecraft.getMinecraft();
+        if (uuid == null || minecraft.getNetHandler() == null) return;
+
+        try {
+            NetworkPlayerInfo info = minecraft.getNetHandler().getPlayerInfo(java.util.UUID.fromString(uuid));
+            if (info == null || info.getLocationSkin() == null) return;
+
+            if (hudOverlay != null) hudOverlay.cacheSkin(name, info.getLocationSkin(), true);
+            if (gui != null) gui.cacheLobbyPlayerSkin(name, info.getLocationSkin());
+            dbg("[Intel] matched " + name + " to their tab entry by UUID.");
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
     /** Resolves an IGN to a dashed UUID (cached). Blocking — call off the main thread. */
     public String resolveUuid(String name) {
         return fetchAndCacheUuid(name);

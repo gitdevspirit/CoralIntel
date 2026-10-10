@@ -817,7 +817,8 @@ public class LobbyIntel extends Module {
             }
         }
 
-        if (chatTracked.put(name.toLowerCase(java.util.Locale.ROOT), name) == null) {
+        boolean firstTime = chatTracked.put(name.toLowerCase(java.util.Locale.ROOT), name) == null;
+        if (firstTime) {
             IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — added to roster.");
         }
 
@@ -825,12 +826,40 @@ public class LobbyIntel extends Module {
         // second". No-op if already tracked.
         IntelManager.getInstance().addPregameChatter(name);
 
+        // Pregame tab names are obfuscated, so the tab can't vouch for this chatter. Check their
+        // account by UUID in the background: no account = nick, otherwise match their tab entry.
+        boolean inTab = mc.getNetHandler() != null && mc.getNetHandler().getPlayerInfo(name) != null;
+        if (firstTime && !inTab) {
+            verifyChatterAccount(name);
+        }
+
         // Optional extra: also print their stats in chat (once per player per lobby; recently
         // cached stats are reused to spare the API).
         if (pregameChatAutoBw.getValue() && chatBwLooked.add(name.toLowerCase(java.util.Locale.ROOT))) {
             IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — auto .bw.");
             autoBw.lookup(name, false, true);
         }
+    }
+
+    private void verifyChatterAccount(final String name) {
+        new Thread(() -> {
+            final IntelManager.AccountCheck result = IntelManager.getInstance().checkAccount(name);
+
+            mc.addScheduledTask(() -> {
+                if (pregameClosed) return;
+                // They left (quit line) while the lookup was running.
+                if (!chatTracked.containsKey(name.toLowerCase(java.util.Locale.ROOT))) return;
+
+                if (result == IntelManager.AccountCheck.NOT_FOUND) {
+                    if (chatNicks.add(name.toLowerCase(java.util.Locale.ROOT))) {
+                        ChatUtil.sendFormatted("&5[NICK] &f" + name + " &7is nicked.");
+                    }
+                    IntelManager.getInstance().addNickedChatter(name);
+                } else if (result == IntelManager.AccountCheck.EXISTS) {
+                    IntelManager.getInstance().useTabSkinByUuid(name);
+                }
+            });
+        }, "CoralIntel-ChatterCheck").start();
     }
 
     private void removePlayerFromOverlay(String playerName) {
