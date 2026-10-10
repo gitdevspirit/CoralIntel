@@ -263,6 +263,26 @@ public class IntelHudOverlay {
         }
     }
 
+    /**
+     * The player whose stats this row shows. Normally the row's own player; for a nick whose real
+     * account was found (Bedlify) and whose stats have loaded, the REAL player's stats, so a
+     * denicked player gets a full row here instead of "NICK" and dashes (same as the tab list).
+     */
+    private static IntelPlayer statsOf(IntelPlayer row) {
+        try {
+            if (row != null && row.isNicked) {
+                coralintel.module.modules.LobbyIntel li = (coralintel.module.modules.LobbyIntel)
+                        CoralIntel.moduleManager.getModule(coralintel.module.modules.LobbyIntel.class);
+                IntelPlayer real = row.realStats;
+                if (li != null && li.hudShowRealStats.getValue() && real != null && !real.loading) {
+                    return real;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return row;
+    }
+
     /** Sort keys captured once per sort, so stats landing on other threads can't change them mid-sort. */
     private static class SortKey {
         final IntelPlayer player;
@@ -274,9 +294,10 @@ public class IntelHudOverlay {
 
         SortKey(IntelPlayer player) {
             this.player = player;
-            this.threat = player.threatScore;
-            this.fkdr = player.fkdr;
-            this.star = player.star;
+            IntelPlayer stats = statsOf(player);
+            this.threat = stats.threatScore;
+            this.fkdr = stats.fkdr;
+            this.star = stats.star;
             this.teamRank = teamRank(player.team);
             this.name = player.name == null ? "" : player.name;
         }
@@ -610,8 +631,9 @@ public class IntelHudOverlay {
                 break;
 
             case "heatmap":
-                if (!player.loading) {
-                    int threat = getThreatColor((int) player.threatScore) & 0xFFFFFF;
+                IntelPlayer shown = statsOf(player);
+                if (!shown.loading) {
+                    int threat = getThreatColor((int) shown.threatScore) & 0xFFFFFF;
                     RoundedUtils.drawRoundedRect(x + 2, y, width - 4, LINE_HEIGHT - 1, 2, (55 << 24) | threat);
                 }
                 break;
@@ -646,11 +668,13 @@ public class IntelHudOverlay {
         return width;
     }
 
-    private void drawPlayerLine(IntelPlayer player, int x, int y) {
+    private void drawPlayerLine(IntelPlayer row, int x, int y) {
+        // Name, head and team come from the lobby row; stats come from the real player when denicked.
+        IntelPlayer player = statsOf(row);
         int currentX = x;
 
         if (showHeads) {
-            drawPlayerHead(player.name, currentX, y + 2, HEAD_SIZE);
+            drawPlayerHead(row.name, currentX, y + 2, HEAD_SIZE);
             currentX += HEAD_SIZE + 4;
         }
 
@@ -665,14 +689,19 @@ public class IntelHudOverlay {
         // the cheater/high-threat name color; those still show in the tag and
         // threat columns. In the lobby (no team yet) — prefix the Hypixel
         // rank instead, since there's no team to show.
-        String displayName = player.name;
+        String displayName = row.name;
 
-        if (player.team != null && !player.team.isEmpty()) {
+        if (row.team != null && !row.team.isEmpty()) {
             if (showTeamColor) {
-                nameColor = getTeamColor(player.team);
+                nameColor = getTeamColor(row.team);
             }
-        } else if (player.rankPrefix != null && !player.rankPrefix.isEmpty()) {
-            displayName = stripColorCodes(player.rankPrefix) + " " + player.name;
+        } else if (row.rankPrefix != null && !row.rankPrefix.isEmpty()) {
+            displayName = stripColorCodes(row.rankPrefix) + " " + row.name;
+        }
+
+        if (player != row && row.realName != null) {
+            displayName = mc.fontRendererObj.trimStringToWidth(
+                    displayName + " \u00A77(\u00A7e" + row.realName + "\u00A77)", 116);
         }
 
         drawText(displayName, currentX, y + 4, nameColor);
