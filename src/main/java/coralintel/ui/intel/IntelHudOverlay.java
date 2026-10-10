@@ -152,6 +152,11 @@ public class IntelHudOverlay {
     }
 
     /** Scales a default stat-column width by the Column Width setting. */
+    /** The TAGS column is wider than the others: it can hold NICK plus several tags. */
+    private int urchinColWidth() {
+        return cw(60);
+    }
+
     private int cw(int base) {
         return Math.round(base * columnWidthPercent / 100f);
     }
@@ -491,8 +496,8 @@ public class IntelHudOverlay {
 
         if (showUrchin) {
             int headerWidth = mc.fontRendererObj.getStringWidth("TAGS");
-            drawText("TAGS", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
-            x += cw(35);
+            drawText("TAGS", x + (urchinColWidth() - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            x += urchinColWidth();
             columnBoundaries.add(x);
         }
 
@@ -662,7 +667,7 @@ public class IntelHudOverlay {
         if (showFkdr) width += cw(40);
         if (showWlr) width += cw(35);
         if (showStreak) width += cw(30);
-        if (showUrchin) width += cw(35);
+        if (showUrchin) width += urchinColWidth();
         if (showThreat) width += cw(45);
 
         return width;
@@ -779,71 +784,33 @@ public class IntelHudOverlay {
         }
 
         if (showUrchin) {
-            String displayText = "";
-            int displayColor = TEXT_DIM;
-
+            // Every tag, each in its own colour, joined by "/": [NICK] (also once denicked),
+            // blacklist, Coral and Ghost. A denicked row merges the nick's and the real player's.
+            java.util.List<IntelPlayer.Badge> badges = new java.util.ArrayList<>();
             if (row.isNicked && !row.loading) {
-                // Always [NICK], even once denicked; a tag (the nick's own, else the real
-                // player's) is shown next to it.
-                displayText = "NICK";
-                displayColor = 0xFFAA00AA;
-                IntelPlayer tagFrom = row.getTagBadge().isEmpty() ? player : row;
-                String nickBadge = tagFrom.getTagBadge();
-                if (!nickBadge.isEmpty()) {
-                    displayText = "NICK/" + nickBadge;
-                    displayColor = tagFrom.getTagColor();
+                badges.add(new IntelPlayer.Badge("NICK", 0xFFAA00AA));
+                badges.addAll(IntelPlayer.mergeBadges(row, player != row ? player : null));
+            } else {
+                badges.addAll(player.getAllBadges());
+            }
+
+            int total = 0;
+            int slashWidth = mc.fontRendererObj.getStringWidth("/");
+            for (int i = 0; i < badges.size(); i++) {
+                total += mc.fontRendererObj.getStringWidth(badges.get(i).text) + (i > 0 ? slashWidth : 0);
+            }
+
+            int drawX = currentX + (urchinColWidth() - total) / 2;
+            for (int i = 0; i < badges.size(); i++) {
+                if (i > 0) {
+                    drawText("/", drawX, y + 4, TEXT_DIM);
+                    drawX += slashWidth;
                 }
-            } else if (player.cheater || player.blacklisted) {
-                displayText = player.getTagBadge();
-                displayColor = player.getTagColor();
+                drawText(badges.get(i).text, drawX, y + 4, badges.get(i).color);
+                drawX += mc.fontRendererObj.getStringWidth(badges.get(i).text);
             }
 
-            if (player.ghostTagged && player.ghostType != null) {
-                String ghostIcon = "A";
-                int ghostColor = 0xFFFF69B4;
-                String type = player.ghostType.toLowerCase();
-
-                if (type.contains("account")) {
-                    ghostIcon = "A";
-                    ghostColor = 0xFFFF69B4;
-                } else if (type.contains("caution")) {
-                    ghostIcon = "C";
-                    ghostColor = 0xFFFFAA00;
-                } else if (type.contains("closet")) {
-                    ghostIcon = "CC";
-                    ghostColor = 0xFFFF8800;
-                } else if (type.contains("blatant")) {
-                    ghostIcon = "BC";
-                    ghostColor = 0xFFCCAA00;
-                } else if (type.contains("sniper")) {
-                    ghostIcon = "S";
-                    ghostColor = 0xFFFF0000;
-                } else if (type.contains("verified")) {
-                    ghostIcon = "VC";
-                    ghostColor = 0xFFFF00AA;
-                } else {
-                    ghostIcon = "G";
-                    ghostColor = 0xFF00FFFF;
-                }
-
-                displayText = displayText.isEmpty()
-                        ? ghostIcon
-                        : displayText + "/" + ghostIcon;
-
-                displayColor = ghostColor;
-            }
-
-            if (!displayText.isEmpty()) {
-                int textWidth = mc.fontRendererObj.getStringWidth(displayText);
-                drawText(
-                        displayText,
-                        currentX + (cw(35) - textWidth) / 2,
-                        y + 4,
-                        displayColor
-                );
-            }
-
-            currentX += cw(35);
+            currentX += urchinColWidth();
         }
 
         if (showThreat) {

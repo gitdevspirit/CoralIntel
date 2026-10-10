@@ -68,6 +68,18 @@ public class StreamerMode extends Module {
     }
 
     /** The tag badge to show for this player — empty when it is you and tags are hidden. */
+    /** All of a player's badges (empty while streamer mode hides their tags). */
+    public static java.util.List<IntelPlayer.Badge> badgesFor(IntelPlayer player) {
+        if (player == null || hidesTagsFor(player.name)) return java.util.Collections.emptyList();
+        return player.getAllBadges();
+    }
+
+    /** A denicked row's badges: the nick's own plus the real player's. */
+    public static java.util.List<IntelPlayer.Badge> badgesFor(IntelPlayer nick, IntelPlayer real) {
+        if (nick == null || hidesTagsFor(nick.name)) return java.util.Collections.emptyList();
+        return IntelPlayer.mergeBadges(nick, real);
+    }
+
     public static String badgeFor(IntelPlayer player) {
         if (player == null) return "";
         return hidesTagsFor(player.name) ? "" : player.getTagBadge();

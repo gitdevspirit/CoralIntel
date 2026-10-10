@@ -112,7 +112,67 @@ public class IntelPlayer {
         // Personal blacklist takes priority over everything else — it's a
         // deliberate call the person made themselves, not an API guess.
         if (blacklisted) return "B";
+        return getCoralBadge();
+    }
 
+    /** One badge with its colour (ARGB). */
+    public static final class Badge {
+        public final String text;
+        public final int color;
+
+        public Badge(String text, int color) {
+            this.text = text;
+            this.color = color;
+        }
+
+        /** Nearest Minecraft colour code for the tab list ("CC" renders gold there). */
+        public String tabCode() {
+            return text.equals("CC") ? "\u00A76" : IntelColors.nearestCode(color);
+        }
+    }
+
+    /**
+     * EVERY tag this player has, in order: personal blacklist, Coral/Urchin classification and
+     * Ghost Intel. getTagBadge() only ever returned one of the first two.
+     */
+    public java.util.List<Badge> getAllBadges() {
+        java.util.List<Badge> out = new java.util.ArrayList<>(3);
+        if (blacklisted) out.add(new Badge("B", 0xFF4499FF));
+
+        String coral = getCoralBadge();
+        if (!coral.isEmpty()) out.add(new Badge(coral, coralColor(coral)));
+
+        if (ghostTagged && ghostType != null) {
+            String type = ghostType.toLowerCase();
+            String icon;
+            int color;
+            if (type.contains("account"))       { icon = "A";  color = 0xFFFF69B4; }
+            else if (type.contains("caution"))  { icon = "C";  color = 0xFFFFAA00; }
+            else if (type.contains("closet"))   { icon = "CC"; color = 0xFFFF8800; }
+            else if (type.contains("blatant"))  { icon = "BC"; color = 0xFFCCAA00; }
+            else if (type.contains("sniper"))   { icon = "S";  color = 0xFFFF0000; }
+            else if (type.contains("verified")) { icon = "VC"; color = 0xFFFF00AA; }
+            else                                { icon = "G";  color = 0xFF00FFFF; }
+            out.add(new Badge(icon, color));
+        }
+        return out;
+    }
+
+    /** Badges of a nick and of the real player behind it, without duplicates (same text). */
+    public static java.util.List<Badge> mergeBadges(IntelPlayer a, IntelPlayer b) {
+        java.util.List<Badge> out = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (IntelPlayer p : new IntelPlayer[]{a, b}) {
+            if (p == null) continue;
+            for (Badge badge : p.getAllBadges()) {
+                if (seen.add(badge.text)) out.add(badge);
+            }
+        }
+        return out;
+    }
+
+    /** Coral/Urchin classification only (no blacklist); empty when safelisted or not flagged. */
+    public String getCoralBadge() {
         // Safelist suppresses Coral's own classification — you've vouched
         // for this player. Blacklist above still wins if somehow both apply.
         if (safelisted) return "";
@@ -138,7 +198,10 @@ public class IntelPlayer {
 
     /** ARGB color matching {@link #getTagBadge()}'s classification. */
     public int getTagColor() {
-        String badge = getTagBadge();
+        return coralColor(getTagBadge());
+    }
+
+    private static int coralColor(String badge) {
         switch (badge) {
             case "B":   return 0xFF4499FF; // blacklisted — blue
             case "BC":  return 0xFFFF3344; // blatant — red

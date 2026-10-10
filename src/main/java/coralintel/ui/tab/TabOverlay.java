@@ -707,12 +707,9 @@ public final class TabOverlay {
                     text.append(" §7(§e").append(row.nicked.realName).append("§7)");
                 }
                 if (li.tabShowTag.getValue()) {
-                    // The nick's own tag (e.g. blacklist) wins; otherwise the real player's.
-                    IntelPlayer tagFrom = StreamerMode.badgeFor(row.nicked).isEmpty() ? p : row.nicked;
-                    String badge = StreamerMode.badgeFor(tagFrom);
-                    if (!badge.isEmpty()) {
-                        String code = badge.equals("CC") ? "§6" : coralintel.ui.intel.IntelColors.nearestCode(tagFrom.getTagColor());
-                        text.append(" ").append(code).append(badge);
+                    // Every tag: the nick's own (e.g. blacklist) and all of the real player's.
+                    for (IntelPlayer.Badge badge : StreamerMode.badgesFor(row.nicked, p)) {
+                        text.append(" ").append(badge.tabCode()).append(badge.text);
                     }
                 }
             } else if (p.isNicked && li.tabShowNick.getValue()) {
@@ -722,17 +719,13 @@ public final class TabOverlay {
                 }
                 // A nick can still carry a tag of its own (e.g. your blacklist).
                 if (li.tabShowTag.getValue()) {
-                    String badge = StreamerMode.badgeFor(p);
-                    if (!badge.isEmpty()) {
-                        String code = badge.equals("CC") ? "§6" : coralintel.ui.intel.IntelColors.nearestCode(p.getTagColor());
-                        text.append(" ").append(code).append(badge);
+                    for (IntelPlayer.Badge badge : StreamerMode.badgesFor(p)) {
+                        text.append(" ").append(badge.tabCode()).append(badge.text);
                     }
                 }
             } else if (li.tabShowTag.getValue()) {
-                String badge = StreamerMode.badgeFor(p);
-                if (!badge.isEmpty()) {
-                    String code = badge.equals("CC") ? "§6" : coralintel.ui.intel.IntelColors.nearestCode(p.getTagColor());
-                    text.append(" ").append(code).append(badge);
+                for (IntelPlayer.Badge badge : StreamerMode.badgesFor(p)) {
+                    text.append(" ").append(badge.tabCode()).append(badge.text);
                 }
             }
         }
