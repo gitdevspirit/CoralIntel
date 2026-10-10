@@ -6,10 +6,11 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 
 ## Features
 
+- **HUD modes** – *HUD: Mode* (LobbyIntel panel): Full, Compact (star + FKDR), Scout (the biggest threats, with tags), Threats (only flagged / nicked / high-threat players) or Auto (Scout in the pregame lobby, Full once teams exist). Every mode groups players by team.
 - **Intel HUD overlay** – every player's star, FKDR, WLR, winstreak and threat level in a compact table. Sortable, grouped by team with team-coloured names, adjustable column width, opacity, scale and colours.
 - **Pregame scouting** – players who talk in the pregame lobby are picked up automatically and their stats load in the background. Nicked players are announced in chat and shown on the HUD.
 - **Nick detection** – based on [Mellow](https://github.com/Roxiun/Mellow)'s logic: nicks are never looked up as real accounts.
-- **Enhanced tab list** – prestige-coloured stars, FKDR/WLR and other stats, `[NICK]` tags, optional HP and Seraph-style layout. The Bed Wars overlay version of the Seraph-style tab list is based on [Zoobooo/tabstats](https://github.com/Zoobooo/tabstats).
+- **Enhanced tab list** – prestige-coloured stars, FKDR/WLR and other stats, `[NICK]` tags, optional HP. In Bed Wars (pregame and in game) the whole tab list is replaced by a Seraph-style overlay. The Bed Wars overlay version of the Seraph-style tab list is based on [Zoobooo/tabstats](https://github.com/Zoobooo/tabstats).
 - **Cheater tags** – Coral tag lookups (`.coralkey`), blacklist / safelist, and `CC` (closet cheater) / `CCC` (confirmed cheater) tags.
 - **BedWarsTag** – floating star / FKDR / threat tag above players' heads (depth-tested, no wall-hack).
 - **AntiCheat** – heuristic movement/combat checks (NoSlow, AutoBlock, Sprint, Velocity, Rotation, Scaffold) that only inform you about other players.

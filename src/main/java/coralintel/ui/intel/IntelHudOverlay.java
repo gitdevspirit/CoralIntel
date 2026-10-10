@@ -53,6 +53,9 @@ public class IntelHudOverlay {
     private boolean showUrchin = true;
     private boolean showTeamColor = true;
     private String sortMode = "threat";
+    /** "full", "compact", "scout", "threats" or "auto" — see applyMode(). Every mode groups by team. */
+    private String mode = "full";
+    private static final int TEAM_GAP = 3;
 
     private List<IntelPlayer> players = new ArrayList<>();
 
@@ -113,6 +116,14 @@ public class IntelHudOverlay {
 
     public void setShowTeamColor(boolean show) {
         this.showTeamColor = show;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode == null ? "full" : mode.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    public String getMode() {
+        return mode;
     }
 
     public void setSortMode(String mode) {
@@ -306,7 +317,9 @@ public class IntelHudOverlay {
                 break;
         }
 
-        keys.sort(cmp);
+        // Every HUD mode groups by team first; the chosen sort only orders players inside a team
+        // (before teams exist, everyone is one group, so it orders the whole lobby).
+        keys.sort(Comparator.<SortKey>comparingInt(k -> k.teamRank).thenComparing(cmp));
 
         List<IntelPlayer> sorted = new ArrayList<>(keys.size());
         for (SortKey key : keys) {
@@ -382,6 +395,65 @@ public class IntelHudOverlay {
 
         if (displayPlayers.isEmpty()) return;
 
+        // The mode only changes what is drawn this frame; the player's own column toggles are put back.
+        boolean[] saved = {showStar, showLevel, showFkdr, showWlr, showStreak, showThreat, showUrchin};
+        try {
+            displayPlayers = applyMode(displayPlayers);
+            if (displayPlayers.isEmpty()) return;
+            renderPanel(displayPlayers);
+        } finally {
+            showStar = saved[0]; showLevel = saved[1]; showFkdr = saved[2]; showWlr = saved[3];
+            showStreak = saved[4]; showThreat = saved[5]; showUrchin = saved[6];
+        }
+    }
+
+    /** Applies the HUD mode: which columns show, and which players (always still grouped by team). */
+    private List<IntelPlayer> applyMode(List<IntelPlayer> list) {
+        String m = mode;
+        if (m.equals("auto")) {
+            boolean teamsAssigned = false;
+            for (IntelPlayer p : list) {
+                if (p.team != null && !p.team.isEmpty()) { teamsAssigned = true; break; }
+            }
+            m = teamsAssigned ? "full" : "scout"; // pregame: who to watch; in game: everything
+        }
+
+        switch (m) {
+            case "compact":
+                showStar = true; showFkdr = true;
+                showLevel = false; showWlr = false; showStreak = false; showThreat = false; showUrchin = false;
+                return list;
+
+            case "scout": {
+                showStar = true; showFkdr = true; showStreak = true; showThreat = true; showUrchin = true;
+                showLevel = false; showWlr = false;
+                int keep = Math.min(maxPlayers, 8);
+                List<IntelPlayer> byThreat = new ArrayList<>(list);
+                byThreat.sort((a, b) -> Double.compare(b.threatScore, a.threatScore));
+                java.util.Set<IntelPlayer> top = new java.util.HashSet<>(
+                        byThreat.subList(0, Math.min(keep, byThreat.size())));
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) if (top.contains(p)) out.add(p); // keeps the team grouping
+                return out;
+            }
+
+            case "threats": {
+                showStar = true; showFkdr = true; showThreat = true; showUrchin = true;
+                showLevel = false; showWlr = false; showStreak = false;
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) {
+                    boolean flagged = p.blacklisted || p.isNicked || (p.cheater && !p.safelisted);
+                    if (flagged || (!p.safelisted && p.threatScore >= 50)) out.add(p);
+                }
+                return out;
+            }
+
+            default:
+                return list;
+        }
+    }
+
+    private void renderPanel(List<IntelPlayer> displayPlayers) {
         GlStateManager.pushMatrix();
         GlStateManager.scale(scale, scale, 1.0f);
 
@@ -390,7 +462,11 @@ public class IntelHudOverlay {
 
         int displayCount = Math.min(displayPlayers.size(), maxPlayers);
         int width = calculateWidth();
-        int contentHeight = (LINE_HEIGHT * displayCount) + (PADDING * 2);
+        int teamGaps = 0;
+        for (int i = 1; i < displayCount; i++) {
+            if (teamBreak(displayPlayers.get(i - 1), displayPlayers.get(i))) teamGaps++;
+        }
+        int contentHeight = (LINE_HEIGHT * displayCount) + (TEAM_GAP * teamGaps) + (PADDING * 2);
         int totalHeight = HEADER_HEIGHT + contentHeight;
 
         int bgColor = (bgOpacity << 24) | bgColorRgb;
@@ -494,6 +570,7 @@ public class IntelHudOverlay {
         int y = scaledY + HEADER_HEIGHT + PADDING;
 
         for (int i = 0; i < displayCount; i++) {
+            if (i > 0 && teamBreak(displayPlayers.get(i - 1), displayPlayers.get(i))) y += TEAM_GAP;
             drawPlayerLine(
                     displayPlayers.get(i),
                     scaledX + PADDING,
@@ -504,6 +581,13 @@ public class IntelHudOverlay {
         }
 
         GlStateManager.popMatrix();
+    }
+
+    /** True when two neighbouring rows belong to different teams (a small gap is drawn between teams). */
+    private static boolean teamBreak(IntelPlayer a, IntelPlayer b) {
+        String ta = a.team == null ? "" : a.team;
+        String tb = b.team == null ? "" : b.team;
+        return !ta.equalsIgnoreCase(tb);
     }
 
     private int calculateWidth() {

@@ -40,9 +40,6 @@ public class LobbyIntel extends Module {
     // chat. Off: they are added to the Intel HUD instead (the older behaviour).
     public final BooleanSetting pregameChatAutoBw =
             register(new BooleanSetting("Pregame Chat: Auto .bw", true));
-    public final BooleanSetting focusMode = register(new BooleanSetting("Focus Mode", false));
-    public final coralintel.module.SliderSetting focusCount =
-            register(new coralintel.module.SliderSetting("Focus Count", 10, 1, 30, 1));
     public final BooleanSetting autoKey = register(new BooleanSetting("Auto Detect API Key", true));
     public final BooleanSetting notifyCheaters =
             register(new BooleanSetting("Notify Cheaters", false));
@@ -116,45 +113,13 @@ public class LobbyIntel extends Module {
     public final BooleanSetting tabShowHp =
             register(new BooleanSetting("Tab: Show HP", true));
 
-    // Tab list — cloned from the .bw field set above, same defaults.
+    // Normal (non-overlay) tab list. Everything else lives in the overlay's column settings.
     public final BooleanSetting tabShowStar =
             register(new BooleanSetting("Tab: Show Star", true));
     public final BooleanSetting tabShowFkdr =
             register(new BooleanSetting("Tab: Show FKDR", true));
     public final BooleanSetting tabShowWlr =
             register(new BooleanSetting("Tab: Show WLR", true));
-    public final BooleanSetting tabShowBblr =
-            register(new BooleanSetting("Tab: Show BBLR", false));
-    public final BooleanSetting tabShowFinalKills =
-            register(new BooleanSetting("Tab: Show Final Kills", false));
-    public final BooleanSetting tabShowFinalDeaths =
-            register(new BooleanSetting("Tab: Show Final Deaths", false));
-    public final BooleanSetting tabShowKills =
-            register(new BooleanSetting("Tab: Show Kills", false));
-    public final BooleanSetting tabShowDeaths =
-            register(new BooleanSetting("Tab: Show Deaths", false));
-    public final BooleanSetting tabShowBedsBroken =
-            register(new BooleanSetting("Tab: Show Beds Broken", false));
-    public final BooleanSetting tabShowBedsLost =
-            register(new BooleanSetting("Tab: Show Beds Lost", false));
-    public final BooleanSetting tabShowWinstreak =
-            register(new BooleanSetting("Tab: Show Winstreak", false));
-    public final BooleanSetting tabShowWins =
-            register(new BooleanSetting("Tab: Show Wins", false));
-    public final BooleanSetting tabShowLosses =
-            register(new BooleanSetting("Tab: Show Losses", false));
-    public final BooleanSetting seraphStyle =
-            register(new BooleanSetting("Tab: Seraph Style", false));
-    // The tab header/footer text is centered as its own independent text
-    // block, positioned completely separately from how the player rows
-    // themselves get laid out into columns — there's no reliable way to
-    // compute the correct offset between them without decompiled source to
-    // read vanilla's exact row-layout math. This lets you nudge the
-    // injected header line left/right by eye until it actually lines up
-    // with your columns, since I can't calculate the right value blind.
-    // Positive = shift right, negative = shift left.
-    public final coralintel.module.SliderSetting seraphHeaderOffset =
-            register(new coralintel.module.SliderSetting("Tab: Seraph Header Offset", 0, -150, 150, 1));
 
     private static final String[] COLOR_PALETTE_NAMES = {
             "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White"
@@ -172,6 +137,10 @@ public class LobbyIntel extends Module {
             register(new DropdownSetting("HUD: Border Color", 0, COLOR_PALETTE_NAMES));
     public final DropdownSetting columnColorChoice =
             register(new DropdownSetting("HUD: Column Color", 0, COLOR_PALETTE_NAMES));
+
+    // How the Intel HUD shows the lobby. Every mode groups players by team.
+    public final DropdownSetting hudMode =
+            register(new DropdownSetting("HUD: Mode", 0, "Full", "Compact", "Scout", "Threats", "Auto"));
 
     /** Public so the tab mixin (different package) can read it directly. */
     public static final int[] TAB_BG_PALETTE = COLOR_PALETTE_BG;
@@ -215,6 +184,7 @@ public class LobbyIntel extends Module {
 
         int columnIndex = columnColorChoice.getIndex();
         hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
+        hudOverlay.setMode(hudMode.getValue());
     }
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);

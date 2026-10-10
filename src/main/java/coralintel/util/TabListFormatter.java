@@ -37,54 +37,12 @@ public final class TabListFormatter {
     }
 
     /**
-     * Experimental — injects a column-title line ("Player | HP Star FKDR
-     * WLR Tags") into the tab list's header text when Seraph Style is on,
-     * using the exact same fixed column widths as buildSeraphStatsSuffix()
-     * so every row's values land directly under their label. This is the
-     * least-verified piece of everything here: "setHeader" taking a single
-     * IChatComponent is my best-confidence guess at the 1.8.9 method
-     * signature, but I don't have decompiled source to confirm it against.
-     * If this doesn't compile or the header just doesn't show up, this is
-     * the method to look at first.
+     * Hands the server's tab header to the Bed Wars overlay (it draws it itself) and leaves the
+     * vanilla header untouched.
      */
     public static IChatComponent seraphHeader(IChatComponent header) {
         coralintel.ui.tab.TabOverlay.noteHeader(header);
-        LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
-        if (lobbyIntel == null || !lobbyIntel.tabStats.getValue() || !lobbyIntel.seraphStyle.getValue()) {
-            return header;
-        }
-
-        String columnLine = applyHeaderOffset(buildSeraphHeaderLine(lobbyIntel), lobbyIntel);
-        String existing = header != null ? header.getFormattedText() : "";
-        String combined = existing.isEmpty() ? columnLine : existing + "\n" + columnLine;
-        return new ChatComponentText(combined);
-    }
-
-    /**
-     * Since vanilla centers the whole header line as one block, the content
-     * inside it only shifts by HALF of whatever padding you add to one
-     * side — adding it symmetrically to the centering math cancels itself
-     * out. So a requested shift of N pixels needs 2N pixels of actual
-     * padding, on the leading side to move right, or the trailing side to
-     * move left.
-     */
-    private static String applyHeaderOffset(String columnLine, LobbyIntel intel) {
-        int offset = (int) intel.seraphHeaderOffset.getValue();
-        if (offset == 0) return columnLine;
-
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        int targetPadWidth = Math.abs(offset) * 2;
-
-        // Build the padding by measuring its own accumulated width via
-        // getStringWidth (never getCharWidth — mixing those two was the
-        // root cause of every alignment issue here), so it actually comes
-        // out to the requested pixel width instead of just an approximation.
-        StringBuilder pad = new StringBuilder();
-        while (mc.fontRendererObj.getStringWidth(pad.toString()) < targetPadWidth) {
-            pad.append(' ');
-        }
-
-        return offset > 0 ? (pad + columnLine) : (columnLine + pad);
+        return header;
     }
 
     /** The tab-list line for one player: vanilla's name plus CoralIntel's stats, tags and colours. */
@@ -132,60 +90,19 @@ public final class TabListFormatter {
                 && !coralintel.module.modules.StreamerMode.hidesTagsFor(ownIgn)) {
             // Denicked (Bedlify): the likely real name, if we found one.
             String real = lobbyIntel.tabShowRealName.getValue() ? player.realName : null;
-
-            if (lobbyIntel.seraphStyle.getValue()) {
-                String shown = real != null ? "\u00A7e" + real : coloredName;
-                return fitPixelsLeft(shown, NAME_COL_WIDTH) + buildSeraphNickSuffix(info, lobbyIntel);
-            }
             return NICK_TAG + coloredName + (real != null ? " \u00A77(\u00A7e" + real + "\u00A77)" : "");
         }
 
-        String prefix = "";
-        String stats;
-        if (lobbyIntel.seraphStyle.getValue()) {
-            if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
-                coloredName = "\u00A7e" + nickRow.realName + " \u00A78(\u00A7r" + coloredName + "\u00A78)";
-            }
-            coloredName = fitPixelsLeft(coloredName, NAME_COL_WIDTH);
-            stats = buildSeraphStatsSuffix(info, lobbyIntel, player);
-        } else {
-            if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
-                coloredName = coloredName + " \u00A77(\u00A7e" + nickRow.realName + "\u00A77)\u00A7r";
-            }
-            // Star and the cheater-tag badge sit to the LEFT of the name;
-            // every other stat (HP, FKDR, WLR, etc.) stays on the right,
-            // same as before.
-            prefix = buildStatsPrefix(lobbyIntel, player);
-            stats = buildStatsSuffix(info, lobbyIntel, player);
+        if (nickRow != null && lobbyIntel.tabShowRealName.getValue() && nickRow.realName != null) {
+            coloredName = coloredName + " \u00A77(\u00A7e" + nickRow.realName + "\u00A77)\u00A7r";
         }
+        // Star and the cheater-tag badge sit to the LEFT of the name; HP, FKDR and WLR stay on the right.
+        String prefix = buildStatsPrefix(lobbyIntel, player);
+        String stats = buildStatsSuffix(info, lobbyIntel, player);
         return prefix + coloredName + stats;
     }
 
     private static final String NICK_TAG = "\u00A75[NICK] ";
-
-    /** Seraph-style row for a nicked player: HP (if enabled), then NICK in the Tags column, other columns blank. */
-    private static String buildSeraphNickSuffix(NetworkPlayerInfo info, LobbyIntel intel) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        StringBuilder stats = new StringBuilder("  ");
-
-        if (intel.tabShowHp.getValue()) {
-            String hpStr = "-";
-            if (mc.theWorld != null && info.getGameProfile().getId() != null) {
-                net.minecraft.entity.player.EntityPlayer entity =
-                        mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
-                if (entity != null) {
-                    hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
-                }
-            }
-            stats.append("\u00A7f").append(padPixelsCenter(hpStr, HP_COL_WIDTH)).append(" ");
-        }
-
-        stats.append(padPixelsCenter("", STAR_COL_WIDTH)).append(" ");
-        stats.append(padPixelsCenter("", FKDR_COL_WIDTH)).append(" ");
-        stats.append(padPixelsCenter("", WLR_COL_WIDTH)).append(" ");
-        stats.append("\u00A75").append(padPixelsCenter("NICK", TAGS_COL_WIDTH));
-        return stats.toString();
-    }
 
     /**
      * Star + cheater-tag badge — rendered to the LEFT of the player's name
@@ -248,278 +165,12 @@ public final class TabListFormatter {
             stats.append("§7WLR ").append(wlrCode).append(fmt(player.wlr)).append(" ");
             wroteAny = true;
         }
-        if (intel.tabShowBblr.getValue()) {
-            double bblr = player.bedsLost == 0
-                    ? player.bedsBroken
-                    : (double) player.bedsBroken / player.bedsLost;
-            stats.append("§7BBLR §f").append(fmt(bblr)).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowFinalKills.getValue()) {
-            stats.append("§7FK §f").append(player.finalKills).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowFinalDeaths.getValue()) {
-            stats.append("§7FD §f").append(player.finalDeaths).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowKills.getValue()) {
-            stats.append("§7K §f").append(player.kills).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowDeaths.getValue()) {
-            stats.append("§7D §f").append(player.deaths).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowBedsBroken.getValue()) {
-            stats.append("§7Beds §f").append(player.bedsBroken).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowBedsLost.getValue()) {
-            stats.append("§7BedsL §f").append(player.bedsLost).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowWinstreak.getValue()) {
-            stats.append("§7WS §f").append(player.winstreak).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowWins.getValue()) {
-            stats.append("§7Wins §f").append(player.wins).append(" ");
-            wroteAny = true;
-        }
-        if (intel.tabShowLosses.getValue()) {
-            stats.append("§7Losses §f").append(player.losses).append(" ");
-            wroteAny = true;
-        }
 
         if (!wroteAny) {
             return "";
         }
 
         return "  " + stats.toString().trim();
-    }
-
-    // Shared between buildSeraphHeaderLine() and buildSeraphStatsSuffix() —
-    // both MUST use the exact same widths or the header and the values
-    // underneath it drift apart. Fixed rather than measured dynamically
-    // (e.g. off the longest current name) so the header — which is only
-    // rebuilt whenever the server refreshes header/footer text, not every
-    // frame — can never fall out of sync with what the rows are using.
-    private static final int NAME_COL_WIDTH = 130;
-    private static final int HP_COL_WIDTH = 34;
-    private static final int STAR_COL_WIDTH = 50;
-    private static final int FKDR_COL_WIDTH = 52;
-    private static final int WLR_COL_WIDTH = 48;
-    private static final int TAGS_COL_WIDTH = 44;
-
-    private static String buildSeraphHeaderLine(LobbyIntel intel) {
-        StringBuilder line = new StringBuilder();
-        line.append(padPixelsCenter("§e§lPlayer", NAME_COL_WIDTH));
-        line.append("  ");
-
-        // Centered within each column — same fixed widths as the rows use,
-        // so the column boundaries still match; the labels just sit in the
-        // middle of that space now instead of at either edge.
-        if (intel.tabShowHp.getValue()) {
-            line.append(padPixelsCenter("§eHP", HP_COL_WIDTH)).append(" ");
-        }
-        line.append(padPixelsCenter("§eStar", STAR_COL_WIDTH)).append(" ");
-        line.append(padPixelsCenter("§eFKDR", FKDR_COL_WIDTH)).append(" ");
-        line.append(padPixelsCenter("§eWLR", WLR_COL_WIDTH)).append(" ");
-        line.append(padPixelsCenter("§eTags", TAGS_COL_WIDTH));
-
-        return line.toString();
-    }
-
-    /**
-     * "Seraph Style" — raw values only (no repeated per-row field labels,
-     * those live in the header now), each right-aligned into a fixed pixel-
-     * width column shared with buildSeraphHeaderLine() above.
-     */
-    private static String buildSeraphStatsSuffix(NetworkPlayerInfo info, LobbyIntel intel, IntelPlayer player) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        StringBuilder stats = new StringBuilder("  ");
-
-        if (intel.tabShowHp.getValue()) {
-            String hpStr = "-";
-            if (mc.theWorld != null && info.getGameProfile().getId() != null) {
-                net.minecraft.entity.player.EntityPlayer entity =
-                        mc.theWorld.getPlayerEntityByUUID(info.getGameProfile().getId());
-                if (entity != null) {
-                    hpStr = String.valueOf((int) Math.ceil(entity.getHealth()));
-                }
-            }
-            stats.append("§f").append(padPixelsCenter(hpStr, HP_COL_WIDTH)).append(" ");
-        }
-
-        // Splitting the glyph and the number into their own fixed-width
-        // sub-slots (instead of centering "✩19" as one glued unit) fixes a
-        // real remaining issue: a 2-digit number pushes more content after
-        // the glyph than a 1-digit one, so even with the OUTER column
-        // perfectly centered, the star icon itself still lands at a
-        // different X per row depending on how many digits follow it.
-        // Icon pinned tight to the column start (its own natural width, no
-        // extra centering padding), number right-aligned to the column end.
-        // Both ends are now anchored consistently regardless of digit
-        // count, without the previous version's mistake of independently
-        // centering both the icon AND the number in their own sub-slots —
-        // that stacked padding from both sides of each and created a big
-        // artificial gap in the middle instead of a tight icon+number pair.
-        String starIcon = PrestigeUtil.glyphColored(player.star);
-        int starIconWidth = mc.fontRendererObj.getStringWidth(starIcon) + 1;
-        int starNumWidth = Math.max(10, STAR_COL_WIDTH - starIconWidth);
-        stats.append(starIcon);
-        // padPixels measures with getStringWidth (ignores § codes), so the
-        // multi-color number lines up exactly like the plain one did.
-        stats.append(padPixels(PrestigeUtil.number(player.star), starNumWidth)).append("\u00A7r ");
-
-        String fkdrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.fkdr, 3, 6));
-        stats.append(fkdrCode).append(padPixelsCenter(fmt(player.fkdr), FKDR_COL_WIDTH)).append(" ");
-
-        String wlrCode = IntelColors.nearestCode(IntelColors.getStatColor(player.wlr, 2, 4));
-        stats.append(wlrCode).append(padPixelsCenter(fmt(player.wlr), WLR_COL_WIDTH)).append(" ");
-
-        String tag = coralintel.module.modules.StreamerMode.badgeFor(player);
-        String tagCode = tag.isEmpty() ? "§7" : (tag.equals("CC") ? "§6" : IntelColors.nearestCode(player.getTagColor()));
-        stats.append(tagCode).append(padPixelsCenter(tag.isEmpty() ? "-" : tag, TAGS_COL_WIDTH));
-
-        return stats.toString();
-    }
-
-    /** Right-aligns a string within a fixed character width by left-padding with spaces. */
-    /**
-     * Right-aligns text within a fixed PIXEL width, not a character count.
-     * Minecraft's default font isn't monospace — even digits aside, the
-     * space character itself is narrower than a digit, and "-" is narrower
-     * still. Padding by character count (the old approach) meant every row
-     * with a different mix of those characters actually landed at a
-     * different real pixel offset, which is exactly the ragged/misaligned
-     * look in the reference screenshot. Measuring actual string width and
-     * padding with however many real spaces are needed to reach a target
-     * pixel width fixes it regardless of what characters appear.
-     *
-     * Adds spaces one at a time, re-measuring the WHOLE string with
-     * getStringWidth() each time — never getCharWidth(). Those two report
-     * different things (getStringWidth includes Minecraft's standard +1px
-     * gap between every character, getCharWidth doesn't), so computing a
-     * space count via one and measuring the deficit via the other was
-     * quietly wrong by a few pixels on every single column, which is
-     * exactly the "still not aligned" result.
-     */
-    private static String padPixels(String text, int targetPixelWidth) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        StringBuilder sb = new StringBuilder(text);
-
-        while (mc.fontRendererObj.getStringWidth(sb.toString()) < targetPixelWidth) {
-            sb.insert(0, ' ');
-        }
-        // Last space may have overshot the target — drop it if removing it
-        // still leaves us at or under the target, whichever is the closer fit.
-        if (sb.length() > text.length()) {
-            String oneLess = sb.substring(1);
-            int overshoot = mc.fontRendererObj.getStringWidth(sb.toString()) - targetPixelWidth;
-            int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(oneLess);
-            if (undershoot >= 0 && undershoot <= overshoot) {
-                return oneLess;
-            }
-        }
-        return sb.toString();
-    }
-
-    /** Same idea as padPixels, but left-aligned — text stays put, trailing spaces added after it. */
-    private static String padPixelsLeft(String text, int targetPixelWidth) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        StringBuilder sb = new StringBuilder(text);
-
-        while (mc.fontRendererObj.getStringWidth(sb.toString()) < targetPixelWidth) {
-            sb.append(' ');
-        }
-        if (sb.length() > text.length()) {
-            String oneLess = sb.substring(0, sb.length() - 1);
-            int overshoot = mc.fontRendererObj.getStringWidth(sb.toString()) - targetPixelWidth;
-            int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(oneLess);
-            if (undershoot >= 0 && undershoot <= overshoot) {
-                return oneLess;
-            }
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Like padPixelsLeft, but also handles the case padding alone can't:
-     * text WIDER than the target. Without this, a long name (like
-     * "XXXtencation_") just runs past the column with nothing added —
-     * padPixelsLeft only ever adds space, it can't shorten anything — which
-     * pushes that one row's entire stats block to the right of every other
-     * row's. This truncates with an ellipsis so every row's name column
-     * ends at exactly the same pixel width no matter how long the name is,
-     * which is what actually keeps every column aligned regardless of name
-     * length.
-     */
-    private static String fitPixelsLeft(String text, int targetPixelWidth) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-
-        if (mc.fontRendererObj.getStringWidth(text) <= targetPixelWidth) {
-            return padPixelsLeft(text, targetPixelWidth);
-        }
-
-        String ellipsis = "\u2026";
-
-        // Strip one visible character at a time and re-measure the WHOLE
-        // remaining string (plus ellipsis) via getStringWidth — same fix as
-        // above: measuring per-character via getCharWidth and summing
-        // doesn't match what getStringWidth reports for the same text, so
-        // that would under/overshoot the actual target width.
-        StringBuilder visible = new StringBuilder();
-        StringBuilder codes = new StringBuilder();
-
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '\u00A7' && i + 1 < text.length()) {
-                codes.append(c).append(text.charAt(i + 1));
-                i++;
-            } else {
-                visible.append(c);
-            }
-        }
-
-        while (visible.length() > 0
-                && mc.fontRendererObj.getStringWidth(codes + visible.toString() + ellipsis) > targetPixelWidth) {
-            visible.deleteCharAt(visible.length() - 1);
-        }
-
-        return codes + visible.toString() + ellipsis;
-    }
-
-    /** Centers text within a fixed pixel width — spaces split evenly on both sides. */
-    private static String padPixelsCenter(String text, int targetPixelWidth) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-
-        int deficit = targetPixelWidth - mc.fontRendererObj.getStringWidth(text);
-        if (deficit <= 0) return text;
-
-        // Alternate adding a space to each side and re-measure the WHOLE
-        // string every step, rather than pre-computing a space count from a
-        // different (inconsistent) width metric.
-        StringBuilder left = new StringBuilder();
-        StringBuilder right = new StringBuilder();
-        boolean addLeft = true;
-
-        while (mc.fontRendererObj.getStringWidth(left + text + right.toString()) < targetPixelWidth) {
-            if (addLeft) left.append(' '); else right.append(' ');
-            addLeft = !addLeft;
-        }
-
-        String result = left + text + right.toString();
-        // The last addition may have overshot — check if backing it off
-        // (from whichever side just grew) lands closer to the target.
-        String shrunk = !addLeft
-                ? left.substring(0, Math.max(0, left.length() - 1)) + text + right.toString()
-                : left + text + right.substring(0, Math.max(0, right.length() - 1));
-
-        int overshoot = mc.fontRendererObj.getStringWidth(result) - targetPixelWidth;
-        int undershoot = targetPixelWidth - mc.fontRendererObj.getStringWidth(shrunk);
-        return (undershoot >= 0 && undershoot <= overshoot) ? shrunk : result;
     }
 
     /**
