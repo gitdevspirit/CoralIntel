@@ -586,26 +586,31 @@ public class LobbyIntel extends Module {
 
         String message = component.getUnformattedText();
 
+        // Hypixel sends each chat line as one text component with the section-sign colour codes
+        // inline ("§a[VIP+] §aName§f: hi"), so getUnformattedText() still contains them. Every
+        // pregame pattern below is written for the plain text.
+        final String plain = net.minecraft.util.StringUtils.stripControlCodes(message);
+
         if (packet.getType() != 2) {
-            if (PREGAME_JOIN_LINE.matcher(message.trim()).find()) {
+            if (PREGAME_JOIN_LINE.matcher(plain.trim()).find()) {
                 if (!pregameJoinLinesSeen) {
-                    IntelManager.dbg("[Intel] pregame join line, text: " + message.trim()
+                    IntelManager.dbg("[Intel] pregame join line, text: " + plain.trim()
                             + " | formatted: " + component.getFormattedText().replace('\u00A7', '&'));
                 }
                 pregameJoinLinesSeen = true;
                 pregameLinesSeen = true;
-            } else if (message.contains("The game starts in")) {
+            } else if (plain.contains("The game starts in")) {
                 pregameLinesSeen = true;
             }
         }
 
         if (trackPregameChat.getValue() && packet.getType() != 2) {
-            handlePregameChat(message);
+            handlePregameChat(plain);
         }
 
         if (autoScan.getValue()
                 && !scannedThisSession
-                && message.contains("The game starts in 10 seconds")) {
+                && plain.contains("The game starts in 10 seconds")) {
 
             scannedThisSession = true;
             IntelManager.dbg("[Intel] BedWars countdown detected — scanning lobby and requesting /who.");
@@ -637,7 +642,7 @@ public class LobbyIntel extends Module {
 
         // 1 second to go: clear everyone off the HUD. Loaded stats are stashed
         // (soft clear), so the arena roster comes back with them already in.
-        if (!pregameClosed && message.contains("The game starts in 1 second")) {
+        if (!pregameClosed && plain.contains("The game starts in 1 second")) {
             pregameClosed = true;
             mc.addScheduledTask(() -> {
                 chatTracked.clear();
@@ -655,7 +660,7 @@ public class LobbyIntel extends Module {
         if (autoScan.getValue()
                 && autoWho.getValue()
                 && !finalWhoSent
-                && message.contains("The game starts in 1 second")) {
+                && plain.contains("The game starts in 1 second")) {
 
             finalWhoSent = true;
             pendingArenaWho = true;
@@ -716,8 +721,8 @@ public class LobbyIntel extends Module {
             }
         }
 
-        if (message.startsWith("ONLINE:")) {
-            String playerList = message.substring(7).trim();
+        if (plain.startsWith("ONLINE:")) {
+            String playerList = plain.substring(7).trim();
             String[] parts = playerList.split(",\\s*");
 
             java.util.List<String> realNames = new java.util.ArrayList<>();
