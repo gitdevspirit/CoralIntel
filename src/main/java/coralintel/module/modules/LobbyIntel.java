@@ -237,6 +237,13 @@ public class LobbyIntel extends Module {
     // Set at "The game starts in 1 second": the pregame roster has been cleared and
     // further chat is ignored until the next world load.
     private boolean pregameClosed = false;
+    // Pregame lines seen this world: "+ (11/16) <obfuscated name>" join/leave lines mean the roster is
+    // hidden (tab, /who and joins show scrambled names); any pregame line proves we're in the pregame
+    // lobby even if the sidebar check misses. Both reset on world load.
+    private volatile boolean pregameLinesSeen = false;
+    private volatile boolean pregameJoinLinesSeen = false;
+    private static final Pattern PREGAME_JOIN_LINE =
+            Pattern.compile("^[+\\-\\u2212\\u2013]\\s*\\(\\d+/\\d+\\)");
     private boolean pendingArenaWho = false;
     private int retryTickCounter = 0;
 
@@ -441,6 +448,8 @@ public class LobbyIntel extends Module {
         scannedThisSession = false;
         finalWhoSent = false;
         pregameClosed = false;
+        pregameLinesSeen = false;
+        pregameJoinLinesSeen = false;
         retryTickCounter = 0;
         chatTracked.clear();
         chatNicks.clear();
@@ -577,6 +586,15 @@ public class LobbyIntel extends Module {
 
         String message = component.getUnformattedText();
 
+        if (packet.getType() != 2) {
+            if (PREGAME_JOIN_LINE.matcher(message.trim()).find()) {
+                pregameJoinLinesSeen = true;
+                pregameLinesSeen = true;
+            } else if (message.contains("The game starts in")) {
+                pregameLinesSeen = true;
+            }
+        }
+
         if (trackPregameChat.getValue() && packet.getType() != 2) {
             handlePregameChat(message);
         }
@@ -599,19 +617,13 @@ public class LobbyIntel extends Module {
                 // loaded, so nothing is fetched twice. If /who runs below, its
                 // list then replaces the roster, which drops anyone who left
                 // without a quit message.
+                // chatTracked / chatNicks are kept: the pregame roster is hidden, so the people who
+                // typed are the only ones we know about and must survive this rebuild and /who.
                 java.util.List<String> typedInPregame = new java.util.ArrayList<>(chatTracked.values());
-                chatTracked.clear();
-                chatNicks.clear(); // the tab scan below re-detects nicks from their tab UUID
 
                 IntelManager.getInstance().clearAll();
                 IntelManager.getInstance().scanLobby();
-
-                String self = mc.thePlayer != null ? mc.thePlayer.getName() : "";
-                for (String typed : typedInPregame) {
-                    if (!typed.equalsIgnoreCase(self)) {
-                        IntelManager.getInstance().addManualPlayer(typed);
-                    }
-                }
+                readdChatters(typedInPregame);
 
                 if (autoWho.getValue() && mc.thePlayer != null) {
                     mc.thePlayer.sendChatMessage("/who");
@@ -714,6 +726,13 @@ public class LobbyIntel extends Module {
                 }
             }
 
+            if (!pregameClosed && pregameJoinLinesSeen) {
+                // Hidden pregame roster: /who lists scrambled names. Replacing the HUD with them would
+                // wipe the people who typed and fill it with rows that can never load.
+                IntelManager.dbg("[Intel] /who ignored: pregame roster is obfuscated, keeping chatters.");
+                return;
+            }
+
             if (!realNames.isEmpty()) {
                 IntelManager manager = IntelManager.getInstance();
                 manager.retainLoadedPlayers(); // keep loaded stats; /who only re-lists the roster
@@ -733,6 +752,10 @@ public class LobbyIntel extends Module {
                                 + realNames.size()
                                 + " players from /who."
                 );
+
+                // Anyone who typed in pregame and is still here stays on the HUD.
+                final java.util.List<String> typed = new java.util.ArrayList<>(chatTracked.values());
+                mc.addScheduledTask(() -> readdChatters(typed));
 
                 IntelManager.dbg("[Intel] /who replaced list: " + realNames);
             }
@@ -787,7 +810,7 @@ public class LobbyIntel extends Module {
         if (!trackPregameChat.getValue()) return;
         IntelManager.dbg("[Intel] chat from " + name + " — checking pregame lobby.");
 
-        if (!PregameUtil.isPregameLobby()) {
+        if (!PregameUtil.isPregameLobby() && !pregameLinesSeen) {
             IntelManager.dbg("[Intel] chat from " + name + " ignored: pregame sidebar not detected.");
             return;
         }
@@ -838,6 +861,19 @@ public class LobbyIntel extends Module {
         if (pregameChatAutoBw.getValue() && chatBwLooked.add(name.toLowerCase(java.util.Locale.ROOT))) {
             IntelManager.dbg("[Intel] " + name + " typed in the pregame lobby — auto .bw.");
             autoBw.lookup(name, false, true);
+        }
+    }
+
+    /** Puts pregame chatters back on the HUD after a roster rebuild (no-op for anyone already there). */
+    private void readdChatters(java.util.List<String> names) {
+        String self = mc.thePlayer != null ? mc.thePlayer.getName() : "";
+        for (String typed : names) {
+            if (typed.equalsIgnoreCase(self)) continue;
+            if (chatNicks.contains(typed.toLowerCase(java.util.Locale.ROOT))) {
+                IntelManager.getInstance().addNickedChatter(typed);
+            } else {
+                IntelManager.getInstance().addManualPlayer(typed);
+            }
         }
     }
 
