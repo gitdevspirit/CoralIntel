@@ -52,6 +52,31 @@ public class BedwarsTag extends Module {
 
     public BedwarsTag() { super("BedWarsTag", false); }
 
+    /** Last stats seen per player, so a tag doesn't blank out while the roster is being rebuilt. */
+    private final java.util.Map<String, IntelPlayer> lastKnown = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Stats for this player: the live roster entry (including manually added / chat-tracked players),
+     * or, while the roster is being rebuilt (new world, /who, game start), the last entry seen.
+     */
+    private IntelPlayer intelFor(EntityPlayer player) {
+        String key = player.getName().toLowerCase(Locale.ROOT);
+        IntelPlayer live = IntelManager.getInstance().getPlayer(player.getName());
+        if (live != null) {
+            lastKnown.put(key, live);
+            return live;
+        }
+        return lastKnown.get(key);
+    }
+
+    /**
+     * True when there is something real to show. A player being RE-fetched is flagged "loading" again
+     * but still holds the stats from before, so that must not turn the tag gray ("[?]") or hide it.
+     */
+    private static boolean hasData(IntelPlayer intel) {
+        return intel != null && (!intel.loading || intel.star > 0 || intel.statsComplete);
+    }
+
     /**
      * True if this module will actually draw its own custom tag above this
      * player this frame — used by MixinRendererLivingEntity to decide
@@ -69,13 +94,7 @@ public class BedwarsTag extends Module {
         if (mc.getRenderViewEntity() == null
                 || mc.getRenderViewEntity().getDistanceToEntity(player) > 64f) return false;
 
-        if (onlyIntel.getValue()) {
-            IntelPlayer intel = null;
-            for (IntelPlayer p : IntelManager.getInstance().getPlayers()) {
-                if (p.name.equalsIgnoreCase(player.getName())) { intel = p; break; }
-            }
-            if (intel == null || intel.loading) return false;
-        }
+        if (onlyIntel.getValue() && !hasData(intelFor(player))) return false;
 
         return true;
     }
@@ -84,7 +103,6 @@ public class BedwarsTag extends Module {
     public void onRender3D(Render3DEvent event) {
         if (!isEnabled() || mc.theWorld == null || mc.thePlayer == null) return;
 
-        List<IntelPlayer> intelPlayers = IntelManager.getInstance().getPlayers();
         IAccessorRenderManager rm = (IAccessorRenderManager) mc.getRenderManager();
 
         Entity viewEntity = mc.getRenderViewEntity();
@@ -100,13 +118,10 @@ public class BedwarsTag extends Module {
             if (viewEntity.getDistanceToEntity(player) > 64f) continue;
 
             // Look up intel data
-            IntelPlayer intel = null;
-            for (IntelPlayer p : intelPlayers) {
-                if (p.name.equalsIgnoreCase(player.getName())) { intel = p; break; }
-            }
+            IntelPlayer intel = intelFor(player);
 
             // If intel-only mode and no data yet, skip
-            if (onlyIntel.getValue() && (intel == null || intel.loading)) continue;
+            if (onlyIntel.getValue() && !hasData(intel)) continue;
 
             // ── 3D billboard setup ─────────────────────────────────────────
             double px = RenderUtil.lerpDouble(player.posX, player.lastTickPosX, event.getPartialTicks()) - rm.coralintel$getRenderPosX();
@@ -118,6 +133,7 @@ public class BedwarsTag extends Module {
             double nametagY = py + player.getEyeHeight() + (player.isSneaking() ? 0.225 : 0.4);
 
             GlStateManager.pushMatrix();
+            try {
             GlStateManager.translate(px, nametagY, pz);
 
             // Billboard — face camera
@@ -219,8 +235,12 @@ public class BedwarsTag extends Module {
                 mc.fontRendererObj.drawString(urchinPart, cursor, ty, urchinColor, true);
             }
 
-            GlStateManager.depthMask(true);
-            GlStateManager.popMatrix();
+            } catch (RuntimeException e) {
+                IntelManager.dbg("[BedWarsTag] tag for " + player.getName() + " failed: " + e);
+            } finally {
+                GlStateManager.depthMask(true);
+                GlStateManager.popMatrix();
+            }
         }
     }
 
@@ -289,24 +309,24 @@ public class BedwarsTag extends Module {
     // registered as a setting in the original client but never actually
     // wired into rendering, so toggling it never did anything.
     private String buildFkdrText(IntelPlayer intel) {
-        if (!showFkdr.getValue() || intel == null || intel.loading) return "";
+        if (!showFkdr.getValue() || !hasData(intel)) return "";
         return String.format(java.util.Locale.ROOT, "FKDR %.1f", intel.fkdr);
     }
 
     private int getFkdrColor(IntelPlayer intel) {
-        if (intel == null || intel.loading) return 0xFFAAAAAA;
+        if (!hasData(intel)) return 0xFFAAAAAA;
         return coralintel.ui.intel.IntelColors.getStatColor(intel.fkdr, 3, 6);
     }
 
     // Returns [starText, name, tag] — rendered separately. The star text carries
     // its own per-character prestige color codes (PrestigeUtil / Nevada table).
     private String[] buildParts(IntelPlayer intel, String playerName) {
-        String star = (intel == null || intel.loading)
+        String star = !hasData(intel)
                 ? "\u00A77[?\u272B]"
                 : PrestigeUtil.format(intel.star);
         String tag = "";
 
-        if (intel != null && !intel.loading) {
+        if (hasData(intel)) {
             if (intel.isNicked) {
                 tag = "NICK";
             } else {
