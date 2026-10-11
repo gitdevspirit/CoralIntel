@@ -139,6 +139,32 @@ public class SessionStats extends Module {
         /** Star level with the fraction when known (falls back to the whole star). */
         final double star;
 
+        Totals(SessionHistory.Totals t) {
+            this.wins = t.wins;
+            this.losses = t.losses;
+            this.kills = t.kills;
+            this.deaths = t.deaths;
+            this.finalKills = t.finalKills;
+            this.finalDeaths = t.finalDeaths;
+            this.bedsBroken = t.bedsBroken;
+            this.bedsLost = t.bedsLost;
+            this.star = t.star;
+        }
+
+        SessionHistory.Totals toData() {
+            SessionHistory.Totals t = new SessionHistory.Totals();
+            t.wins = wins;
+            t.losses = losses;
+            t.kills = kills;
+            t.deaths = deaths;
+            t.finalKills = finalKills;
+            t.finalDeaths = finalDeaths;
+            t.bedsBroken = bedsBroken;
+            t.bedsLost = bedsLost;
+            t.star = star;
+            return t;
+        }
+
         Totals(IntelPlayer p) {
             this.wins = p.wins;
             this.losses = p.losses;
@@ -187,8 +213,83 @@ public class SessionStats extends Module {
 
     public SessionStats() {
         super("SessionStats", true);
+        restoreCurrent();
         // Keep the running session on disk when the game is closed.
-        Runtime.getRuntime().addShutdownHook(new Thread(this::saveHistory, "CoralIntel-Session-Save"));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            saveHistory();
+            saveCurrent();
+        }, "CoralIntel-Session-Save"));
+    }
+
+    private volatile long lastPersistAt;
+
+    /** Picks the session up where the last run left it (until .reset starts a new one). */
+    private void restoreCurrent() {
+        try {
+            SessionHistory.Current c = SessionHistory.loadCurrent();
+            if (c == null) return;
+
+            synchronized (lock) {
+                cWins = c.wins;
+                cLosses = c.losses;
+                cKills = c.kills;
+                cDeaths = c.deaths;
+                cFinalKills = c.finalKills;
+                cFinalDeaths = c.finalDeaths;
+                cBedsBroken = c.bedsBroken;
+                cBedsLost = c.bedsLost;
+                cXp = c.xp;
+                activeAccumMs = c.activeMs;
+                activeSince = 0L;   // not in a game right after launch
+                gameStartedAt = 0L;
+                timedGames = c.timedGames;
+                timedGamesMs = c.timedGamesMs;
+            }
+            startedAt = c.startedAt;
+            if (c.baseline != null) baseline = new Totals(c.baseline);
+            if (c.latest != null) latest = new Totals(c.latest);
+        } catch (Throwable ignored) {
+            // A broken file just means a fresh session.
+        }
+    }
+
+    /** Writes the live session to disk so a restart carries on from here. */
+    private void saveCurrent() {
+        try {
+            SessionHistory.Current c = new SessionHistory.Current();
+            Totals b = baseline;
+            Totals l = latest;
+            synchronized (lock) {
+                c.wins = cWins;
+                c.losses = cLosses;
+                c.kills = cKills;
+                c.deaths = cDeaths;
+                c.finalKills = cFinalKills;
+                c.finalDeaths = cFinalDeaths;
+                c.bedsBroken = cBedsBroken;
+                c.bedsLost = cBedsLost;
+                c.xp = cXp;
+                c.timedGames = timedGames;
+                c.timedGamesMs = timedGamesMs;
+            }
+            c.activeMs = activeMs();
+            c.startedAt = startedAt;
+            c.savedAt = System.currentTimeMillis();
+            c.baseline = b == null ? null : b.toData();
+            c.latest = l == null ? null : l.toData();
+            SessionHistory.saveCurrent(c);
+        } catch (Throwable ignored) {
+            // best-effort
+        }
+        lastPersistAt = System.currentTimeMillis();
+    }
+
+    /** Called on every chat line: saves at most every 10 seconds, off the network thread. */
+    private void saveCurrentSoon() {
+        long now = System.currentTimeMillis();
+        if (now - lastPersistAt < 10000L) return;
+        lastPersistAt = now;
+        new Thread(this::saveCurrent, "CoralIntel-Session-Persist").start();
     }
 
     /** Writes this session's summary to the history file (replaces its earlier entry). */
@@ -250,6 +351,7 @@ public class SessionStats extends Module {
         }
         startedAt = System.currentTimeMillis();
         announcedGames = 0;
+        saveCurrent();
 
         Totals known = latest;
         if (known != null) {
@@ -285,6 +387,7 @@ public class SessionStats extends Module {
                 if (totals != null) {
                     baseline = totals;
                     latest = totals;
+                    saveCurrent();
                 }
 
                 final boolean ok = totals != null;
@@ -331,6 +434,7 @@ public class SessionStats extends Module {
                 Totals totals = fetchTotals(name);
                 if (totals != null) {
                     latest = totals;
+                    saveCurrent();
                 }
 
                 final boolean ok = totals != null;
@@ -489,6 +593,7 @@ public class SessionStats extends Module {
                     trackGameState(formatted); // active time works with or without chat tracking
                     trackXp(formatted);        // stars come from the XP lines, with or without chat tracking
                     if (trackFromChat.getValue()) handleChat(formatted);
+                    saveCurrentSoon();
                 }
             } else if (trackFromChat.getValue() && event.getPacket() instanceof S45PacketTitle) {
                 S45PacketTitle title = (S45PacketTitle) event.getPacket();
@@ -757,7 +862,10 @@ public class SessionStats extends Module {
             } catch (InterruptedException ignored) {
                 return;
             }
-            if (isEnabled()) saveHistory();
+            if (isEnabled()) {
+                saveHistory();
+                saveCurrent();
+            }
         }, "CoralIntel-Session-History").start();
     }
 

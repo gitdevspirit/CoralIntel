@@ -24,6 +24,7 @@ public final class SessionHistory {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Type LIST_TYPE = new TypeToken<ArrayList<Record>>() { }.getType();
     private static final File FILE = new File("./config/CoralIntel/session-history.json");
+    private static final File CURRENT_FILE = new File("./config/CoralIntel/session-current.json");
     public static final int MAX_SESSIONS = 500;
 
     private SessionHistory() {
@@ -38,6 +39,46 @@ public final class SessionHistory {
         public int games, wins, losses;
         public int kills, deaths, finalKills, finalDeaths, bedsBroken, bedsLost;
         public double stars, fkdr, bblr, wlr;
+    }
+
+    /** Lifetime totals as they were at some moment (the session's starting point / latest fetch). */
+    public static class Totals {
+        public int wins, losses, kills, deaths, finalKills, finalDeaths, bedsBroken, bedsLost;
+        public double star;
+    }
+
+    /** The live session, so it survives closing and reopening the game. */
+    public static class Current {
+        public long startedAt;
+        public long savedAt;
+        public int wins, losses, kills, deaths, finalKills, finalDeaths, bedsBroken, bedsLost;
+        public long xp;
+        public long activeMs;
+        public int timedGames;
+        public long timedGamesMs;
+        public Totals baseline; // null until the first stats fetch worked
+        public Totals latest;
+    }
+
+    public static synchronized void saveCurrent(Current c) {
+        try {
+            File dir = CURRENT_FILE.getParentFile();
+            if (dir != null && !dir.exists()) dir.mkdirs();
+            Files.write(CURRENT_FILE.toPath(), GSON.toJson(c).getBytes(StandardCharsets.UTF_8));
+        } catch (Exception ignored) {
+            // best-effort
+        }
+    }
+
+    /** The saved live session, or null when there isn't one (or it can't be read). */
+    public static synchronized Current loadCurrent() {
+        if (!CURRENT_FILE.exists()) return null;
+        try (Reader reader = Files.newBufferedReader(CURRENT_FILE.toPath(), StandardCharsets.UTF_8)) {
+            Current c = GSON.fromJson(reader, Current.class);
+            return c != null && c.startedAt > 0L ? c : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Adds the record, or replaces the saved one with the same id. */
