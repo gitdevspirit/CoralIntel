@@ -972,25 +972,32 @@ public final class TabOverlay {
         return (a << 24) | (argb & 0xFFFFFF);
     }
 
-    /** Filled rectangle with fractional coordinates (Gui.drawRect only takes ints). */
+    /**
+     * Filled rectangle with fractional coordinates (Gui.drawRect only takes ints). The colour and its alpha
+     * go into the vertices, NOT into the shared GL colour: GlStateManager skips a colour call when its cache
+     * thinks nothing changed, and other renderers (raw GL) leave that cache stale, so a colour set that way
+     * could be silently ignored and the opacity slider appeared to do nothing.
+     */
     private static void rect(float x1, float y1, float x2, float y2, int argb) {
-        float a = (argb >> 24 & 255) / 255f;
-        float r = (argb >> 16 & 255) / 255f;
-        float g = (argb >> 8 & 255) / 255f;
-        float b = (argb & 255) / 255f;
+        int a = argb >> 24 & 255;
+        int r = argb >> 16 & 255;
+        int g = argb >> 8 & 255;
+        int b = argb & 255;
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer wr = tessellator.getWorldRenderer();
         GlStateManager.enableBlend();
         GlStateManager.disableTexture2D();
+        GlStateManager.disableAlpha();
         GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-        GlStateManager.color(r, g, b, a);
-        wr.begin(7, DefaultVertexFormats.POSITION);
-        wr.pos(x1, y2, 0.0).endVertex();
-        wr.pos(x2, y2, 0.0).endVertex();
-        wr.pos(x2, y1, 0.0).endVertex();
-        wr.pos(x1, y1, 0.0).endVertex();
+        wr.begin(7, DefaultVertexFormats.POSITION_COLOR);
+        wr.pos(x1, y2, 0.0).color(r, g, b, a).endVertex();
+        wr.pos(x2, y2, 0.0).color(r, g, b, a).endVertex();
+        wr.pos(x2, y1, 0.0).color(r, g, b, a).endVertex();
+        wr.pos(x1, y1, 0.0).color(r, g, b, a).endVertex();
         tessellator.draw();
+        GlStateManager.enableAlpha();
         GlStateManager.enableTexture2D();
+        GlStateManager.color(1f, 1f, 1f, 1f);
         GlStateManager.disableBlend();
     }
 }
