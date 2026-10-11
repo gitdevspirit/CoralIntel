@@ -155,6 +155,53 @@ public class LobbyIntel extends Module {
     public final DropdownSetting tabHeaderColor =
             register(new DropdownSetting("Tab: Column Title Color", 0, HEADER_COLOR_NAMES));
 
+    // Optional: custom row height / corner radius (off = the built-in look).
+    public final BooleanSetting hudCustomSizing =
+            register(new BooleanSetting("HUD: Custom Sizing", false));
+    public final coralintel.module.SliderSetting hudRowHeight =
+            register(new coralintel.module.SliderSetting("HUD: Row Height", 18, 12, 32, 1));
+    public final coralintel.module.SliderSetting hudCornerRadius =
+            register(new coralintel.module.SliderSetting("HUD: Corner Radius", 4, 0, 12, 1));
+
+    // One-click looks. "Custom" leaves every setting alone; picking a theme sets style, colours and
+    // opacity once (you can still tweak them afterwards).
+    public final DropdownSetting hudTheme =
+            register(new DropdownSetting("HUD: Theme", 0, "Custom", "Midnight", "Sunset", "Hacker", "Clean", "Neon", "Crimson"));
+    private int appliedTheme = -2; // -2: adopt whatever was loaded without applying it
+
+    // Per theme: style, bg, border, column, title colour, tab bg, tab title colour, bg opacity, border opacity.
+    // (style / palette / title indices are those of the dropdowns above.)
+    private static final int[][] THEMES = {
+            null,
+            {6, 2, 2, 2, 8, 2, 8, 150, 160},   // Midnight: glass, deep blue
+            {3, 3, 3, 3, 4, 3, 4, 170, 200},   // Sunset: cards, pink + orange titles
+            {8, 5, 5, 5, 6, 5, 6, 235, 220},   // Hacker: terminal, green
+            {1, 1, 7, 7, 0, 1, 0, 120, 80},    // Clean: minimal, black + white
+            {7, 1, 6, 6, 9, 6, 9, 220, 255},   // Neon: neon frame, purple
+            {4, 4, 4, 4, 3, 4, 3, 150, 220},   // Crimson: outline, red
+    };
+
+    private void applyTheme() {
+        int index = hudTheme.getIndex();
+        if (appliedTheme == -2) {
+            appliedTheme = index; // first frame after load: keep the saved settings as they are
+            return;
+        }
+        if (index == appliedTheme) return;
+        appliedTheme = index;
+        if (index <= 0 || index >= THEMES.length) return;
+        int[] t = THEMES[index];
+        hudStyle.setIndex(t[0]);
+        bgColorChoice.setIndex(t[1]);
+        borderColorChoice.setIndex(t[2]);
+        columnColorChoice.setIndex(t[3]);
+        hudHeaderColor.setIndex(t[4]);
+        tabBgColorChoice.setIndex(t[5]);
+        tabHeaderColor.setIndex(t[6]);
+        hudOverlay.setBgOpacity(t[7]);
+        hudOverlay.setBorderOpacity(t[8]);
+    }
+
     // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
     public final DropdownSetting hudStyle =
             register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap",
@@ -194,6 +241,9 @@ public class LobbyIntel extends Module {
 
     /** Applies the current color-dropdown selections to the overlay — called every frame, cheap. */
     private void syncOverlayColors() {
+        applyTheme();
+        hudOverlay.setSizing(hudCustomSizing.getValue() ? (int) hudRowHeight.getValue() : 18,
+                hudCustomSizing.getValue() ? (int) hudCornerRadius.getValue() : 4);
         int bgIndex = bgColorChoice.getIndex();
         hudOverlay.setBgColorRgb(COLOR_PALETTE_BG[bgIndex]);
 

@@ -860,12 +860,32 @@ public class ClickGui extends GuiScreen {
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
+    private long openedAt;
+
+    @Override
+    public void initGui() {
+        super.initGui();
+        openedAt = System.nanoTime();
+    }
+
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        drawRect(0, 0, width, height, 0x88000000);
+        // Opening animation: the backdrop fades in while the panels grow from 92% to full size.
+        float t = Math.min(1f, (System.nanoTime() - openedAt) / 180_000_000f);
+        float ease = 1f - (1f - t) * (1f - t) * (1f - t);
+        float scale = 0.92f + 0.08f * ease;
+        drawRect(0, 0, width, height, ((int) (0x88 * ease) << 24));
+
+        net.minecraft.client.renderer.GlStateManager.pushMatrix();
+        net.minecraft.client.renderer.GlStateManager.translate(width / 2f, height / 2f, 0f);
+        net.minecraft.client.renderer.GlStateManager.scale(scale, scale, 1f);
+        net.minecraft.client.renderer.GlStateManager.translate(-width / 2f, -height / 2f, 0f);
+        // Keep hover highlights under the cursor while the scale settles.
+        int animX = (int) (width / 2f + (mouseX - width / 2f) / scale);
+        int animY = (int) (height / 2f + (mouseY - height / 2f) / scale);
 
         for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
-            drawPanel(entry.getKey(), entry.getValue(), mouseX, mouseY);
+            drawPanel(entry.getKey(), entry.getValue(), animX, animY);
         }
 
         // The session HUD is shown here too, on top of the panels, so it can be placed by eye.
@@ -875,6 +895,7 @@ public class ClickGui extends GuiScreen {
             session.drawHud(false, mouseX, mouseY);
             session.setPlacing(false);
         }
+        net.minecraft.client.renderer.GlStateManager.popMatrix();
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

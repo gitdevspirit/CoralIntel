@@ -19,11 +19,12 @@ public class IntelHudOverlay {
 
     private static final Minecraft mc = Minecraft.getMinecraft();
 
-    private static final int LINE_HEIGHT = 18;
+    /** Row height / corner radius: instance values so the optional custom-sizing setting can change them. */
+    private int LINE_HEIGHT = 18;
     private static final int HEAD_SIZE = 14;
     private static final int PADDING = 6;
     private static final int HEADER_HEIGHT = 12;
-    private static final int BORDER_RADIUS = 4;
+    private int BORDER_RADIUS = 4;
 
     private int bgOpacity = 200;
     private int borderOpacity = 100;
@@ -122,6 +123,12 @@ public class IntelHudOverlay {
 
     public void setShowTeamColor(boolean show) {
         this.showTeamColor = show;
+    }
+
+    /** Custom sizing: row height (px) and corner radius (px). Defaults are 18 and 4. */
+    public void setSizing(int rowHeight, int cornerRadius) {
+        this.LINE_HEIGHT = Math.max(12, Math.min(32, rowHeight));
+        this.BORDER_RADIUS = Math.max(0, Math.min(12, cornerRadius));
     }
 
     public void setStyle(String style) {
@@ -742,12 +749,15 @@ public class IntelHudOverlay {
     }
 
     private void drawPlayerLine(IntelPlayer row, int x, int y) {
+        // Text / head stay vertically centred when the row height is customised (18 is the default).
+        int textOff = 4 + (LINE_HEIGHT - 18) / 2;
+        int headOff = 2 + (LINE_HEIGHT - 18) / 2;
         // Name, head and team come from the lobby row; stats come from the real player when denicked.
         IntelPlayer player = statsOf(row);
         int currentX = x;
 
         if (showHeads) {
-            drawPlayerHead(row.name, currentX, y + 2, HEAD_SIZE);
+            drawPlayerHead(row.name, currentX, y + headOff, HEAD_SIZE);
             currentX += HEAD_SIZE + 4;
         }
 
@@ -777,7 +787,7 @@ public class IntelHudOverlay {
                     displayName + " \u00A77(\u00A7e" + row.realName + "\u00A77)", 116);
         }
 
-        drawText(displayName, currentX, y + 4, nameColor);
+        drawText(displayName, currentX, y + textOff, nameColor);
         currentX += 120;
 
         if (showStar) {
@@ -787,7 +797,7 @@ public class IntelHudOverlay {
             int color = player.loading ? TEXT_DIM : getPrestigeColor(player.star);
             int textWidth = mc.fontRendererObj.getStringWidth(text);
 
-            drawText(text, currentX + (cw(35) - textWidth) / 2, y + 4, color);
+            drawText(text, currentX + (cw(35) - textWidth) / 2, y + textOff, color);
             currentX += cw(35);
         }
 
@@ -798,7 +808,7 @@ public class IntelHudOverlay {
             drawText(
                     text,
                     currentX + (cw(35) - textWidth) / 2,
-                    y + 4,
+                    y + textOff,
                     player.loading ? TEXT_DIM : 0xFFFFFFFF
             );
 
@@ -815,7 +825,7 @@ public class IntelHudOverlay {
                     : getStatColor(player.fkdr, 3.0, 6.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (cw(40) - textWidth) / 2, y + 4, color);
+            drawText(text, currentX + (cw(40) - textWidth) / 2, y + textOff, color);
             currentX += cw(40);
         }
 
@@ -829,7 +839,7 @@ public class IntelHudOverlay {
                     : getStatColor(player.wlr, 2.0, 4.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (cw(35) - textWidth) / 2, y + 4, color);
+            drawText(text, currentX + (cw(35) - textWidth) / 2, y + textOff, color);
             currentX += cw(35);
         }
 
@@ -847,7 +857,7 @@ public class IntelHudOverlay {
                                     : TEXT_DIM;
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
-            drawText(text, currentX + (cw(30) - textWidth) / 2, y + 4, color);
+            drawText(text, currentX + (cw(30) - textWidth) / 2, y + textOff, color);
             currentX += cw(30);
         }
 
@@ -871,10 +881,10 @@ public class IntelHudOverlay {
             int drawX = currentX + (urchinColWidth() - total) / 2;
             for (int i = 0; i < badges.size(); i++) {
                 if (i > 0) {
-                    drawText("/", drawX, y + 4, TEXT_DIM);
+                    drawText("/", drawX, y + textOff, TEXT_DIM);
                     drawX += slashWidth;
                 }
-                drawText(badges.get(i).text, drawX, y + 4, badges.get(i).color);
+                drawText(badges.get(i).text, drawX, y + textOff, badges.get(i).color);
                 drawX += mc.fontRendererObj.getStringWidth(badges.get(i).text);
             }
 
@@ -891,7 +901,7 @@ public class IntelHudOverlay {
             drawText(
                     text,
                     currentX + (cw(45) - textWidth) / 2,
-                    y + 4,
+                    y + textOff,
                     player.loading ? TEXT_DIM : getThreatColor((int) player.threatScore)
             );
         }

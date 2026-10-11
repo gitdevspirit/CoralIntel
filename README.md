@@ -6,6 +6,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 
 ## Features
 
+- **HUD themes + sizing** – *HUD: Theme* (Midnight, Sunset, Hacker, Clean, Neon, Crimson) sets style, colours and opacity in one go; *HUD: Custom Sizing* unlocks the Row Height and Corner Radius sliders (off = built-in look). The ClickGUI also grows in when opened.
 - **HUD styles** – *HUD: Style* (LobbyIntel panel): Classic, Minimal (floating rows), Striped, Cards (a box per team), Outline (see-through with a bold frame) Heatmap (rows tinted by threat), Glass (frosted), Neon (glowing frame), Terminal (green-on-black), Pills (a pill per row), Team Bars (team-coloured row bars) or Threat Bar (threat-coloured row bars). Same columns and stats in every style; players are always grouped by team.
 - **Intel HUD overlay** – every player's star, FKDR, WLR, winstreak and threat level in a compact table. Sortable, grouped by team with team-coloured names, adjustable column width, opacity, scale and colours.
 - **Pregame scouting** – players who talk in the pregame lobby are picked up automatically and their stats load in the background. Nicked players are announced in chat and shown on the HUD.
