@@ -821,7 +821,13 @@ public final class TabOverlay {
 
         event.setCanceled(true);
         try {
-            draw(li, rows, event.resolution);
+            try {
+                draw(li, rows, event.resolution, true);
+            } catch (Throwable t) {
+                fail("draw", t);
+                // retry once with default column spacing so a bad width can't blank the tab
+                draw(li, rows, event.resolution, false);
+            }
         } finally {
             GlStateManager.enableAlpha();
             GlStateManager.disableBlend();
@@ -843,7 +849,7 @@ public final class TabOverlay {
         return lines;
     }
 
-    private void draw(LobbyIntel li, List<Row> rows, ScaledResolution sr) {
+    private void draw(LobbyIntel li, List<Row> rows, ScaledResolution sr, boolean useWidth) {
         List<Col> cols = columns(li);
         boolean anyHp = false;
         boolean anyStatus = false;
@@ -854,7 +860,9 @@ public final class TabOverlay {
 
         // ---- column layout ----
         // Tab: Column Width % (like the HUD's): 100 = default; more spreads the columns out.
-        float colScale = (float) li.tabColumnWidth.getValue() / 100f;
+        float colScale = useWidth ? (float) li.tabColumnWidth.getValue() / 100f : 1f;
+        if (Float.isNaN(colScale) || colScale < 1f) colScale = 1f;
+        if (colScale > 2f) colScale = 2f;
         float gap = GAP * colScale;
         float nameGap = NAME_GAP * colScale;
         float colPad = (colScale - 1f) * 12f;
@@ -918,6 +926,7 @@ public final class TabOverlay {
         boolean shadow = li.tabOverlayShadow.getValue();
 
         GlStateManager.pushMatrix();
+        try {
         GlStateManager.translate(originX, originY, 0f);
         GlStateManager.scale(scale, scale, 1f);
 
@@ -960,8 +969,9 @@ public final class TabOverlay {
         for (int i = 0; i < footerLines.size(); i++) {
             centered(footerLines.get(i), 0, width, footerY + i * LINE + LINE_TEXT, shadow);
         }
-
-        GlStateManager.popMatrix();
+        } finally {
+            GlStateManager.popMatrix();
+        }
     }
 
     private static String hpText(int score) {
