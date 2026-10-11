@@ -112,6 +112,8 @@ public class SessionStats extends Module {
     public final BooleanSetting showHud =
             register(new BooleanSetting("Show HUD", true));
     // Right-aligned HUD: text lines up on the right and the box's right edge stays put.
+    public final BooleanSetting savedMessage =
+            register(new BooleanSetting("Saved Message", true));
     public final BooleanSetting alignRight =
             register(new BooleanSetting("Align Right", false));
     public final BooleanSetting hudBackground =
@@ -296,11 +298,11 @@ public class SessionStats extends Module {
     }
 
     /** Writes this session's summary to the history file (replaces its earlier entry). */
-    private void saveHistory() {
+    private boolean saveHistory() {
         try {
-            if (startedAt <= 0L) return;
+            if (startedAt <= 0L) return false;
             Gained g = gained();
-            if (g.isEmpty()) return; // nothing happened, nothing to keep
+            if (g.isEmpty()) return false; // nothing happened, nothing to keep
 
             SessionHistory.Record r = new SessionHistory.Record();
             long now = System.currentTimeMillis();
@@ -323,9 +325,28 @@ public class SessionStats extends Module {
             r.bblr = g.bblr;
             r.wlr = g.wlr;
             SessionHistory.upsert(r);
+            return true;
         } catch (Throwable ignored) {
             // History is best-effort.
+            return false;
         }
+    }
+
+    /** The "saved" line: a short, tag-free notice in your chat (nothing is sent to the server). */
+    private void announceSaved(boolean ending) {
+        if (!savedMessage.getValue() || mc.thePlayer == null) return;
+
+        final String text;
+        if (ending) {
+            text = "&8&m   &r &b&lSESSION &8\u00bb &a\u2714 &7Previous session saved &8\u2022 &f.history &7to view";
+        } else {
+            Gained g = gained();
+            boolean hide = StreamerMode.hidesStatsFor(ownName());
+            text = "&8&m   &r &b&lSESSION &8\u00bb &a\u2714 &7Saved"
+                    + (hide ? "" : " &8\u2022 &f" + g.games + " &7game" + (g.games == 1 ? "" : "s")
+                    + " &8\u2022 &e+" + String.format(Locale.ROOT, "%.2f", g.stars) + "\u272B");
+        }
+        mc.addScheduledTask(() -> say(text));
     }
 
     @Override
@@ -339,7 +360,8 @@ public class SessionStats extends Module {
 
     /** Restarts the session: counters to zero, timer to now, stars baseline re-fetched. */
     public void start(final boolean announce) {
-        saveHistory(); // keep the session that is ending before the counters are cleared
+        boolean savedOld = saveHistory(); // keep the session that is ending before the counters are cleared
+        if (savedOld) announceSaved(true);
         synchronized (lock) {
             cWins = cLosses = cKills = cDeaths = 0;
             cFinalKills = cFinalDeaths = cBedsBroken = cBedsLost = 0;
@@ -866,8 +888,9 @@ public class SessionStats extends Module {
                 return;
             }
             if (isEnabled()) {
-                saveHistory();
+                boolean saved = saveHistory();
                 saveCurrent();
+                if (saved) announceSaved(false);
             }
         }, "CoralIntel-Session-History").start();
     }
