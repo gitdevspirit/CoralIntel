@@ -49,9 +49,8 @@ import java.util.regex.Pattern;
  *  - end-of-game block  -> a win (VICTORY title / your name on the winning team) or a loss
  *
  * FKDR / BBLR / WLR are the ratios of what you gained this session, worked out
- * the same way as .daily / .monthly. Stars can't be read from chat, so those are
- * still the difference between your Hypixel API stats now and at the start of
- * the session (the API lags a little behind the game). The "Track From Chat"
+ * the same way as .daily / .monthly. Stars are worked out from the "+N Bed Wars Experience"
+ * chat lines (XP gained this session on top of your starting XP), so they move live too. The "Track From Chat"
  * setting switches everything back to API differences if Hypixel ever changes
  * its chat messages.
  *
@@ -173,6 +172,7 @@ public class SessionStats extends Module {
     // Live counters filled from chat. Everything below is guarded by lock.
     private final Object lock = new Object();
     private int cWins, cLosses, cKills, cDeaths, cFinalKills, cFinalDeaths, cBedsBroken, cBedsLost;
+    private long cXp; // Bed Wars XP gained, summed from the "+N Bed Wars Experience" chat lines
     private boolean gameActive;
     private boolean sawVictory;
     private final Set<String> winners = new HashSet<>();
@@ -202,6 +202,7 @@ public class SessionStats extends Module {
         synchronized (lock) {
             cWins = cLosses = cKills = cDeaths = 0;
             cFinalKills = cFinalDeaths = cBedsBroken = cBedsLost = 0;
+            cXp = 0L;
             winners.clear();
             sawVictory = false;
 
@@ -386,6 +387,55 @@ public class SessionStats extends Module {
     private static final Pattern WINNER_LINE = Pattern.compile(
             "^(?:Red|Blue|Green|Yellow|Aqua|White|Pink|Gray) - (?:\\[[^\\]]*\\]\\s*)?(\\w{1,16})$");
 
+    // "+25 Bed Wars Experience (Final Kill)" / "+150 Bed Wars Experience (Game Win)"
+    private static final Pattern XP_PATTERN = Pattern.compile(
+            "^\\+([\\d,]+) Bed Wars Experience\\b");
+
+    private void trackXp(String formatted) {
+        String plain = CODES.matcher(formatted).replaceAll("").trim();
+        Matcher m = XP_PATTERN.matcher(plain);
+        if (!m.find()) return;
+        try {
+            long xp = Long.parseLong(m.group(1).replace(",", ""));
+            synchronized (lock) {
+                cXp += xp;
+            }
+        } catch (NumberFormatException ignored) {
+            // not a number we can use
+        }
+    }
+
+    /** Exact Bed Wars level for an experience total (same curve Hypixel uses). */
+    private static double levelFromXp(long experience) {
+        if (experience <= 0) return 0;
+        final long prestigeExperience = 487000L;
+        double level = (experience / prestigeExperience) * 100;
+        long remaining = experience % prestigeExperience;
+        int[] early = {500, 1000, 2000, 3500, 5000};
+        for (int cost : early) {
+            if (remaining < cost) return level + (double) remaining / cost;
+            remaining -= cost;
+            level++;
+        }
+        return level + remaining / 5000.0;
+    }
+
+    /** Inverse of levelFromXp: how much experience a (fractional) level is worth. */
+    private static long xpFromLevel(double level) {
+        if (level <= 0) return 0;
+        final long prestigeExperience = 487000L;
+        long prestiges = (long) (level / 100);
+        double rem = level - prestiges * 100;
+        long xp = prestiges * prestigeExperience;
+        int[] early = {500, 1000, 2000, 3500};
+        for (int cost : early) {
+            if (rem < 1) return xp + Math.round(rem * cost);
+            xp += cost;
+            rem -= 1;
+        }
+        return xp + Math.round(rem * 5000);
+    }
+
     @EventTarget
     public void onPacket(PacketEvent event) {
         if (!isEnabled()) return;
@@ -400,6 +450,7 @@ public class SessionStats extends Module {
                 if (component != null) {
                     String formatted = component.getFormattedText();
                     trackGameState(formatted); // active time works with or without chat tracking
+                    trackXp(formatted);        // stars come from the XP lines, with or without chat tracking
                     if (trackFromChat.getValue()) handleChat(formatted);
                 }
             } else if (trackFromChat.getValue() && event.getPacket() instanceof S45PacketTitle) {
@@ -1025,8 +1076,19 @@ public class SessionStats extends Module {
             g.bedsLost = diff(l.bedsLost, b.bedsLost);
         }
 
-        // Stars can't be read from chat: always the API difference.
-        if (b != null && l != null) {
+        // Stars come from the "+N Bed Wars Experience" chat lines: the XP gained this
+        // session added to the XP you started with. The API difference is only the
+        // fallback while no XP line has been seen yet (or Track From Chat is off).
+        long xpGained;
+        synchronized (lock) {
+            xpGained = cXp;
+        }
+        if (b != null && b.star > 0 && (xpGained > 0 || trackFromChat.getValue())) {
+            long baseXp = xpFromLevel(b.star);
+            double nowLevel = levelFromXp(baseXp + xpGained);
+            g.stars = Math.max(0.0, nowLevel - b.star);
+            g.starNow = (int) nowLevel;
+        } else if (b != null && l != null) {
             g.stars = Math.max(0.0, l.star - b.star);
             g.starNow = (int) l.star;
         }
