@@ -61,6 +61,10 @@ public class IntelHudOverlay {
      * Styles only change how the panel looks — the columns, stats and players are identical.
      */
     private String style = "classic";
+    /** "full", "compact", "scout", "threats" or "auto" - which columns / players show (see applyMode()). */
+    private String mode = "full";
+    /** Optional per-mode style ("" = use the main style): compact, scout, threats, full. */
+    private final java.util.Map<String, String> modeStyles = new java.util.HashMap<>();
     private static final int TEAM_GAP = 3;
     private static final int CARD_GAP = 8;
 
@@ -129,6 +133,24 @@ public class IntelHudOverlay {
     public void setSizing(int rowHeight, int cornerRadius) {
         this.LINE_HEIGHT = Math.max(12, Math.min(32, rowHeight));
         this.BORDER_RADIUS = Math.max(0, Math.min(12, cornerRadius));
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode == null ? "full" : mode.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    /** Style used only while that mode is showing; null or "default" = the main style. */
+    public void setModeStyle(String mode, String style) {
+        String key = mode.toLowerCase(java.util.Locale.ROOT);
+        if (style == null || style.equalsIgnoreCase("default")) {
+            modeStyles.remove(key);
+        } else {
+            modeStyles.put(key, style.toLowerCase(java.util.Locale.ROOT).replace(" ", ""));
+        }
     }
 
     public void setStyle(String style) {
@@ -435,7 +457,68 @@ public class IntelHudOverlay {
 
         if (displayPlayers.isEmpty()) return;
 
-        renderPanel(displayPlayers);
+        // The mode only changes what is drawn this frame (columns / players, and optionally its own style);
+        // the player's own column toggles and the main style are put back afterwards.
+        boolean[] saved = {showStar, showLevel, showFkdr, showWlr, showStreak, showThreat, showUrchin};
+        String savedStyle = style;
+        try {
+            String effective = effectiveMode(displayPlayers);
+            displayPlayers = applyMode(displayPlayers, effective);
+            if (displayPlayers.isEmpty()) return;
+            String own = modeStyles.get(effective);
+            if (own != null) style = own;
+            renderPanel(displayPlayers);
+        } finally {
+            style = savedStyle;
+            showStar = saved[0]; showLevel = saved[1]; showFkdr = saved[2]; showWlr = saved[3];
+            showStreak = saved[4]; showThreat = saved[5]; showUrchin = saved[6];
+        }
+    }
+
+    /** "auto" resolves to scout before teams exist (who to watch) and full once the game has teams. */
+    private String effectiveMode(List<IntelPlayer> list) {
+        if (!mode.equals("auto")) return mode;
+        for (IntelPlayer p : list) {
+            if (p.team != null && !p.team.isEmpty()) return "full";
+        }
+        return "scout";
+    }
+
+    /** Applies the HUD mode: which columns show, and which players (always still grouped by team). */
+    private List<IntelPlayer> applyMode(List<IntelPlayer> list, String m) {
+        switch (m) {
+            case "compact":
+                showStar = true; showFkdr = true;
+                showLevel = false; showWlr = false; showStreak = false; showThreat = false; showUrchin = false;
+                return list;
+
+            case "scout": {
+                showStar = true; showFkdr = true; showStreak = true; showThreat = true; showUrchin = true;
+                showLevel = false; showWlr = false;
+                int keep = Math.min(maxPlayers, 8);
+                List<IntelPlayer> byThreat = new ArrayList<>(list);
+                byThreat.sort((a, b) -> Double.compare(b.threatScore, a.threatScore));
+                java.util.Set<IntelPlayer> top = new java.util.HashSet<>(
+                        byThreat.subList(0, Math.min(keep, byThreat.size())));
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) if (top.contains(p)) out.add(p); // keeps the team grouping
+                return out;
+            }
+
+            case "threats": {
+                showStar = true; showFkdr = true; showThreat = true; showUrchin = true;
+                showLevel = false; showWlr = false; showStreak = false;
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) {
+                    boolean flagged = p.blacklisted || p.isNicked || (p.cheater && !p.safelisted);
+                    if (flagged || (!p.safelisted && p.threatScore >= 50)) out.add(p);
+                }
+                return out;
+            }
+
+            default:
+                return list;
+        }
     }
 
     private void renderPanel(List<IntelPlayer> displayPlayers) {

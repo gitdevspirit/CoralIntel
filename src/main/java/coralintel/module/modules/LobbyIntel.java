@@ -126,6 +126,10 @@ public class LobbyIntel extends Module {
     public final BooleanSetting tabShowWlr =
             register(new BooleanSetting("Tab: Show WLR", true));
 
+    private static final String[] MODE_STYLE_OPTIONS = {
+            "Default", "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap",
+            "Glass", "Neon", "Terminal", "Pills", "Team Bars", "Threat Bar"
+    };
     private static final String[] COLOR_PALETTE_NAMES = {
             "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White"
     };
@@ -202,6 +206,19 @@ public class LobbyIntel extends Module {
         hudOverlay.setBorderOpacity(t[8]);
     }
 
+    // What the Intel HUD shows. Independent of the style below; every mode groups players by team.
+    public final DropdownSetting hudMode =
+            register(new DropdownSetting("HUD: Mode", 0, "Full", "Compact", "Scout", "Threats", "Auto"));
+    // Optional: give a mode its own style. "Default" = the main HUD: Style.
+    public final DropdownSetting hudStyleCompact =
+            register(new DropdownSetting("HUD: Compact Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleScout =
+            register(new DropdownSetting("HUD: Scout Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleThreats =
+            register(new DropdownSetting("HUD: Threats Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleFull =
+            register(new DropdownSetting("HUD: Full Style", 0, MODE_STYLE_OPTIONS));
+
     // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
     public final DropdownSetting hudStyle =
             register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap",
@@ -253,6 +270,11 @@ public class LobbyIntel extends Module {
         int columnIndex = columnColorChoice.getIndex();
         hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
         hudOverlay.setStyle(hudStyle.getValue());
+        hudOverlay.setMode(hudMode.getValue());
+        hudOverlay.setModeStyle("compact", hudStyleCompact.getValue());
+        hudOverlay.setModeStyle("scout", hudStyleScout.getValue());
+        hudOverlay.setModeStyle("threats", hudStyleThreats.getValue());
+        hudOverlay.setModeStyle("full", hudStyleFull.getValue());
         hudOverlay.setHeaderColorRgb(HEADER_COLORS[Math.max(0, Math.min(HEADER_COLORS.length - 1, hudHeaderColor.getIndex()))]);
     }
 
