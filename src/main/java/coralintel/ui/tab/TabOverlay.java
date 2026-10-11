@@ -208,8 +208,30 @@ public final class TabOverlay {
     // per-tick bookkeeping (snapshots, timers, ghosts)
     // ------------------------------------------------------------------------------------
 
+    /** The registered instance, so .tab info can read its state. */
+    public static TabOverlay current;
+    private volatile String lastError = "none";
+
+    public TabOverlay() {
+        current = this;
+    }
+
+    private void fail(String where, Throwable t) {
+        StackTraceElement[] st = t.getStackTrace();
+        lastError = where + ": " + t + (st.length > 0 ? " @ " + st[0] : "");
+        IntelManager.dbg("[TabOverlay] " + lastError);
+    }
+
     @EventTarget
     public void onTick(TickEvent event) {
+        try {
+            tick(event);
+        } catch (Throwable t) {
+            fail("tick", t);
+        }
+    }
+
+    private void tick(TickEvent event) {
         if (event.getType() != EventType.PRE || mc.theWorld == null || mc.thePlayer == null) return;
 
         if (mc.theWorld != lastWorld) {
@@ -782,6 +804,14 @@ public final class TabOverlay {
 
     @SubscribeEvent
     public void onRenderOverlay(RenderGameOverlayEvent.Pre event) {
+        try {
+            renderOverlay(event);
+        } catch (Throwable t) {
+            fail("render", t);
+        }
+    }
+
+    private void renderOverlay(RenderGameOverlayEvent.Pre event) {
         if (event.type != RenderGameOverlayEvent.ElementType.PLAYER_LIST) return;
         LobbyIntel li = lobbyIntel();
         if (!enabled(li) || !wasInGame || mc.theWorld == null || mc.thePlayer == null) return;
@@ -1006,5 +1036,34 @@ public final class TabOverlay {
         GlStateManager.enableTexture2D();
         GlStateManager.color(1f, 1f, 1f, 1f);
         GlStateManager.disableBlend();
+    }
+
+    /** State dump for ".tab info": why the overlay is or isn't showing. */
+    public List<String> diagnose() {
+        List<String> out = new ArrayList<>();
+        LobbyIntel li = lobbyIntel();
+        out.add("Tab Stats: " + (li != null && li.tabStats.getValue()) + ", Overlay: " + (li != null && li.tabOverlay.getValue()));
+        out.add("In game: " + wasInGame + ", pregame: " + inPregame + " (detected " + inGameCached + "/" + pregameCached + ")");
+        out.add("Tracked players: " + snaps.size() + ", in tab: " + present.size());
+        out.add("Last error: " + lastError);
+        try {
+            if (mc.theWorld != null) {
+                Scoreboard sb = mc.theWorld.getScoreboard();
+                ScoreObjective sidebar = sb.getObjectiveInDisplaySlot(1);
+                out.add("Sidebar title: " + (sidebar == null ? "none" : plain(sidebar.getDisplayName())));
+                if (sidebar != null) {
+                    int n = 0;
+                    for (Score score : sb.getSortedScores(sidebar)) {
+                        String owner = score.getPlayerName();
+                        if (owner == null || owner.startsWith("#")) continue;
+                        out.add("  | " + plain(ScorePlayerTeam.formatPlayerName(sb.getPlayersTeam(owner), owner)).trim());
+                        if (++n >= 14) break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            out.add("Sidebar read failed: " + e);
+        }
+        return out;
     }
 }

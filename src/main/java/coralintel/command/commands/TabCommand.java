@@ -42,6 +42,14 @@ public class TabCommand extends Command {
             case "status":
                 status(li);
                 return;
+            case "info":
+            case "debug":
+                if (TabOverlay.current == null) {
+                    reply("&cTab overlay isn't registered.");
+                } else {
+                    for (String line : TabOverlay.current.diagnose()) reply("&7" + line);
+                }
+                return;
             case "on":
             case "off":
                 li.tabOverlay.setValue(sub.equals("on"));
