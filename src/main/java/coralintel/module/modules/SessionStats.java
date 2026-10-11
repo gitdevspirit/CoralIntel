@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
  *  - end-of-game block  -> a win (VICTORY title / your name on the winning team) or a loss
  *
  * FKDR / BBLR / WLR are the ratios of what you gained this session, worked out
- * the same way as .daily / .monthly. Stars are worked out from the "+N Bed Wars Experience"
+ * the same way as .daily / .monthly. Stars are worked out from the "You earned N Bed Wars XP"
  * chat lines (XP gained this session on top of your starting XP), so they move live too. The "Track From Chat"
  * setting switches everything back to API differences if Hypixel ever changes
  * its chat messages.
@@ -204,7 +204,7 @@ public class SessionStats extends Module {
     // Live counters filled from chat. Everything below is guarded by lock.
     private final Object lock = new Object();
     private int cWins, cLosses, cKills, cDeaths, cFinalKills, cFinalDeaths, cBedsBroken, cBedsLost;
-    private long cXp; // Bed Wars XP gained, summed from the "+N Bed Wars Experience" chat lines
+    private long cXp; // Bed Wars XP gained, summed from the "You earned N Bed Wars XP" chat lines
     private boolean gameActive;
     private boolean sawVictory;
     private final Set<String> winners = new HashSet<>();
@@ -553,9 +553,11 @@ public class SessionStats extends Module {
     private static final Pattern WINNER_LINE = Pattern.compile(
             "^(?:Red|Blue|Green|Yellow|Aqua|White|Pink|Gray) - (?:\\[[^\\]]*\\]\\s*)?(\\w{1,16})$");
 
-    // "+25 Bed Wars Experience (Final Kill)" / "+150 Bed Wars Experience (Game Win)"
+    // The end-of-game line: "You earned 315 Bed Wars XP". It is the game's total, so it is the
+    // only XP line counted (counting per-event lines as well would add everything twice).
+    // "You earned 10,000 Bed Wars Tokens" and "420 Event Experience" deliberately don't match.
     private static final Pattern XP_PATTERN = Pattern.compile(
-            "^\\+([\\d,]+) Bed Wars Experience\\b");
+            "^You earned ([\\d,]+) Bed Wars XP\\b", Pattern.CASE_INSENSITIVE);
 
     private void trackXp(String formatted) {
         String plain = CODES.matcher(formatted).replaceAll("").trim();
@@ -1264,7 +1266,7 @@ public class SessionStats extends Module {
             g.bedsLost = diff(l.bedsLost, b.bedsLost);
         }
 
-        // Stars come from the "+N Bed Wars Experience" chat lines: the XP gained this
+        // Stars come from the "You earned N Bed Wars XP" chat lines: the XP gained this
         // session added to the XP you started with. The API difference is only the
         // fallback while no XP line has been seen yet (or Track From Chat is off).
         long xpGained;
