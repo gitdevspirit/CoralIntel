@@ -53,6 +53,7 @@ public class TabCommand extends Command {
             case "on":
             case "off":
                 li.tabOverlay.setValue(sub.equals("on"));
+                if (sub.equals("on")) li.tabStats.setValue(true);
                 reply("&7Tab overlay: " + flag(li.tabOverlay.getValue()));
                 return;
             case "size":

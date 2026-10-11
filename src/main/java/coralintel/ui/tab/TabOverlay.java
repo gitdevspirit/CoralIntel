@@ -1052,6 +1052,7 @@ public final class TabOverlay {
     public List<String> diagnose() {
         List<String> out = new ArrayList<>();
         LobbyIntel li = lobbyIntel();
+        if (li == null) out.add("LobbyIntel module not found!");
         out.add("Tab Stats: " + (li != null && li.tabStats.getValue()) + ", Overlay: " + (li != null && li.tabOverlay.getValue()));
         out.add("In game: " + wasInGame + ", pregame: " + inPregame + " (detected " + inGameCached + "/" + pregameCached + ")");
         out.add("Tracked players: " + snaps.size() + ", in tab: " + present.size());
