@@ -143,6 +143,18 @@ public class LobbyIntel extends Module {
     public final DropdownSetting columnColorChoice =
             register(new DropdownSetting("HUD: Column Color", 0, COLOR_PALETTE_NAMES));
 
+    /** Colours for the column titles (NAME / FKDR / ... in the HUD, Stars / FKDR / ... in the tab overlay). */
+    public static final String[] HEADER_COLOR_NAMES = {
+            "White", "Gray", "Pink", "Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple"
+    };
+    public static final int[] HEADER_COLORS = {
+            0xFFFFFF, 0xAAAAAA, 0xE991B8, 0xFF5555, 0xFFAA00, 0xFFFF55, 0x55FF55, 0x55FFFF, 0x5599FF, 0xAA55FF
+    };
+    public final DropdownSetting hudHeaderColor =
+            register(new DropdownSetting("HUD: Column Title Color", 0, HEADER_COLOR_NAMES));
+    public final DropdownSetting tabHeaderColor =
+            register(new DropdownSetting("Tab: Column Title Color", 0, HEADER_COLOR_NAMES));
+
     // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
     public final DropdownSetting hudStyle =
             register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap"));
@@ -190,6 +202,7 @@ public class LobbyIntel extends Module {
         int columnIndex = columnColorChoice.getIndex();
         hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
         hudOverlay.setStyle(hudStyle.getValue());
+        hudOverlay.setHeaderColorRgb(HEADER_COLORS[Math.max(0, Math.min(HEADER_COLORS.length - 1, hudHeaderColor.getIndex()))]);
     }
 
     public final BooleanProperty hudEnabled = new BooleanProperty("hud-enabled", true);

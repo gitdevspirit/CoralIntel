@@ -896,10 +896,12 @@ public final class TabOverlay {
             centered(headerLines.get(i), 0, width, i * LINE + LINE_TEXT, shadow);
         }
 
+        int titleColor = 0xFF000000 | LobbyIntel.HEADER_COLORS[
+                Math.max(0, Math.min(LobbyIntel.HEADER_COLORS.length - 1, li.tabHeaderColor.getIndex()))];
         for (Placed p : placed) {
-            centered(HEADER_COLOR + p.col.header, tableX + p.x, p.w, labelsY + ROW_TEXT, shadow);
+            centered(p.col.header, tableX + p.x, p.w, labelsY + ROW_TEXT, shadow, titleColor);
         }
-        if (anyHp) centered(HEADER_COLOR + LIST_LABEL, tableX + hpX, hpW, labelsY + ROW_TEXT, shadow);
+        if (anyHp) centered(LIST_LABEL, tableX + hpX, hpW, labelsY + ROW_TEXT, shadow, titleColor);
 
         for (int r = 0; r < rows.size(); r++) {
             Row row = rows.get(r);
@@ -930,12 +932,20 @@ public final class TabOverlay {
     }
 
     private static void text(String value, float x, float capTop, boolean shadow) {
+        text(value, x, capTop, shadow, 0xFFFFFFFF);
+    }
+
+    private static void text(String value, float x, float capTop, boolean shadow, int argb) {
         // Capitals start one pixel below the top of the font's cell.
-        mc.fontRendererObj.drawString(value, x, capTop - 1f, 0xFFFFFFFF, shadow);
+        mc.fontRendererObj.drawString(value, x, capTop - 1f, argb, shadow);
     }
 
     private static void centered(String value, float x, float w, float capTop, boolean shadow) {
         text(value, x + (w - measure(value)) / 2f, capTop, shadow);
+    }
+
+    private static void centered(String value, float x, float w, float capTop, boolean shadow, int argb) {
+        text(value, x + (w - measure(value)) / 2f, capTop, shadow, argb);
     }
 
     private static void drawHead(Snap snap, float x, float capTop) {

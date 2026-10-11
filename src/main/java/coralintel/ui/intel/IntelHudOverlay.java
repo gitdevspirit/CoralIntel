@@ -33,6 +33,7 @@ public class IntelHudOverlay {
     private int bgColorRgb = 0x07070E;
     private int borderColorRgb = 0xFFFFFF;
     private int columnColorRgb = 0xFFFFFF;
+    private int headerColorArgb = 0xFFFFFFFF;
     private static final int ACCENT = GuiColors.ACCENT;
     private static final int TEXT_BRIGHT = 0xFFDDDDEE;
     private static final int TEXT_DIM = 0xFF888899;
@@ -242,6 +243,7 @@ public class IntelHudOverlay {
     public void setBorderColorRgb(int rgb) { this.borderColorRgb = rgb & 0xFFFFFF; }
 
     public void setColumnColorRgb(int rgb) { this.columnColorRgb = rgb & 0xFFFFFF; }
+    public void setHeaderColorRgb(int rgb) { this.headerColorArgb = 0xFF000000 | (rgb & 0xFFFFFF); }
 
     public void setPlayers(List<IntelPlayer> players) {
         this.players = new ArrayList<>(players);
@@ -455,55 +457,55 @@ public class IntelHudOverlay {
 
         if (showHeads) x += HEAD_SIZE + 4;
 
-        drawText("NAME", x, headerY, 0xFFFFFFFF);
+        drawText("NAME", x, headerY, headerColorArgb);
         x += 120;
         columnBoundaries.add(x);
 
         if (showStar) {
             int headerWidth = mc.fontRendererObj.getStringWidth("✫");
-            drawText("✫", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("✫", x + (cw(35) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showLevel) {
             int headerWidth = mc.fontRendererObj.getStringWidth("LVL");
-            drawText("LVL", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("LVL", x + (cw(35) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showFkdr) {
             int headerWidth = mc.fontRendererObj.getStringWidth("FKDR");
-            drawText("FKDR", x + (cw(40) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("FKDR", x + (cw(40) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(40);
             columnBoundaries.add(x);
         }
 
         if (showWlr) {
             int headerWidth = mc.fontRendererObj.getStringWidth("WLR");
-            drawText("WLR", x + (cw(35) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("WLR", x + (cw(35) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(35);
             columnBoundaries.add(x);
         }
 
         if (showStreak) {
             int headerWidth = mc.fontRendererObj.getStringWidth("WS");
-            drawText("WS", x + (cw(30) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("WS", x + (cw(30) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(30);
             columnBoundaries.add(x);
         }
 
         if (showUrchin) {
             int headerWidth = mc.fontRendererObj.getStringWidth("TAGS");
-            drawText("TAGS", x + (urchinColWidth() - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("TAGS", x + (urchinColWidth() - headerWidth) / 2, headerY, headerColorArgb);
             x += urchinColWidth();
             columnBoundaries.add(x);
         }
 
         if (showThreat) {
             int headerWidth = mc.fontRendererObj.getStringWidth("THREAT");
-            drawText("THREAT", x + (cw(45) - headerWidth) / 2, headerY, 0xFFFFFFFF);
+            drawText("THREAT", x + (cw(45) - headerWidth) / 2, headerY, headerColorArgb);
         }
 
         // Column separator lines, spanning the content area below the header.
