@@ -84,8 +84,6 @@ public class LobbyIntel extends Module {
     public final BooleanSetting bwShowTag =
             register(new BooleanSetting("BW: Show Cheater Tag", true));
 
-    /** Bed Wars tab overlay: tags / NICK / real name get their own column instead of trailing the name. */
-    public final BooleanSetting tabTagColumn = register(new BooleanSetting("Tab: Tag Column", true));
     public final BooleanSetting tabShowTag =
             register(new BooleanSetting("Tab: Show Cheater Tag", true));
     public final BooleanSetting bordicPrimary =

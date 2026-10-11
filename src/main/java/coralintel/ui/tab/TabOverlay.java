@@ -64,15 +64,17 @@ import java.util.regex.Pattern;
 public final class TabOverlay {
     private static final Minecraft mc = Minecraft.getMinecraft();
 
-    /** Order matters: index N of a column setting maps to COLUMNS[N]; the last entry is "Off". */
+    /**
+     * Order matters: index N of a column setting maps to Col.values()[N] for 0-9, 10 is "Off" and 11 is "Tag".
+     * (Tag sits after Off so configs saved before it existed keep their "Off" slots.)
+     */
     public static final String[] COLUMN_OPTIONS = {
-            "Stars", "Name", "Winstreak", "FKDR", "Finals", "KDR", "Wins", "WLR", "Beds", "BBLR", "Off"
+            "Stars", "Name", "Winstreak", "FKDR", "Finals", "KDR", "Wins", "WLR", "Beds", "BBLR", "Off", "Tag"
     };
 
     private enum Col {
         STARS("Stars"), NAME("Name"), WS("WS"), FKDR("FKDR"), FINALS("Finals"), KDR("KDR"),
         WINS("Wins"), WLR("WLR"), BEDS("Beds"), BBLR("BBLR"),
-        /** Not selectable in the column dropdowns (index 10 there is "Off"); added by the Tag Column setting. */
         TAG("Tag");
 
         final String header;
@@ -578,30 +580,43 @@ public final class TabOverlay {
         }
     }
 
-    /** Column slots from the settings: "Off" skipped, a second Name collapses, Name added if absent. */
-    private static List<Col> columns(LobbyIntel li, boolean withTag) {
+    /** The column a dropdown index stands for, or null for "Off". */
+    private static Col colFor(int pick) {
+        if (pick >= 0 && pick <= 9) return Col.values()[pick];
+        if (pick == 11) return Col.TAG;
+        return null;
+    }
+
+    /** Column slots from the settings: "Off" skipped, a second Name or Tag collapses, Name added if absent. */
+    private static List<Col> columns(LobbyIntel li) {
         int[] picks = {
                 li.tabCol1.getIndex(), li.tabCol2.getIndex(), li.tabCol3.getIndex(),
                 li.tabCol4.getIndex(), li.tabCol5.getIndex(), li.tabCol6.getIndex()
         };
         List<Col> list = new ArrayList<>();
         boolean hasName = false;
+        boolean hasTag = false;
         for (int pick : picks) {
-            if (pick < 0 || pick >= COLUMN_OPTIONS.length - 1) continue; // "Off"
-            Col col = Col.values()[pick];
+            Col col = colFor(pick);
+            if (col == null) continue; // "Off"
             if (col == Col.NAME) {
                 if (hasName) continue;
                 hasName = true;
             }
+            if (col == Col.TAG) {
+                if (hasTag) continue;
+                hasTag = true;
+            }
             list.add(col);
         }
         if (!hasName) list.add(Col.NAME);
-        if (withTag) list.add(list.indexOf(Col.NAME) + 1, Col.TAG); // right after the name
         return list;
     }
 
-    /** True while at least one row has something for the Tag column (an empty column is not drawn). */
-    private boolean tagColumnUsed;
+    /** True when a Tag column is selected: tags then live there instead of after the name. */
+    private static boolean tagColumnOn(LobbyIntel li) {
+        return columns(li).contains(Col.TAG);
+    }
 
     // ------------------------------------------------------------------------------------
     // rows
@@ -673,14 +688,11 @@ public final class TabOverlay {
                 row.hp = score == null ? 0 : score.getScorePoints();
             }
 
-            row.tag = li.tabTagColumn.getValue() ? tagsText(li, row) : "";
+            row.tag = tagColumnOn(li) ? tagsText(li, row) : "";
             rows.add(row);
         }
 
-        boolean tagCol = li.tabTagColumn.getValue();
-        tagColumnUsed = false;
-        for (Row row : rows) tagColumnUsed = tagColumnUsed || !row.tag.isEmpty();
-        List<Col> cols = columns(li, tagCol && tagColumnUsed);
+        List<Col> cols = columns(li);
         for (Row row : rows) {
             Snap snap = row.snap;
             boolean hideStats = StreamerMode.hidesStatsFor(snap.name);
@@ -714,7 +726,7 @@ public final class TabOverlay {
         Snap snap = row.snap;
         String shownName = StreamerMode.aliasFor(snap.name);
         String text = snap.prefix + shownName + snap.suffix;
-        if (!li.tabTagColumn.getValue()) {
+        if (!tagColumnOn(li)) {
             String tags = tagsText(li, row);
             if (!tags.isEmpty()) text += " " + tags;
         }
@@ -802,7 +814,7 @@ public final class TabOverlay {
     }
 
     private void draw(LobbyIntel li, List<Row> rows, ScaledResolution sr) {
-        List<Col> cols = columns(li, li.tabTagColumn.getValue() && tagColumnUsed);
+        List<Col> cols = columns(li);
         boolean anyHp = false;
         boolean anyStatus = false;
         for (Row row : rows) {
