@@ -14,6 +14,7 @@ import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.IntelPlayer;
 import coralintel.util.ChatUtil;
 import coralintel.util.PrestigeUtil;
+import coralintel.util.SessionHistory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -186,6 +187,41 @@ public class SessionStats extends Module {
 
     public SessionStats() {
         super("SessionStats", true);
+        // Keep the running session on disk when the game is closed.
+        Runtime.getRuntime().addShutdownHook(new Thread(this::saveHistory, "CoralIntel-Session-Save"));
+    }
+
+    /** Writes this session's summary to the history file (replaces its earlier entry). */
+    private void saveHistory() {
+        try {
+            if (startedAt <= 0L) return;
+            Gained g = gained();
+            if (g.isEmpty()) return; // nothing happened, nothing to keep
+
+            SessionHistory.Record r = new SessionHistory.Record();
+            long now = System.currentTimeMillis();
+            r.id = startedAt;
+            r.endedAt = now;
+            r.durationMs = now - startedAt;
+            r.activeMs = activeMs();
+            r.avgGameMs = avgGameMs();
+            r.games = g.games;
+            r.wins = g.wins;
+            r.losses = g.losses;
+            r.kills = g.kills;
+            r.deaths = g.deaths;
+            r.finalKills = g.finalKills;
+            r.finalDeaths = g.finalDeaths;
+            r.bedsBroken = g.bedsBroken;
+            r.bedsLost = g.bedsLost;
+            r.stars = g.stars;
+            r.fkdr = g.fkdr;
+            r.bblr = g.bblr;
+            r.wlr = g.wlr;
+            SessionHistory.upsert(r);
+        } catch (Throwable ignored) {
+            // History is best-effort.
+        }
     }
 
     @Override
@@ -199,6 +235,7 @@ public class SessionStats extends Module {
 
     /** Restarts the session: counters to zero, timer to now, stars baseline re-fetched. */
     public void start(final boolean announce) {
+        saveHistory(); // keep the session that is ending before the counters are cleared
         synchronized (lock) {
             cWins = cLosses = cKills = cDeaths = 0;
             cFinalKills = cFinalDeaths = cBedsBroken = cBedsLost = 0;
@@ -714,6 +751,14 @@ public class SessionStats extends Module {
 
             if (isEnabled()) refresh(false); // stars only; Hypixel's API may need longer
         }, "CoralIntel-Session-GameEnd").start();
+        new Thread(() -> {
+            try {
+                Thread.sleep(2500L); // after the last game result has been counted
+            } catch (InterruptedException ignored) {
+                return;
+            }
+            if (isEnabled()) saveHistory();
+        }, "CoralIntel-Session-History").start();
     }
 
     /** Is this name you? Also checks your tab-list name in case you're nicked. */

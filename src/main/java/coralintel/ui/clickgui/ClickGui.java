@@ -12,6 +12,7 @@ import coralintel.module.modules.PregameMessages;
 import coralintel.module.modules.SessionStats;
 import coralintel.module.modules.SnipeMessages;
 import coralintel.module.modules.StreamerMode;
+import coralintel.module.modules.PartyDetector;
 import coralintel.property.properties.TextProperty;
 import coralintel.command.CommandManager;
 import coralintel.config.Config;
@@ -103,7 +104,7 @@ public class ClickGui extends GuiScreen {
         int secondRowX = startX;
 
         for (Module module : CoralIntel.moduleManager.modules.values()) {
-            if (module instanceof StreamerMode || module instanceof SessionStats) {
+            if (module instanceof StreamerMode || module instanceof SessionStats || module instanceof PartyDetector) {
                 panels.put(module, new PanelState(secondRowX, secondRowY));
                 secondRowX += columnGap;
                 continue;
@@ -785,12 +786,20 @@ public class ClickGui extends GuiScreen {
             rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
         }
 
+        if (module instanceof PartyDetector) {
+            PartyDetector party = (PartyDetector) module;
+            rows.add(new SectionLabelRow("SHOWN ONLY TO YOU (never sent to chat)"));
+            rows.add(new TextRow("Message ({count} {players})", party.message));
+            rows.add(new SectionLabelRow("Click a box, type, Enter to save"));
+        }
+
         if (module instanceof SessionStats) {
             rows.add(new SectionLabelRow("THIS SESSION"));
             for (String line : ((SessionStats) module).guiLines()) {
                 rows.add(new SectionLabelRow(line));
             }
             rows.add(new SectionLabelRow(".reset restarts it, .session prints it"));
+            rows.add(new SectionLabelRow(".history shows your saved sessions"));
             rows.add(new SectionLabelRow("Ctrl+click here to place the HUD"));
             rows.add(new SectionLabelRow("(or drag it in your inventory)"));
         }
