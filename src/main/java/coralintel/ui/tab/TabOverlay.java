@@ -71,7 +71,9 @@ public final class TabOverlay {
 
     private enum Col {
         STARS("Stars"), NAME("Name"), WS("WS"), FKDR("FKDR"), FINALS("Finals"), KDR("KDR"),
-        WINS("Wins"), WLR("WLR"), BEDS("Beds"), BBLR("BBLR");
+        WINS("Wins"), WLR("WLR"), BEDS("Beds"), BBLR("BBLR"),
+        /** Not selectable in the column dropdowns (index 10 there is "Off"); added by the Tag Column setting. */
+        TAG("Tag");
 
         final String header;
 
@@ -170,6 +172,7 @@ public final class TabOverlay {
         String nameText;
         Integer hp;
         String status;
+        String tag = "";
         String[] cells;
     }
 
@@ -576,7 +579,7 @@ public final class TabOverlay {
     }
 
     /** Column slots from the settings: "Off" skipped, a second Name collapses, Name added if absent. */
-    private static List<Col> columns(LobbyIntel li) {
+    private static List<Col> columns(LobbyIntel li, boolean withTag) {
         int[] picks = {
                 li.tabCol1.getIndex(), li.tabCol2.getIndex(), li.tabCol3.getIndex(),
                 li.tabCol4.getIndex(), li.tabCol5.getIndex(), li.tabCol6.getIndex()
@@ -584,7 +587,7 @@ public final class TabOverlay {
         List<Col> list = new ArrayList<>();
         boolean hasName = false;
         for (int pick : picks) {
-            if (pick < 0 || pick >= Col.values().length) continue; // "Off"
+            if (pick < 0 || pick >= COLUMN_OPTIONS.length - 1) continue; // "Off"
             Col col = Col.values()[pick];
             if (col == Col.NAME) {
                 if (hasName) continue;
@@ -593,8 +596,12 @@ public final class TabOverlay {
             list.add(col);
         }
         if (!hasName) list.add(Col.NAME);
+        if (withTag) list.add(list.indexOf(Col.NAME) + 1, Col.TAG); // right after the name
         return list;
     }
+
+    /** True while at least one row has something for the Tag column (an empty column is not drawn). */
+    private boolean tagColumnUsed;
 
     // ------------------------------------------------------------------------------------
     // rows
@@ -644,7 +651,6 @@ public final class TabOverlay {
 
         Scoreboard sb = mc.theWorld.getScoreboard();
         ScoreObjective listObjective = sb.getObjectiveInDisplaySlot(0);
-        List<Col> cols = columns(li);
         String ownTeam = ownTeamColor();
 
         List<Row> rows = new ArrayList<>();
@@ -667,6 +673,16 @@ public final class TabOverlay {
                 row.hp = score == null ? 0 : score.getScorePoints();
             }
 
+            row.tag = li.tabTagColumn.getValue() ? tagsText(li, row) : "";
+            rows.add(row);
+        }
+
+        boolean tagCol = li.tabTagColumn.getValue();
+        tagColumnUsed = false;
+        for (Row row : rows) tagColumnUsed = tagColumnUsed || !row.tag.isEmpty();
+        List<Col> cols = columns(li, tagCol && tagColumnUsed);
+        for (Row row : rows) {
+            Snap snap = row.snap;
             boolean hideStats = StreamerMode.hidesStatsFor(snap.name);
             boolean gray = li.tabGrayOwnTeam.getValue() && ownTeam != null && ownTeam.equals(teamColorOf(snap.prefix));
             row.cells = new String[cols.size()];
@@ -674,12 +690,13 @@ public final class TabOverlay {
                 Col col = cols.get(i);
                 if (col == Col.NAME) {
                     row.cells[i] = nameText(li, row);
+                } else if (col == Col.TAG) {
+                    row.cells[i] = row.tag;
                 } else {
                     String value = cell(col, row.stats, hideStats);
                     row.cells[i] = gray ? "§8" + plain(value) : value;
                 }
             }
-            rows.add(row);
         }
         return rows;
     }
@@ -692,12 +709,22 @@ public final class TabOverlay {
         return color.isEmpty() ? null : color;
     }
 
+    /** The name cell: team prefix, name, suffix, and (when there is no Tag column) the tags after it. */
     private String nameText(LobbyIntel li, Row row) {
         Snap snap = row.snap;
         String shownName = StreamerMode.aliasFor(snap.name);
-        StringBuilder text = new StringBuilder();
-        text.append(snap.prefix).append(shownName).append(snap.suffix);
+        String text = snap.prefix + shownName + snap.suffix;
+        if (!li.tabTagColumn.getValue()) {
+            String tags = tagsText(li, row);
+            if (!tags.isEmpty()) text += " " + tags;
+        }
+        return text;
+    }
 
+    /** [NICK], the denicked real name and every tag badge, space separated ("" when there are none). */
+    private String tagsText(LobbyIntel li, Row row) {
+        Snap snap = row.snap;
+        StringBuilder text = new StringBuilder();
         IntelPlayer p = row.stats;
         if (p != null && !p.loading && !StreamerMode.hidesTagsFor(snap.name)) {
             if (row.nicked != null) {
@@ -729,7 +756,7 @@ public final class TabOverlay {
                 }
             }
         }
-        return text.toString();
+        return text.toString().trim();
     }
 
     // ------------------------------------------------------------------------------------
@@ -775,7 +802,7 @@ public final class TabOverlay {
     }
 
     private void draw(LobbyIntel li, List<Row> rows, ScaledResolution sr) {
-        List<Col> cols = columns(li);
+        List<Col> cols = columns(li, li.tabTagColumn.getValue() && tagColumnUsed);
         boolean anyHp = false;
         boolean anyStatus = false;
         for (Row row : rows) {
