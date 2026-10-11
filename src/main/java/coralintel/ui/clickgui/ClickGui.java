@@ -80,6 +80,11 @@ public class ClickGui extends GuiScreen {
         float dragOffX, dragOffY;
         int scrollOffset = 0;
         int maxScroll = 0;
+        /** Height drawn last frame (header + settings), used to stack the second row under the first. */
+        int lastHeight = HEADER_H;
+        /** Second-row panels follow the first-row panel above them until the user drags them. */
+        PanelState above;
+        boolean userMoved;
 
         PanelState(float x, float y) {
             this.x = x;
@@ -103,16 +108,23 @@ public class ClickGui extends GuiScreen {
         int secondRowY = startY + HEADER_H + 16;
         int secondRowX = startX;
 
+        java.util.List<PanelState> firstRow = new ArrayList<>();
+        java.util.List<PanelState> secondRow = new ArrayList<>();
+
         for (Module module : CoralIntel.moduleManager.modules.values()) {
             if (module instanceof StreamerMode || module instanceof SessionStats || module instanceof PartyDetector) {
-                panels.put(module, new PanelState(secondRowX, secondRowY));
+                PanelState st = new PanelState(secondRowX, secondRowY);
+                panels.put(module, st);
+                secondRow.add(st);
                 secondRowX += columnGap;
                 continue;
             }
 
             // Pregame + snipe messages share one "Chat" panel (built in chatRows()).
             if (module instanceof PregameMessages) {
-                panels.put(CHAT, new PanelState(startX, startY));
+                PanelState st = new PanelState(startX, startY);
+                panels.put(CHAT, st);
+                firstRow.add(st);
                 startX += columnGap;
                 continue;
             }
@@ -120,12 +132,26 @@ public class ClickGui extends GuiScreen {
                 continue;
             }
 
-            panels.put(module, new PanelState(startX, startY));
+            PanelState st = new PanelState(startX, startY);
+            panels.put(module, st);
+            firstRow.add(st);
             startX += columnGap;
         }
 
-        panels.put(BLACKLIST_SAFELIST, new PanelState(startX, startY));
-        panels.put(REMINDERS, new PanelState(secondRowX, secondRowY));
+        // Blacklist/Safelist and Reminders sit on the second row too.
+        PanelState lists = new PanelState(secondRowX, secondRowY);
+        panels.put(BLACKLIST_SAFELIST, lists);
+        secondRow.add(lists);
+        secondRowX += columnGap;
+        PanelState reminders = new PanelState(secondRowX, secondRowY);
+        panels.put(REMINDERS, reminders);
+        secondRow.add(reminders);
+
+        // Second-row panel k sits in the same column as first-row panel k, so when that one opens
+        // (and grows taller) the one below it is pushed down instead of being covered.
+        for (int i = 0; i < secondRow.size(); i++) {
+            if (i < firstRow.size()) secondRow.get(i).above = firstRow.get(i);
+        }
     }
 
     @Override
@@ -884,16 +910,24 @@ public class ClickGui extends GuiScreen {
         int animX = (int) (width / 2f + (mouseX - width / 2f) / scale);
         int animY = (int) (height / 2f + (mouseY - height / 2f) / scale);
 
-        for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
-            drawPanel(entry.getKey(), entry.getValue(), animX, animY);
-        }
-
-        // The session HUD is shown here too, on top of the panels, so it can be placed by eye.
+        // The session HUD is shown here too so it can be placed by eye - drawn first, so it sits
+        // BEHIND every panel.
         SessionStats session = sessionStats();
         if (session != null) {
             session.setPlacing(isCtrlKeyDown());
             session.drawHud(false, mouseX, mouseY);
             session.setPlacing(false);
+        }
+
+        // Stack the second row under the first-row panel above it (it moves down when that one opens).
+        for (PanelState st : panels.values()) {
+            if (st.above != null && !st.userMoved) {
+                st.y = st.above.y + st.above.lastHeight + 16;
+            }
+        }
+
+        for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
+            drawPanel(entry.getKey(), entry.getValue(), animX, animY);
         }
         net.minecraft.client.renderer.GlStateManager.popMatrix();
 
@@ -920,6 +954,7 @@ public class ClickGui extends GuiScreen {
         state.scrollOffset = Math.max(0, Math.min(state.scrollOffset, state.maxScroll));
 
         int panelH = HEADER_H + (state.collapsed ? 0 : visibleContentHeight + PAD);
+        state.lastHeight = panelH;
 
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, panelH, 5, BG_PANEL);
         RoundedUtils.drawRoundedRect(x, y, PANEL_W, HEADER_H, 5, BG_HEADER);
@@ -1005,6 +1040,17 @@ public class ClickGui extends GuiScreen {
             }
         }
 
+        // Right click a panel header: open / close its settings.
+        if (button == 1) {
+            for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
+                PanelState state = entry.getValue();
+                if (hit(mouseX, mouseY, (int) state.x, (int) state.y, PANEL_W, HEADER_H)) {
+                    state.collapsed = !state.collapsed;
+                    return;
+                }
+            }
+        }
+
         if (button == 0) {
             for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
                 PanelState state = entry.getValue();
@@ -1085,6 +1131,7 @@ public class ClickGui extends GuiScreen {
             if (state.dragging) {
                 state.x = mouseX - state.dragOffX;
                 state.y = mouseY - state.dragOffY;
+                state.userMoved = true;
             }
         }
     }
