@@ -111,6 +111,9 @@ public class SessionStats extends Module {
 
     public final BooleanSetting showHud =
             register(new BooleanSetting("Show HUD", true));
+    // Right-aligned HUD: text lines up on the right and the box's right edge stays put.
+    public final BooleanSetting alignRight =
+            register(new BooleanSetting("Align Right", false));
     public final BooleanSetting hudBackground =
             register(new BooleanSetting("HUD Background", true));
     // Line order for the HUD: lowest number goes on top (ties keep the default order).
@@ -1021,12 +1024,18 @@ public class SessionStats extends Module {
         int h = lines.size() * lineH - 2 + pad * 2;
 
         ScaledResolution sr = new ScaledResolution(mc);
-        int x = clamp((int) hudX.getValue(), 0, Math.max(0, sr.getScaledWidth() - w));
+        // Right-aligned: HUD X is the box's RIGHT edge, so it grows leftwards as lines change.
+        int wantX = alignRight.getValue() ? (int) hudX.getValue() - w : (int) hudX.getValue();
+        int x = clamp(wantX, 0, Math.max(0, sr.getScaledWidth() - w));
         int y = clamp((int) hudY.getValue(), 0, Math.max(0, sr.getScaledHeight() - h));
 
         if (hudBackground.getValue()) {
             Gui.drawRect(x, y, x + w, y + h, 0x90000000);
-            Gui.drawRect(x, y, x + 1, y + h, 0xFF55FFFF);
+            if (alignRight.getValue()) {
+                Gui.drawRect(x + w - 1, y, x + w, y + h, 0xFF55FFFF);
+            } else {
+                Gui.drawRect(x, y, x + 1, y + h, 0xFF55FFFF);
+            }
         }
 
         if (placing && !inventory) {
@@ -1038,7 +1047,9 @@ public class SessionStats extends Module {
         }
 
         for (int i = 0; i < lines.size(); i++) {
-            font.drawStringWithShadow(lines.get(i), x + pad, y + pad + i * lineH, 0xFFFFFFFF);
+            String text = lines.get(i);
+            int tx = alignRight.getValue() ? x + w - pad - font.getStringWidth(text) : x + pad;
+            font.drawStringWithShadow(text, tx, y + pad + i * lineH, 0xFFFFFFFF);
         }
 
         boxX = x;
@@ -1050,7 +1061,7 @@ public class SessionStats extends Module {
 
         int bw = font.getStringWidth(RESET_LABEL) + 8;
         int bh = font.FONT_HEIGHT + 4;
-        int bx = x;
+        int bx = alignRight.getValue() ? x + w - bw : x;
         int by = y + h + 3;
         if (by + bh > sr.getScaledHeight()) {
             by = y - bh - 3; // no room underneath, put it above the box
@@ -1118,7 +1129,8 @@ public class SessionStats extends Module {
     /** Mouse moved with the button held. @return true while a drag is in progress. */
     public boolean onInventoryDrag(int mx, int my) {
         if (!dragging) return false;
-        hudX.setValue(mx - dragOffX);
+        int left = mx - dragOffX;
+        hudX.setValue(alignRight.getValue() ? left + boxW : left); // right mode stores the right edge
         hudY.setValue(my - dragOffY);
         return true;
     }
