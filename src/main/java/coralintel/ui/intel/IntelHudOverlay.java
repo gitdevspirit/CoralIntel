@@ -61,8 +61,11 @@ public class IntelHudOverlay {
      * Styles only change how the panel looks — the columns, stats and players are identical.
      */
     private String style = "classic";
-    /** "full", "compact", "scout", "threats" or "auto" - which columns / players show (see applyMode()). */
+    /** "full", "compact", "scout", "threats", "enemies", "teammates", "sweats" or "auto" (see applyMode()). */
     private String mode = "full";
+    /** What "auto" uses before teams exist and once the game has started. */
+    private String autoPregame = "scout";
+    private String autoGame = "full";
     /** Optional per-mode style ("" = use the main style): compact, scout, threats, full. */
     private final java.util.Map<String, String> modeStyles = new java.util.HashMap<>();
     private static final int TEAM_GAP = 3;
@@ -141,6 +144,11 @@ public class IntelHudOverlay {
 
     public String getMode() {
         return mode;
+    }
+
+    public void setAutoModes(String pregame, String game) {
+        this.autoPregame = pregame == null ? "scout" : pregame.toLowerCase(java.util.Locale.ROOT);
+        this.autoGame = game == null ? "full" : game.toLowerCase(java.util.Locale.ROOT);
     }
 
     /** Style used only while that mode is showing; null or "default" = the main style. */
@@ -475,13 +483,23 @@ public class IntelHudOverlay {
         }
     }
 
-    /** "auto" resolves to scout before teams exist (who to watch) and full once the game has teams. */
+    /** "auto" resolves to the pregame mode before teams exist and the in-game mode once they do. */
     private String effectiveMode(List<IntelPlayer> list) {
         if (!mode.equals("auto")) return mode;
         for (IntelPlayer p : list) {
-            if (p.team != null && !p.team.isEmpty()) return "full";
+            if (p.team != null && !p.team.isEmpty()) return autoGame;
         }
-        return "scout";
+        return autoPregame;
+    }
+
+    /** Your own team's name (as the HUD stores it), or null before teams are assigned. */
+    private String ownTeamName(List<IntelPlayer> list) {
+        String me = mc.thePlayer == null ? null : mc.thePlayer.getName();
+        if (me == null) return null;
+        for (IntelPlayer p : list) {
+            if (p.name.equalsIgnoreCase(me) && p.team != null && !p.team.isEmpty()) return p.team;
+        }
+        return null;
     }
 
     /** Applies the HUD mode: which columns show, and which players (always still grouped by team). */
@@ -512,6 +530,44 @@ public class IntelHudOverlay {
                 for (IntelPlayer p : list) {
                     boolean flagged = p.blacklisted || p.isNicked || (p.cheater && !p.safelisted);
                     if (flagged || (!p.safelisted && p.threatScore >= 50)) out.add(p);
+                }
+                return out;
+            }
+
+            case "enemies": {
+                // Everyone not on your team (before teams exist this is everyone but you).
+                showStar = true; showFkdr = true; showWlr = true; showThreat = true; showUrchin = true;
+                showLevel = false; showStreak = false;
+                String mine = ownTeamName(list);
+                String me = mc.thePlayer == null ? "" : mc.thePlayer.getName();
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) {
+                    if (mine != null ? mine.equalsIgnoreCase(p.team) : p.name.equalsIgnoreCase(me)) continue;
+                    out.add(p);
+                }
+                return out;
+            }
+
+            case "teammates": {
+                showStar = true; showFkdr = true; showWlr = true; showStreak = true;
+                showLevel = false; showThreat = false; showUrchin = false;
+                String mine = ownTeamName(list);
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) {
+                    if (mine != null && mine.equalsIgnoreCase(p.team)) out.add(p);
+                }
+                return out;
+            }
+
+            case "sweats": {
+                // Strong players only: high FKDR or a high threat score, safelisted players left out.
+                showStar = true; showFkdr = true; showWlr = true; showStreak = true; showThreat = true;
+                showLevel = false; showUrchin = true;
+                List<IntelPlayer> out = new ArrayList<>();
+                for (IntelPlayer p : list) {
+                    IntelPlayer st = statsOf(p);
+                    if (st.loading || p.safelisted) continue;
+                    if (st.fkdr >= 3.0 || p.threatScore >= 60) out.add(p);
                 }
                 return out;
             }

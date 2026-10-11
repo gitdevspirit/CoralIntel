@@ -131,13 +131,13 @@ public class LobbyIntel extends Module {
             "Glass", "Neon", "Terminal", "Pills", "Team Bars", "Threat Bar"
     };
     private static final String[] COLOR_PALETTE_NAMES = {
-            "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White"
+            "Default", "Black", "Dark Blue", "Pink", "Red", "Green", "Purple", "White", "Orange"
     };
     private static final int[] COLOR_PALETTE_BG = {
-            0x07070E, 0x000000, 0x0A0A2A, 0x2A0A1A, 0x2A0A0A, 0x0A2A0F, 0x1A0A2A, 0x1A1A1A
+            0x07070E, 0x000000, 0x0A0A2A, 0x2A0A1A, 0x2A0A0A, 0x0A2A0F, 0x1A0A2A, 0x1A1A1A, 0x2A1A06
     };
     private static final int[] COLOR_PALETTE_ACCENT = {
-            0xFFFFFF, 0x000000, 0x4488FF, 0xE991B8, 0xFF5555, 0x55FF55, 0xAA55FF, 0xFFFFFF
+            0xFFFFFF, 0x000000, 0x4488FF, 0xE991B8, 0xFF5555, 0x55FF55, 0xAA55FF, 0xFFFFFF, 0xFFAA00
     };
 
     public final DropdownSetting bgColorChoice =
@@ -207,17 +207,36 @@ public class LobbyIntel extends Module {
     }
 
     // What the Intel HUD shows. Independent of the style below; every mode groups players by team.
+    //  Full      every column, everyone           Compact   star + FKDR only
+    //  Scout     top threats, key columns         Threats   flagged / dangerous players only
+    //  Enemies   everyone except your team        Teammates only your team
+    //  Sweats    players with strong stats        Auto      switches between the two modes picked below
+    public static final String[] HUD_MODES =
+            {"Full", "Compact", "Scout", "Threats", "Enemies", "Teammates", "Sweats", "Auto"};
     public final DropdownSetting hudMode =
-            register(new DropdownSetting("HUD: Mode", 0, "Full", "Compact", "Scout", "Threats", "Auto"));
+            register(new DropdownSetting("HUD: Mode", 0, HUD_MODES));
+    // Auto mode: the mode used before teams exist (pregame) and the one used once the game has started.
+    // Neither changes unless you change it here.
+    public static final String[] AUTO_MODES = {"Full", "Compact", "Scout", "Threats", "Enemies", "Teammates", "Sweats"};
+    public final DropdownSetting hudAutoPregame =
+            register(new DropdownSetting("HUD: Auto Pregame Mode", 2, AUTO_MODES));
+    public final DropdownSetting hudAutoGame =
+            register(new DropdownSetting("HUD: Auto In-Game Mode", 0, AUTO_MODES));
     // Optional: give a mode its own style. "Default" = the main HUD: Style.
+    public final DropdownSetting hudStyleFull =
+            register(new DropdownSetting("HUD: Full Style", 0, MODE_STYLE_OPTIONS));
     public final DropdownSetting hudStyleCompact =
             register(new DropdownSetting("HUD: Compact Style", 0, MODE_STYLE_OPTIONS));
     public final DropdownSetting hudStyleScout =
             register(new DropdownSetting("HUD: Scout Style", 0, MODE_STYLE_OPTIONS));
     public final DropdownSetting hudStyleThreats =
             register(new DropdownSetting("HUD: Threats Style", 0, MODE_STYLE_OPTIONS));
-    public final DropdownSetting hudStyleFull =
-            register(new DropdownSetting("HUD: Full Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleEnemies =
+            register(new DropdownSetting("HUD: Enemies Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleTeammates =
+            register(new DropdownSetting("HUD: Teammates Style", 0, MODE_STYLE_OPTIONS));
+    public final DropdownSetting hudStyleSweats =
+            register(new DropdownSetting("HUD: Sweats Style", 0, MODE_STYLE_OPTIONS));
 
     // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
     public final DropdownSetting hudStyle =
@@ -241,6 +260,9 @@ public class LobbyIntel extends Module {
             register(new coralintel.module.SliderSetting("Tab: Overlay Size %", 75, 50, 150, 5));
     public final coralintel.module.SliderSetting tabOverlayBgOpacity =
             register(new coralintel.module.SliderSetting("Tab: Overlay Background Opacity %", 50, 0, 100, 5));
+    /** Space between the overlay's columns, like the HUD's column width (100 = default). */
+    public final coralintel.module.SliderSetting tabColumnWidth =
+            register(new coralintel.module.SliderSetting("Tab: Column Width %", 100, 100, 200, 5));
     public final BooleanSetting tabOverlayShadow =
             register(new BooleanSetting("Tab: Overlay Text Shadow", true));
     public final BooleanSetting tabGrayOwnTeam =
@@ -271,10 +293,14 @@ public class LobbyIntel extends Module {
         hudOverlay.setColumnColorRgb(COLOR_PALETTE_ACCENT[columnIndex]);
         hudOverlay.setStyle(hudStyle.getValue());
         hudOverlay.setMode(hudMode.getValue());
+        hudOverlay.setAutoModes(hudAutoPregame.getValue(), hudAutoGame.getValue());
+        hudOverlay.setModeStyle("full", hudStyleFull.getValue());
         hudOverlay.setModeStyle("compact", hudStyleCompact.getValue());
         hudOverlay.setModeStyle("scout", hudStyleScout.getValue());
         hudOverlay.setModeStyle("threats", hudStyleThreats.getValue());
-        hudOverlay.setModeStyle("full", hudStyleFull.getValue());
+        hudOverlay.setModeStyle("enemies", hudStyleEnemies.getValue());
+        hudOverlay.setModeStyle("teammates", hudStyleTeammates.getValue());
+        hudOverlay.setModeStyle("sweats", hudStyleSweats.getValue());
         hudOverlay.setHeaderColorRgb(HEADER_COLORS[Math.max(0, Math.min(HEADER_COLORS.length - 1, hudHeaderColor.getIndex()))]);
     }
 

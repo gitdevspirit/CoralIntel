@@ -887,6 +887,8 @@ public class ClickGui extends GuiScreen {
     // ── Rendering ────────────────────────────────────────────────────────────
 
     private long openedAt;
+    /** How far the whole GUI has been scrolled up (0 = top); panels' y positions already include it. */
+    private float pageScroll;
 
     @Override
     public void initGui() {
@@ -1147,9 +1149,10 @@ public class ClickGui extends GuiScreen {
         int scaledMouseX = Mouse.getEventX() * width / mc.displayWidth;
         int scaledMouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
 
+        // 1) a panel whose settings list overflows scrolls itself while the cursor is over it.
         for (Map.Entry<Object, PanelState> entry : panels.entrySet()) {
             PanelState state = entry.getValue();
-            if (state.collapsed) continue;
+            if (state.collapsed || state.maxScroll <= 0) continue;
 
             int x = (int) state.x;
             int y = (int) state.y;
@@ -1159,8 +1162,19 @@ public class ClickGui extends GuiScreen {
             if (scaledMouseX >= x && scaledMouseX < x + PANEL_W && scaledMouseY >= y && scaledMouseY < panelBottom) {
                 state.scrollOffset -= scroll > 0 ? 20 : -20;
                 state.scrollOffset = Math.max(0, Math.min(state.scrollOffset, state.maxScroll));
-                break;
+                return;
             }
+        }
+
+        // 2) anywhere else the whole GUI scrolls, so panels below the bottom of the screen can be reached.
+        float bottom = 0f;
+        for (PanelState st : panels.values()) bottom = Math.max(bottom, st.y + st.lastHeight);
+        float limit = Math.max(0f, bottom - pageScroll + 24f - height); // how far the page can move up
+        float target = Math.max(-limit, Math.min(0f, pageScroll + (scroll > 0 ? 30f : -30f)));
+        float delta = target - pageScroll;
+        if (delta != 0f) {
+            for (PanelState st : panels.values()) st.y += delta;
+            pageScroll = target;
         }
     }
 

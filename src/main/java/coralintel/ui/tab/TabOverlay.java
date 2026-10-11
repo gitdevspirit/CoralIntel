@@ -823,6 +823,11 @@ public final class TabOverlay {
         }
 
         // ---- column layout ----
+        // Tab: Column Width % (like the HUD's): 100 = default; more spreads the columns out.
+        float colScale = (float) li.tabColumnWidth.getValue() / 100f;
+        float gap = GAP * colScale;
+        float nameGap = NAME_GAP * colScale;
+        float colPad = (colScale - 1f) * 12f;
         float x = PAD;
         List<Placed> placed = new ArrayList<>();
         for (int c = 0; c < cols.size(); c++) {
@@ -832,10 +837,12 @@ public final class TabOverlay {
                 float widest = 0f;
                 for (Row row : rows) widest = Math.max(widest, measure(row.cells[c]));
                 width = Math.max(width, HEAD + HEAD_GAP + widest + NAME_TAIL);
-                if (c > 0) x += NAME_GAP;
+                width += colPad;
+                if (c > 0) x += nameGap;
             } else {
                 for (Row row : rows) width = Math.max(width, measure(row.cells[c]));
-                if (c > 0) x += GAP;
+                width += colPad;
+                if (c > 0) x += gap;
             }
             Placed p = new Placed();
             p.x = x;
@@ -849,14 +856,14 @@ public final class TabOverlay {
         if (anyHp) {
             hpW = measure(LIST_LABEL);
             for (Row row : rows) if (row.hp != null) hpW = Math.max(hpW, measure(hpText(row.hp)));
-            x += GAP;
+            x += gap;
             hpX = x;
             x += hpW;
         }
         float statusX = 0f, statusW = 0f;
         if (anyStatus) {
             for (Row row : rows) if (row.status != null) statusW = Math.max(statusW, measure(row.status));
-            x += GAP;
+            x += gap;
             statusX = x;
             x += statusW;
         }
