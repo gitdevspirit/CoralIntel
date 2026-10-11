@@ -55,7 +55,8 @@ public class IntelHudOverlay {
     private boolean showTeamColor = true;
     private String sortMode = "threat";
     /**
-     * Visual style: "classic", "minimal", "striped", "cards", "outline" or "heatmap".
+     * Visual style: "classic", "minimal", "striped", "cards", "outline", "heatmap", "glass", "neon", "terminal",
+     * "pills", "teambars" or "threatbar".
      * Styles only change how the panel looks — the columns, stats and players are identical.
      */
     private String style = "classic";
@@ -124,7 +125,7 @@ public class IntelHudOverlay {
     }
 
     public void setStyle(String style) {
-        this.style = style == null ? "classic" : style.toLowerCase(java.util.Locale.ROOT);
+        this.style = style == null ? "classic" : style.toLowerCase(java.util.Locale.ROOT).replace(" ", "");
     }
 
     public String getStyle() {
@@ -592,7 +593,48 @@ public class IntelHudOverlay {
                 break;
             }
 
+            case "glass": {
+                // Frosted look: very see-through panel, bright hairline on top, soft white frame.
+                RoundedUtils.drawRoundedRect(x, y, width, totalHeight, BORDER_RADIUS,
+                        (Math.min(bgOpacity, 110) << 24) | bgColorRgb);
+                RoundedUtils.drawRoundedRect(x, y, width, HEADER_HEIGHT, BORDER_RADIUS, 0x22FFFFFF);
+                RoundedUtils.drawRoundedOutline(x, y, width, totalHeight, BORDER_RADIUS, 1.0f, 0x55FFFFFF);
+                fillRect(x + 4, y + 1, width - 8, 1, 0x66FFFFFF);
+                fillRect(x + 2, y + HEADER_HEIGHT, width - 4, 1, 0x33FFFFFF);
+                break;
+            }
+
+            case "neon": {
+                // Dark panel with a glowing double frame in the border colour.
+                RoundedUtils.drawRoundedRect(x, y, width, totalHeight, BORDER_RADIUS,
+                        (Math.max(bgOpacity, 200) << 24) | (bgColorRgb & 0x0F0F0F));
+                RoundedUtils.drawRoundedOutline(x - 1, y - 1, width + 2, totalHeight + 2, BORDER_RADIUS + 1, 3.0f,
+                        (60 << 24) | borderColorRgb);
+                RoundedUtils.drawRoundedOutline(x, y, width, totalHeight, BORDER_RADIUS, 1.5f,
+                        0xFF000000 | borderColorRgb);
+                fillRect(x + 2, y + HEADER_HEIGHT, width - 4, 1, 0xFF000000 | borderColorRgb);
+                break;
+            }
+
+            case "terminal": {
+                // Square, near-opaque black with a green frame and a darker header strip.
+                fillRect(x, y, width, totalHeight, (Math.max(bgOpacity, 235) << 24) | 0x020A04);
+                fillRect(x, y, width, HEADER_HEIGHT, 0xFF06180B);
+                drawSquareOutline(x, y, width, totalHeight, 0xFF2BD65A);
+                fillRect(x, y + HEADER_HEIGHT, width, 1, 0xAA2BD65A);
+                break;
+            }
+
+            case "pills": {
+                // Only the header gets a box; every row is its own pill (see drawRowBackground).
+                RoundedUtils.drawRoundedRect(x, y, width, HEADER_HEIGHT, BORDER_RADIUS, bg);
+                RoundedUtils.drawRoundedOutline(x, y, width, HEADER_HEIGHT, BORDER_RADIUS, 1.0f, border);
+                break;
+            }
+
             case "heatmap":
+            case "teambars":
+            case "threatbar":
             case "classic":
             default:
                 RoundedUtils.drawRoundedRect(x, y, width, totalHeight, BORDER_RADIUS, bg);
@@ -636,6 +678,30 @@ public class IntelHudOverlay {
                             (columnLineOpacity << 24) | columnColorRgb);
                 }
                 break;
+
+            case "terminal":
+                if (index % 2 == 1) fillRect(x + 1, y, width - 2, LINE_HEIGHT, 0x1A2BD65A);
+                break;
+
+            case "pills":
+                RoundedUtils.drawRoundedRect(x + 1, y, width - 2, LINE_HEIGHT - 1, 3, (bgOpacity << 24) | bgColorRgb);
+                RoundedUtils.drawRoundedOutline(x + 1, y, width - 2, LINE_HEIGHT - 1, 3, 1.0f,
+                        (borderOpacity << 24) | borderColorRgb);
+                break;
+
+            case "teambars": {
+                int tc = player.team != null && !player.team.isEmpty() ? getTeamColor(player.team) & 0xFFFFFF : 0xAAAAAA;
+                fillRect(x + 2, y + 1, 2, LINE_HEIGHT - 2, 0xFF000000 | tc);
+                fillRect(x + 4, y, width - 6, LINE_HEIGHT, (26 << 24) | tc);
+                break;
+            }
+
+            case "threatbar": {
+                IntelPlayer st = statsOf(player);
+                int tc = st.loading ? 0x777777 : getThreatColor((int) st.threatScore) & 0xFFFFFF;
+                fillRect(x + 2, y + 1, 2, LINE_HEIGHT - 2, 0xFF000000 | tc);
+                break;
+            }
 
             case "heatmap":
                 IntelPlayer shown = statsOf(player);

@@ -157,7 +157,8 @@ public class LobbyIntel extends Module {
 
     // Visual style of the Intel HUD. Same columns and stats in every style; players are always grouped by team.
     public final DropdownSetting hudStyle =
-            register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap"));
+            register(new DropdownSetting("HUD: Style", 0, "Classic", "Minimal", "Striped", "Cards", "Outline", "Heatmap",
+                    "Glass", "Neon", "Terminal", "Pills", "Team Bars", "Threat Bar"));
 
     /** Public so the tab mixin (different package) can read it directly. */
     public static final int[] TAB_BG_PALETTE = COLOR_PALETTE_BG;
