@@ -8,6 +8,7 @@ import coralintel.module.BooleanSetting;
 import coralintel.module.Module;
 import coralintel.module.SliderSetting;
 import coralintel.ui.intel.BlacklistManager;
+import coralintel.ui.intel.CheatSuspicion;
 import coralintel.ui.intel.IntelManager;
 import coralintel.util.ChatUtil;
 import coralintel.util.SoundUtil;
@@ -410,6 +411,7 @@ public class AntiCheat extends Module {
 
         int color = 0xFFFF6644;
         IntelManager.getInstance().addRecentFlag(name, "AC: " + check + " (VL " + vl + ")", color);
+        CheatSuspicion.recordFlag(name, check); // feeds the cheater detection engine
 
         // Auto-blacklist once a check is confirmed well past its alert
         // threshold — a much higher bar than the alert itself, meant to
