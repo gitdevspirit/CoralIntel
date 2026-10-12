@@ -24,6 +24,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Denick (Bedlify)** – shows who is likely behind a nicked player, in the tab list and in chat, using the [Bedlify API](https://api.bedlify.xyz/docs). Needs your own free key. See [Denick](#denick-bedlify).
 - **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
 - **Shop auto middle-click** – optional setting (LobbyIntel: *Shop: Auto Middle-Click (Quick Buy)*): in the Bed Wars shop's category pages (Blocks, Melee, Armor, Tools, Ranged, Potions, Utility) a left click buys the item and also sends the middle click, so it is added to Quick Buy without a second click. Off by default.
+- **Scripting (Lua)** – drop small `.lua` scripts into `config/CoralIntel/scripts/` to add your own commands, modules (with toggle / slider / text settings in the ClickGUI), chat alerts and HUD text, without rebuilding the client. Sandboxed: scripts can't send chat to the server or touch your files, and a broken script is disabled on its own. See [Scripting](#scripting-lua).
 - **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Control).
 
@@ -136,6 +137,7 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | --- | --- | --- |
 | `.c <s\|l\|list\|help> [name]` | `.config` | Save / load a config, or list all commands |
 | `.clickgui` | `.cgui` | Open the ClickGUI |
+| `.scripts` / `reload` / `enable <name>` / `disable <name>` | | List, reload, enable or disable Lua scripts. See [Scripting](#scripting-lua) |
 | `.bw <ign>` | `.bwstats` | One-off Bedwars stat lookup (fields are configurable in LobbyIntel settings) |
 | `.daily [ign]` | | Bedwars stats from the last 24 hours (no name = everyone in the lobby) |
 | `.monthly [ign]` | | Bedwars stats from the last 30 days (no name = everyone in the lobby) |
@@ -162,6 +164,240 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.bind <hud\|gui\|clickgui\|tag\|ac> <key>` / `list` | | Rebind CoralIntel keys |
 | `.role list\|set\|remove\|check` | | Manage player roles |
 | `.inteldebug <name>` / `log` / `clear` | `.idebug` | Debug the stats fetch |
+
+## Scripting (Lua)
+
+Write small scripts without editing or rebuilding the client. Scripts are plain Lua 5.1 files (run by [LuaJ](https://github.com/luaj/luaj), built into the mod) in:
+
+```
+.minecraft/config/CoralIntel/scripts/*.lua
+```
+
+They load when the game starts and again on `.scripts reload` (or the **Reload** button in the ClickGUI's **Scripts** panel). A script's name is its file name without `.lua` (letters, digits, `_` and `-`).
+
+On the very first run three example scripts are copied into the folder, **switched off**: `gg_reminder`, `fkdr_alert` and `game_recap` (their source is in `src/main/resources/coralintel/scripts/`). Turn on the ones you want in the Scripts panel or with `.scripts enable <name>`.
+
+| Command | Description |
+| --- | --- |
+| `.scripts` | List every script with its status (running / disabled / error + the last error) |
+| `.scripts reload` | Unload everything, re-scan the folder, load again (settings are kept) |
+| `.scripts enable <name>` / `disable <name>` | Turn one script on or off |
+
+**ClickGUI → Scripts panel:** every script with an on/off toggle and a status line, a *Reload scripts* button and an *Open scripts folder* button (opens the folder and prints its path in chat). Each module a script registers gets its own panel, with its settings working like the built-in modules. It disappears when the script is disabled or reloaded and comes back in the same place.
+
+**Saved for you:** each script's on/off state and every module's on/off state and settings are saved in `config/CoralIntel/script-state.json` and restored on the next start. A script's own data (`data.*`, below) is saved in `config/CoralIntel/scripts/data/<name>.json`.
+
+### A first script
+
+```lua
+-- scripts/hello.lua
+command.register("hello", function(args)
+  chat.print("&aHello &f" .. (args[1] or "world") .. "&a!")
+end, "Says hello")
+```
+
+Run `.scripts reload`, then type `.hello Steve`.
+
+### What scripts can and can't do
+
+Scripts only get the functions documented here. There is deliberately **no** function for any of the following, so a script cannot do them:
+
+- send chat or commands to the server (`chat.print` only ever shows a line to you; its text can't carry click actions)
+- read or write files (except its own `data.*` store), open network connections, or use Java classes / reflection
+- load other code (`require`, `load`, `dofile`, `package`, `io`, `os.execute`, `debug` and `coroutine` don't exist)
+- change or cancel incoming chat, packets or game state
+
+Safety limits, enforced by the host:
+
+| Limit | Value |
+| --- | --- |
+| Time per callback (event, command, `onChange`, ...) | 50 ms |
+| Time for a script's top-level code when it loads | 250 ms |
+| Total time spent on queued events per game tick | about 100 ms (the rest waits for the next tick) |
+| Queued events (chat / title / join / leave) | 512, oldest dropped |
+| `chat.print` / `sound.play` | 10 lines / 5 sounds per second per script |
+| Per script | 20 commands, 8 modules, 24 settings per module, 64 listeners, 16 HUD labels |
+| `string.rep` result | 64 KB (also: `string.format` width/precision max 2 digits) |
+| Script file size | 256 KB |
+| `data` store | 256 keys, 64 KB total, nesting depth 4 |
+
+If a script throws an error, runs past its time limit, or recurses too deep, the error is printed in chat and shown in the Scripts panel / `.scripts`, and **only that script** is unloaded (its commands, modules, listeners and HUD labels go away). Fix the file and use `.scripts reload`, or toggle it off and on. Memory use is not limited, so don't build huge tables.
+
+> Use dot calls everywhere, e.g. `m.get("Min FKDR")`, not `m:get(...)`.
+
+### API reference
+
+#### `command.register(name, fn, description)`
+
+Adds a client command `.name`. `fn` receives a table of the words typed after it. Names are `a-z`, `0-9`, `_`, `-` (max 24) and can't clash with a built-in command or another script's command. The description appears in `.c help`.
+
+```lua
+command.register("echo", function(args)
+  chat.print("&7You said: &f" .. table.concat(args, " "))
+end, "Repeats what you type")
+```
+
+#### `module.register{ ... }` → module handle
+
+Creates a module that gets its own ClickGUI panel. The table takes `name` (required, max 32 characters, unique), `description`, `enabled` (default `false`; a saved value wins) and a `settings` list. Each setting needs a `type` and a unique `name`:
+
+| type | extra fields |
+| --- | --- |
+| `"toggle"` | `default` (boolean, default `false`) |
+| `"slider"` | `min`, `max`, `step` (all required, `max > min`, `step > 0`), `default` (default `min`) |
+| `"text"` | `default` (string, max 100 characters) |
+
+```lua
+local m = module.register{
+  name = "Greeter",
+  description = "Greets players as they join",
+  enabled = false,
+  settings = {
+    { type = "toggle", name = "Sound",  default = true },
+    { type = "slider", name = "Volume", default = 3, min = 1, max = 10, step = 1 },
+    { type = "text",   name = "Prefix", default = "&aWelcome" },
+  },
+}
+```
+
+The handle has:
+
+| Function | What it does |
+| --- | --- |
+| `m.get(setting)` | Current value (boolean, number or string). Unknown names raise an error |
+| `m.set(setting, value)` | Sets a value (boolean / number / string to match the type; sliders snap to the step). Doesn't trigger `onChange` |
+| `m.enabled()` | `true` while the module is on |
+| `m.onEnable(fn)` / `m.onDisable(fn)` | Called when the module is switched on or off (also once after load if it starts on) |
+| `m.onChange(fn)` | `fn(settingName, value)` when you change a setting in the ClickGUI (dragging a slider is coalesced to the latest value) |
+| `m.on(event, fn)` | Like `events.on`, but only delivered **while the module is on**; returns an id |
+
+```lua
+m.onChange(function(name, value)
+  chat.print("&7" .. name .. " is now &f" .. tostring(value))
+end)
+m.onEnable(function() chat.print("&aGreeter on") end)
+m.onDisable(function() hud.clear() end)
+m.on("player_join", function(name)
+  chat.print(m.get("Prefix") .. " &f" .. name)
+end)
+```
+
+#### `events.on(name, fn)` → id, `events.off(id)`
+
+Always delivered while the script runs. `events.off(id)` removes a listener and returns `true` if it existed.
+
+| Event | Arguments | When |
+| --- | --- | --- |
+| `"chat"` | `text, formatted` | A chat line arrives. `text` has colour codes removed, `formatted` keeps the `§` codes. Action-bar text isn't included. Read-only |
+| `"tick"` | none | Every client tick (20 per second) while in a world |
+| `"world_load"` | none | A new world loads (joining a server, switching lobby) |
+| `"player_join"` / `"player_leave"` | `name` | A real player appears in / disappears from the tab list (NPCs are skipped; checked every 5 ticks) |
+| `"title"` | `kind, text` | A title packet. `kind` is `"title"` or `"subtitle"`, `text` has colour codes removed |
+
+Chat and title events reach your function up to one tick after they arrive. The tab list at the moment a script loads is not announced as joins; after a new world loads, everyone in it counts as joining. The pregame lobby tab list may not show real names, so `player_join` is most reliable once the game has started; `lobby.players()` also includes players picked up from chat.
+
+```lua
+local id = events.on("chat", function(text)
+  if text:find("bed was destroyed") then sound.play("random.orb") end
+end)
+events.on("world_load", function() events.off(id) end)
+```
+
+#### `chat.print(message)` / `print(...)`
+
+Shows a line **only to you** (client side). `&` colour codes work. Newlines are flattened and the line is capped at 256 characters. `print(...)` does the same with a grey `[script]` prefix, handy for debugging.
+
+```lua
+chat.print("&bHello &7from a script")
+print("value is", 42)
+```
+
+#### `sound.play(name)`
+
+Plays a game sound by name (letters, digits, `_`, `.`; unknown names are ignored). Examples: `"random.orb"`, `"note.pling"`, `"random.levelup"`.
+
+```lua
+sound.play("note.pling")
+```
+
+#### `hud.text(id, text, x, y, color)`, `hud.remove(id)`, `hud.clear()`
+
+Keeps a line of text on screen. The client draws it every frame, so you only call `hud.text` when the text changes. `x`/`y` are in GUI pixels from the top-left, `color` is optional (`0xRRGGBB`, or `0xAARRGGBB`; default white). `&` colour codes work, text is capped at 200 characters, and calling `hud.text` again with the same `id` updates that label.
+
+```lua
+local ticks = 0
+events.on("tick", function()
+  ticks = ticks + 1
+  if ticks % 20 == 0 then hud.text("clock", os.date("%H:%M:%S"), 5, 5, 0x55FFFF) end
+end)
+-- later: hud.remove("clock")   or   hud.clear()
+```
+
+#### `session.get()` → table
+
+Your session numbers (the same ones as Session stats; all `0` until there is data):
+`seconds`, `active_seconds`, `games`, `wins`, `losses`, `kills`, `deaths`, `final_kills`, `final_deaths`, `beds_broken`, `beds_lost`, `fkdr`, `bblr`, `wlr`, `stars_gained`.
+
+```lua
+local s = session.get()
+chat.print(string.format("&7%d games, FKDR &f%.2f", s.games, s.fkdr))
+```
+
+#### `lobby.players()` → list of names, `lobby.me()` → your name
+
+`lobby.players()` returns everyone the lobby tracker knows about (tab list plus players picked up from chat). `lobby.me()` is your own name.
+
+```lua
+for _, name in ipairs(lobby.players()) do print(name) end
+```
+
+#### `lobby.player(name)` → table or `nil`
+
+A copy of one player's data (changing it does nothing). Fields: `name`, `team` (when known), `star`, `fkdr`, `wlr`, `winstreak`, `final_kills`, `final_deaths`, `beds_broken`, `beds_lost`, `kills`, `deaths`, `wins`, `losses`, `nicked`, `loaded`, `stats_hidden`, `tags`, `blacklisted`, `safelisted`.
+
+`loaded` becomes `true` once the lobby tracker considers the player's stats final; before that the numbers are `0`, so check it first. `tags` is a list of the tag labels shown for the player (e.g. `{"CC"}`).
+
+```lua
+local p = lobby.player("Steve")
+if p and p.loaded and p.fkdr > 8 then
+  chat.print("&c" .. p.name .. " has " .. string.format("%.2f", p.fkdr) .. " FKDR")
+end
+if p and #p.tags > 0 then chat.print("tags: " .. table.concat(p.tags, ", ")) end
+```
+
+#### `lobby.suspicion(name)` → table or `nil`
+
+The same score as the `.cheat` command (CheatSuspicion): `score`, `tier` (text) and `reasons` (list of strings).
+
+```lua
+local s = lobby.suspicion("Steve")
+if s and s.score >= 50 then
+  chat.print("&e" .. s.tier .. " (" .. s.score .. "): " .. table.concat(s.reasons, "; "))
+end
+```
+
+#### `data.get(key, default)`, `data.set(key, value)`, `data.delete(key)`, `data.keys()`
+
+A small saved store that only this script can use. Keys are strings up to 64 characters; values are strings, numbers, booleans or tables of those (nesting depth 4). `data.set(key, nil)` deletes. `data.delete` returns whether the key existed, `data.keys()` returns a list. It is saved automatically and on exit.
+
+```lua
+local runs = data.get("runs", 0) + 1
+data.set("runs", runs)
+data.set("last", { when = os.date("%Y-%m-%d"), count = runs })
+chat.print("This script has run " .. runs .. " times")
+```
+
+#### Standard library
+
+`string` (including `format` with correct `%f`/`%e`/`%g`), `table`, `math`, `os.time()`, `os.clock()`, `os.date(format)` (supports `%Y %y %m %d %H %M %S %%`), and the basics (`pairs`, `ipairs`, `type`, `tostring`, `tonumber`, `pcall`, `error`, `select`, ...). `pcall` works, but it cannot be used to swallow the time limit.
+
+### Example scripts
+
+| Script | What it does |
+| --- | --- |
+| `gg_reminder.lua` | When a game ends (`VICTORY!` / `GAME OVER!` title) prints a reminder to say gg, with an optional sound. It can't type gg for you; scripts can't send chat |
+| `fkdr_alert.lua` | *FKDR Alert* module with a **Min FKDR** slider: once per game, warns when a lobby player with loaded stats is at or above it |
+| `game_recap.lua` | *Game Recap* module: after each `You earned N Bed Wars XP` line prints one recap line (XP, session record, FKDR) and keeps an all-time XP / game count in its own `data` |
 
 ## Configuration
 

@@ -7,6 +7,7 @@ import coralintel.module.KeybindSetting;
 import coralintel.module.Module;
 import coralintel.module.Setting;
 import coralintel.module.SliderSetting;
+import coralintel.module.TextSetting;
 import coralintel.module.modules.LobbyIntel;
 import coralintel.module.modules.PregameMessages;
 import coralintel.module.modules.SessionStats;
@@ -21,6 +22,9 @@ import net.minecraft.util.ChatAllowedCharacters;
 import coralintel.ui.intel.IntelHudOverlay;
 import coralintel.ui.intel.IntelManager;
 import coralintel.ui.intel.ReminderManager;
+import coralintel.script.ScriptInstance;
+import coralintel.script.ScriptManager;
+import coralintel.script.ScriptModule;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
 import org.lwjgl.input.Mouse;
@@ -28,6 +32,7 @@ import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +71,14 @@ public class ClickGui extends GuiScreen {
     // One "Chat" panel holds both message modules as sub-sections.
     private static final String CHAT = "Chat";
     private static final String REMINDERS = "Reminders";
+    private static final String SCRIPTS = "Scripts";
+    private static final int PANEL_X0 = 20;
+    // Script panels (the Scripts panel plus one per module a script registered) sit on a third row
+    // and are synced every frame, so reloading or disabling a script removes its panels live.
+    private java.util.List<PanelState> firstRowPanels = new ArrayList<>();
+    private java.util.List<PanelState> secondRowPanels = new ArrayList<>();
+    private final int scriptFallbackY = 20 + HEADER_H + 16 + HEADER_H + 16;
+    private final Map<String, PanelState> scriptPanelMemory = new HashMap<>();
     private boolean pregameOpen = true;
     private boolean snipeOpen = true;
     private SliderRow draggingSlider = null;
@@ -152,6 +165,50 @@ public class ClickGui extends GuiScreen {
         for (int i = 0; i < secondRow.size(); i++) {
             if (i < firstRow.size()) secondRow.get(i).above = firstRow.get(i);
         }
+
+        // Scripts panel on a third row. Third-row panels stack under whatever is above them in
+        // their column (second row if there is one, else the first row), like the second row does.
+        firstRowPanels = firstRow;
+        secondRowPanels = secondRow;
+        PanelState scripts = new PanelState(PANEL_X0, secondRowY + HEADER_H + 16);
+        scripts.above = panelAboveScriptColumn(0);
+        panels.put(SCRIPTS, scripts);
+    }
+
+    private PanelState panelAboveScriptColumn(int column) {
+        if (column < secondRowPanels.size()) return secondRowPanels.get(column);
+        if (column < firstRowPanels.size()) return firstRowPanels.get(column);
+        return null;
+    }
+
+    /** Adds a panel for every module a running script registered and drops the ones that are gone. */
+    private void syncScriptPanels() {
+        ScriptManager manager = CoralIntel.scriptManager;
+        List<ScriptModule> live = manager == null ? new ArrayList<ScriptModule>() : manager.getModules();
+
+        java.util.Iterator<Map.Entry<Object, PanelState>> it = panels.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Object, PanelState> entry = it.next();
+            if (entry.getKey() instanceof ScriptModule && !live.contains(entry.getKey())) {
+                scriptPanelMemory.put(((ScriptModule) entry.getKey()).getName(), entry.getValue());
+                it.remove(); // remembered, so a reloaded script's panel comes back in the same place
+            }
+        }
+
+        for (ScriptModule module : live) {
+            if (panels.containsKey(module)) continue;
+            PanelState state = scriptPanelMemory.remove(module.getName());
+            if (state == null) {
+                int slot = 1;
+                for (Object key : panels.keySet()) {
+                    if (key instanceof ScriptModule) slot++;
+                }
+                state = new PanelState(PANEL_X0 + slot * (PANEL_W + 20), 0);
+                state.above = panelAboveScriptColumn(slot);
+                if (state.above == null) state.y = scriptFallbackY;
+            }
+            panels.put(module, state);
+        }
     }
 
     @Override
@@ -175,9 +232,52 @@ public class ClickGui extends GuiScreen {
 
     private class SectionLabelRow extends Row {
         final String text;
-        SectionLabelRow(String text) { this.text = text; this.h = 16; }
+        final int color;
+        final boolean truncate;
+        SectionLabelRow(String text) { this(text, TEXT_DIM, false); }
+        SectionLabelRow(String text, int color, boolean truncate) {
+            this.text = text;
+            this.color = color;
+            this.truncate = truncate;
+            this.h = 16;
+        }
         void render(int x, int y, int w, int mouseX, int mouseY) {
-            mc.fontRendererObj.drawString(text, x, y, TEXT_DIM, false);
+            String shown = text;
+            if (truncate && mc.fontRendererObj.getStringWidth(shown) > w) {
+                while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown + "\u2026") > w) {
+                    shown = shown.substring(0, shown.length() - 1);
+                }
+                shown += "\u2026";
+            }
+            mc.fontRendererObj.drawString(shown, x, y, color, false);
+        }
+    }
+
+    /** A plain click-to-run button (used by the Scripts panel). */
+    private class ButtonRow extends Row {
+        final String label;
+        final Runnable action;
+
+        ButtonRow(String label, Runnable action) {
+            this.label = label;
+            this.action = action;
+            this.h = 18;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            boolean hovered = hit(mouseX, mouseY, x, y, w, h);
+            RoundedUtils.drawRoundedRect(x, y, w, h, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+            RoundedUtils.drawRoundedOutline(x, y, w, h, 3, 1f, hovered ? ACCENT : 0x55FFFFFF);
+            int textW = mc.fontRendererObj.getStringWidth(label);
+            mc.fontRendererObj.drawString(label, x + (w - textW) / 2, y + 5, hovered ? TEXT_ON : TEXT_DIM, false);
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, x, y, w, h)) {
+                action.run();
+                return true;
+            }
+            return false;
         }
     }
 
@@ -378,49 +478,90 @@ public class ClickGui extends GuiScreen {
     // screen, not on the row. Click a box to edit; Enter or clicking away
     // saves (and writes the config file); Esc cancels.
 
-    private TextProperty editingText = null;
+    /** What a text box edits: a message property (saved with the main config) or a script text setting. */
+    private interface TextTarget {
+        String get();
+        void set(String value);
+        /** Messages that get sent can't start with the command prefix; script text is never sent. */
+        boolean allowCommandPrefix();
+        int maxLength();
+    }
+
+    private Object editingKey = null; // the property/setting being edited (rows are rebuilt each frame)
+    private TextTarget editingTarget = null;
     private final StringBuilder editBuffer = new StringBuilder();
 
-    private void startEditing(TextProperty property) {
+    private void startEditing(Object key, TextTarget target) {
         commitEdit();
-        editingText = property;
+        editingKey = key;
+        editingTarget = target;
         editBuffer.setLength(0);
-        String current = property.getValue();
+        String current = target.get();
         editBuffer.append(current == null ? "" : current);
     }
 
-    private void commitEdit() {
-        if (editingText == null) return;
+    private void cancelEdit() {
+        editingKey = null;
+        editingTarget = null;
+    }
 
-        TextProperty property = editingText;
-        editingText = null;
+    private void commitEdit() {
+        if (editingKey == null) return;
+
+        TextTarget target = editingTarget;
+        cancelEdit();
         String text = editBuffer.toString().trim();
 
         // A leading "." would be run as a client command instead of sent.
-        if (text.startsWith(CommandManager.PREFIX)) {
+        if (!target.allowCommandPrefix() && text.startsWith(CommandManager.PREFIX)) {
             ChatUtil.sendFormatted("&cThis text can't start with \".\" \u2014 it would be run as a command.");
             return;
         }
 
-        if (text.equals(property.getValue())) return;
+        if (text.equals(target.get())) return;
 
-        property.setValue(text);
-        String name = Config.lastConfig != null ? Config.lastConfig : "default";
-        new Config(name, false).save();
+        target.set(text);
     }
 
     private class TextRow extends Row {
         final String label;
-        final TextProperty property;
+        final Object key;
+        final TextTarget target;
+        final String emptyText;
 
         TextRow(String label, TextProperty property) {
             this.label = label;
-            this.property = property;
+            this.key = property;
+            this.emptyText = "(empty \u2014 skipped)";
             this.h = 34;
+            this.target = new TextTarget() {
+                public String get() { return property.getValue(); }
+                public void set(String value) {
+                    property.setValue(value);
+                    String name = Config.lastConfig != null ? Config.lastConfig : "default";
+                    new Config(name, false).save();
+                }
+                public boolean allowCommandPrefix() { return false; }
+                public int maxLength() { return PregameMessages.MAX_LENGTH; }
+            };
+        }
+
+        /** Script text setting: saved with the script's own state, never sent anywhere. */
+        TextRow(String label, TextSetting setting) {
+            this.label = label;
+            this.key = setting;
+            this.emptyText = "(empty)";
+            this.h = 34;
+            this.target = new TextTarget() {
+                public String get() { return setting.getValue(); }
+                public void set(String value) { setting.setValue(value); }
+                public boolean allowCommandPrefix() { return true; }
+                public int maxLength() { return setting.getMaxLength(); }
+            };
         }
 
         void render(int x, int y, int w, int mouseX, int mouseY) {
-            boolean editing = editingText == property;
+            boolean editing = editingKey == key;
             int boxY = y + 11;
             int boxH = 18;
             boolean hovered = hit(mouseX, mouseY, x, boxY, w, boxH);
@@ -444,9 +585,9 @@ public class ClickGui extends GuiScreen {
                 shown += (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
                 color = TEXT_ON;
             } else {
-                String value = property.getValue() == null ? "" : property.getValue();
+                String value = target.get() == null ? "" : target.get();
                 if (value.isEmpty()) {
-                    shown = "(empty \u2014 skipped)";
+                    shown = emptyText;
                     color = TEXT_DIM;
                 } else {
                     shown = value;
@@ -463,7 +604,7 @@ public class ClickGui extends GuiScreen {
 
         boolean click(int x, int y, int w, int mouseX, int mouseY) {
             if (hit(mouseX, mouseY, x, y + 11, w, 18)) {
-                startEditing(property);
+                startEditing(key, target);
                 return true;
             }
             return false;
@@ -728,8 +869,34 @@ public class ClickGui extends GuiScreen {
                 rows.add(new DropdownRow((DropdownSetting) setting));
             } else if (setting instanceof KeybindSetting) {
                 rows.add(new KeybindRow((KeybindSetting) setting));
+            } else if (setting instanceof TextSetting) {
+                rows.add(new TextRow(setting.getName(), (TextSetting) setting));
             }
         }
+    }
+
+    /** The Scripts panel: reload/folder buttons, then one toggle + status line per script file. */
+    private List<Row> scriptRows() {
+        List<Row> rows = new ArrayList<>();
+        final ScriptManager manager = CoralIntel.scriptManager;
+        if (manager == null) {
+            rows.add(new SectionLabelRow("Scripting is not loaded"));
+            return rows;
+        }
+
+        rows.add(new ButtonRow("Reload scripts", manager::reloadAll));
+        rows.add(new ButtonRow("Open scripts folder", manager::openFolder));
+
+        List<ScriptInstance> scripts = manager.getScripts();
+        rows.add(new SectionLabelRow("SCRIPTS (" + scripts.size() + ")"));
+        if (scripts.isEmpty()) {
+            rows.add(new SectionLabelRow("Drop .lua files in the folder", TEXT_DIM, true));
+        }
+        for (final ScriptInstance script : scripts) {
+            rows.add(new ToggleRow(script.name, script::isWanted, on -> manager.setEnabled(script, on)));
+            rows.add(new SectionLabelRow(script.statusText(), script.statusColor(), true));
+        }
+        return rows;
     }
 
     /** The Chat panel: Pregame Messages and Snipe Messages as two collapsible sub-sections. */
@@ -794,11 +961,21 @@ public class ClickGui extends GuiScreen {
 
         if (panelKey == CHAT) return chatRows();
         if (panelKey == REMINDERS) return reminderRows();
+        if (panelKey == SCRIPTS) return scriptRows();
 
         Module module = (Module) panelKey;
         List<Row> rows = new ArrayList<>();
 
+        if (module instanceof ScriptModule) {
+            String description = ((ScriptModule) module).getDescription();
+            if (!description.isEmpty()) rows.add(new SectionLabelRow(description, TEXT_DIM, true));
+        }
+
         addSettingRows(rows, module);
+
+        if (module instanceof ScriptModule && module.getSettings().isEmpty()) {
+            rows.add(new SectionLabelRow("No settings"));
+        }
 
         if (module instanceof LobbyIntel) {
             rows.addAll(hudOverlayRows((LobbyIntel) module));
@@ -903,6 +1080,8 @@ public class ClickGui extends GuiScreen {
         float ease = 1f - (1f - t) * (1f - t) * (1f - t);
         float scale = 0.92f + 0.08f * ease;
         drawRect(0, 0, width, height, ((int) (0x88 * ease) << 24));
+
+        syncScriptPanels();
 
         net.minecraft.client.renderer.GlStateManager.pushMatrix();
         net.minecraft.client.renderer.GlStateManager.translate(width / 2f, height / 2f, 0f);
@@ -1180,19 +1359,19 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
-        if (editingText != null) {
+        if (editingKey != null) {
             if (keyCode == 1) {                      // Esc: cancel the edit, keep the GUI open
-                editingText = null;
+                cancelEdit();
             } else if (keyCode == 28 || keyCode == 156) { // Enter / numpad Enter: save
                 commitEdit();
             } else if (keyCode == 14) {              // Backspace
                 if (editBuffer.length() > 0) editBuffer.deleteCharAt(editBuffer.length() - 1);
             } else if (isKeyComboCtrlV(keyCode)) {   // Ctrl+V
                 String clip = ChatAllowedCharacters.filterAllowedCharacters(getClipboardString());
-                int room = PregameMessages.MAX_LENGTH - editBuffer.length();
+                int room = editingTarget.maxLength() - editBuffer.length();
                 if (room > 0) editBuffer.append(clip, 0, Math.min(room, clip.length()));
             } else if (ChatAllowedCharacters.isAllowedCharacter(typedChar)
-                    && editBuffer.length() < PregameMessages.MAX_LENGTH) {
+                    && editBuffer.length() < editingTarget.maxLength()) {
                 editBuffer.append(typedChar);
             }
             return;
