@@ -1,11 +1,11 @@
 [
   {
+    "modid": "coralintel",
     "name": "CoralIntel",
     "version": "${version}",
-    "description": "Standalone lobby-scouting / stats-overlay mod: LobbyIntel, tab overlay, HUD overlay, .coralkey, .intelkey, .bw",
     "mcversion": "1.8.9",
-    "authorList": [
-      "you"
-    ]
+    "description": "The overlay for Bedwars and Duels. Live lobby stats, a tab overlay and HUD, threat tags, session tracking and Lua scripting, built to be the best overlay out there right now.",
+    "authorList": ["Spirit"],
+    "logoFile": "logo.png"
   }
 ]
