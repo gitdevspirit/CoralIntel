@@ -1237,6 +1237,31 @@ public class SessionStats extends Module {
         return trackFromChat.getValue() || (baseline != null && latest != null);
     }
 
+    /**
+     * Plain numbers for the scripting API (read-only copy, no formatting). All zero until a
+     * session has data.
+     */
+    public java.util.Map<String, Object> scriptSnapshot() {
+        Gained g = gained();
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("seconds", Math.max(0L, (System.currentTimeMillis() - startedAt) / 1000L));
+        m.put("active_seconds", Math.max(0L, activeMs() / 1000L));
+        m.put("games", g.games);
+        m.put("wins", g.wins);
+        m.put("losses", g.losses);
+        m.put("kills", g.kills);
+        m.put("deaths", g.deaths);
+        m.put("final_kills", g.finalKills);
+        m.put("final_deaths", g.finalDeaths);
+        m.put("beds_broken", g.bedsBroken);
+        m.put("beds_lost", g.bedsLost);
+        m.put("fkdr", g.fkdr);
+        m.put("bblr", g.bblr);
+        m.put("wlr", g.wlr);
+        m.put("stars_gained", g.stars);
+        return m;
+    }
+
     private Gained gained() {
         Totals b = baseline;
         Totals l = latest;

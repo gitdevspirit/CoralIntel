@@ -20,6 +20,10 @@ public class CommandManager {
         commands.add(command);
     }
 
+    public void unregister(Command command) {
+        commands.remove(command);
+    }
+
     public List<Command> getCommands() {
         return commands;
     }

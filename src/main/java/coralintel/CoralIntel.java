@@ -27,6 +27,10 @@ import coralintel.command.commands.UrchinKeyCommand;
 import coralintel.command.commands.SessionCommand;
 import coralintel.command.commands.HistoryCommand;
 import coralintel.command.commands.CheatCommand;
+import coralintel.command.commands.ScriptsCommand;
+import coralintel.script.MinecraftHost;
+import coralintel.script.ScriptEvents;
+import coralintel.script.ScriptManager;
 import coralintel.command.commands.ViewCommand;
 import coralintel.config.Config;
 import coralintel.event.EventManager;
@@ -68,6 +72,7 @@ public class CoralIntel {
     public static PropertyManager propertyManager;
     public static ModuleManager moduleManager;
     public static CommandManager commandManager;
+    public static ScriptManager scriptManager;
 
     public CoralIntel() {
         this.init();
@@ -110,6 +115,7 @@ public class CoralIntel {
         commandManager.register(new SessionCommand(true));
         commandManager.register(new HistoryCommand());
         commandManager.register(new CheatCommand());
+        commandManager.register(new ScriptsCommand());
         EventManager.register(commandManager);
         EventManager.register(new coralintel.ui.intel.ReminderAlerts());
         EventManager.register(moduleManager);
@@ -162,7 +168,22 @@ public class CoralIntel {
             config.load();
         }
 
+        // Lua scripts. Loaded last so a script's command and module names are checked against
+        // every built-in one.
+        scriptManager = new ScriptManager(new MinecraftHost(), new java.io.File("./config/CoralIntel"));
+        EventManager.register(new ScriptEvents(scriptManager));
+        try {
+            scriptManager.init();
+        } catch (Throwable t) {
+            // a broken scripts folder must never stop the client from starting
+            System.err.println("[CoralIntel] scripting failed to start: " + t);
+        }
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                scriptManager.shutdown();
+            } catch (Exception ignored) {
+            }
             try {
                 LobbyIntel lobbyIntel = (LobbyIntel) moduleManager.getModule("LobbyIntel");
                 if (lobbyIntel != null) {
