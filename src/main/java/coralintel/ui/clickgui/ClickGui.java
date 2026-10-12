@@ -130,7 +130,8 @@ public class ClickGui extends GuiScreen {
         java.util.List<PanelState> secondRow = new ArrayList<>();
 
         for (Module module : CoralIntel.moduleManager.modules.values()) {
-            if (module instanceof StreamerMode || module instanceof SessionStats || module instanceof PartyDetector) {
+            if (module instanceof StreamerMode || module instanceof SessionStats || module instanceof PartyDetector
+                    || module instanceof coralintel.module.modules.DuelsIntel) {
                 PanelState st = new PanelState(secondRowX, secondRowY);
                 panels.put(module, st);
                 secondRow.add(st);

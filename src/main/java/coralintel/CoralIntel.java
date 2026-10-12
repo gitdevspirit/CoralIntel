@@ -94,6 +94,8 @@ public class CoralIntel {
         commandManager.register(new RoleCommand());
         commandManager.register(new BedwarsStatsCommand());
         commandManager.register(new QueueCommand());
+        commandManager.register(new coralintel.command.commands.DuelsStatsCommand());
+        commandManager.register(new coralintel.command.commands.DuelsQueueCommand());
         commandManager.register(new PeriodStatsCommand("daily", "Daily", "24 hours", 24L * 60L * 60L * 1000L));
         commandManager.register(new PeriodStatsCommand("monthly", "Monthly", "30 days", 30L * 24L * 60L * 60L * 1000L));
         commandManager.register(new PregameMessageCommand(1));
@@ -123,6 +125,7 @@ public class CoralIntel {
         // Only two modules in this standalone build.
         // Three modules in this standalone build.
         moduleManager.modules.put(LobbyIntel.class, new LobbyIntel());
+        moduleManager.modules.put(coralintel.module.modules.DuelsIntel.class, new coralintel.module.modules.DuelsIntel());
         moduleManager.modules.put(BedwarsTag.class, new BedwarsTag());
         moduleManager.modules.put(AntiCheat.class, new AntiCheat());
         moduleManager.modules.put(PregameMessages.class, new PregameMessages());
