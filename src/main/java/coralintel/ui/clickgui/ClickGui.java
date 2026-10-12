@@ -98,6 +98,9 @@ public class ClickGui extends GuiScreen {
         /** Second-row panels follow the first-row panel above them until the user drags them. */
         PanelState above;
         boolean userMoved;
+        /** Scrollbar drag: geometry captured when the bar was grabbed. */
+        boolean draggingBar;
+        int barGrab, barTrackH, barThumbH, barTop;
 
         PanelState(float x, float y) {
             this.x = x;
@@ -253,28 +256,98 @@ public class ClickGui extends GuiScreen {
         }
     }
 
-    /** A plain click-to-run button (used by the Scripts panel). */
-    private class ButtonRow extends Row {
-        final String label;
-        final Runnable action;
+    /** Two click-to-run buttons side by side (used by the Scripts panel). */
+    private class ButtonPairRow extends Row {
+        final String[] labels;
+        final Runnable[] actions;
 
-        ButtonRow(String label, Runnable action) {
-            this.label = label;
-            this.action = action;
-            this.h = 18;
+        ButtonPairRow(String label1, Runnable action1, String label2, Runnable action2) {
+            this.labels = new String[]{label1, label2};
+            this.actions = new Runnable[]{action1, action2};
+            this.h = 16;
+        }
+
+        private int buttonX(int i, int x, int w) {
+            int half = (w - 4) / 2;
+            return i == 0 ? x : x + half + 4;
+        }
+
+        private int buttonW(int i, int w) {
+            int half = (w - 4) / 2;
+            return i == 0 ? half : w - half - 4;
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            for (int i = 0; i < 2; i++) {
+                int bx = buttonX(i, x, w);
+                int bw = buttonW(i, w);
+                boolean hovered = hit(mouseX, mouseY, bx, y, bw, h);
+                RoundedUtils.drawRoundedRect(bx, y, bw, h, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+                RoundedUtils.drawRoundedOutline(bx, y, bw, h, 3, 1f, hovered ? ACCENT : 0x55FFFFFF);
+                int textW = mc.fontRendererObj.getStringWidth(labels[i]);
+                mc.fontRendererObj.drawString(labels[i], bx + (bw - textW) / 2, y + 4, hovered ? TEXT_ON : TEXT_DIM, false);
+            }
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            for (int i = 0; i < 2; i++) {
+                if (hit(mouseX, mouseY, buttonX(i, x, w), y, buttonW(i, w), h)) {
+                    actions[i].run();
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** One script on a single line: name, a coloured status word, and the on/off box. */
+    private class ScriptRow extends Row {
+        final ScriptInstance script;
+        final ScriptManager manager;
+
+        ScriptRow(ScriptInstance script, ScriptManager manager) {
+            this.script = script;
+            this.manager = manager;
         }
 
         void render(int x, int y, int w, int mouseX, int mouseY) {
             boolean hovered = hit(mouseX, mouseY, x, y, w, h);
-            RoundedUtils.drawRoundedRect(x, y, w, h, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
-            RoundedUtils.drawRoundedOutline(x, y, w, h, 3, 1f, hovered ? ACCENT : 0x55FFFFFF);
-            int textW = mc.fontRendererObj.getStringWidth(label);
-            mc.fontRendererObj.drawString(label, x + (w - textW) / 2, y + 5, hovered ? TEXT_ON : TEXT_DIM, false);
+            boolean value = script.isWanted();
+
+            String status;
+            switch (script.getStatus()) {
+                case RUNNING: status = "running"; break;
+                case ERROR: status = "error"; break;
+                default: status = "off"; break;
+            }
+            int boxSize = 14;
+            int statusW = mc.fontRendererObj.getStringWidth(status);
+            int nameRoom = w - boxSize - statusW - 14; // keep the name clear of the status and the box
+            String name = script.name;
+            while (name.length() > 3 && mc.fontRendererObj.getStringWidth(name) > nameRoom) {
+                name = name.substring(0, name.length() - 1);
+            }
+            if (!name.equals(script.name)) name += "\u2026";
+
+            mc.fontRendererObj.drawString(name, x, y + 6, value || hovered ? TEXT_ON : TEXT_DIM, false);
+            int nameW = mc.fontRendererObj.getStringWidth(name);
+            mc.fontRendererObj.drawString(status, x + nameW + 6, y + 6, script.statusColor(), false);
+
+            int boxX = x + w - boxSize;
+            int boxY = y + 3;
+            if (value) {
+                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3, 0xFF1A1A22);
+                RoundedUtils.drawRoundedOutline(boxX, boxY, boxSize, boxSize, 3, 1f, ACCENT);
+                mc.fontRendererObj.drawString("\u25B6", boxX + 3, boxY + 3, ACCENT, false);
+            } else {
+                RoundedUtils.drawRoundedRect(boxX, boxY, boxSize, boxSize, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+                RoundedUtils.drawRoundedOutline(boxX, boxY, boxSize, boxSize, 3, 1f, hovered ? 0x88FFFFFF : 0x55FFFFFF);
+            }
         }
 
         boolean click(int x, int y, int w, int mouseX, int mouseY) {
             if (hit(mouseX, mouseY, x, y, w, h)) {
-                action.run();
+                manager.setEnabled(script, !script.isWanted());
                 return true;
             }
             return false;
@@ -884,17 +957,19 @@ public class ClickGui extends GuiScreen {
             return rows;
         }
 
-        rows.add(new ButtonRow("Reload scripts", manager::reloadAll));
-        rows.add(new ButtonRow("Open scripts folder", manager::openFolder));
+        rows.add(new ButtonPairRow("Reload", manager::reloadAll, "Open folder", manager::openFolder));
 
         List<ScriptInstance> scripts = manager.getScripts();
-        rows.add(new SectionLabelRow("SCRIPTS (" + scripts.size() + ")"));
         if (scripts.isEmpty()) {
             rows.add(new SectionLabelRow("Drop .lua files in the folder", TEXT_DIM, true));
         }
         for (final ScriptInstance script : scripts) {
-            rows.add(new ToggleRow(script.name, script::isWanted, on -> manager.setEnabled(script, on)));
-            rows.add(new SectionLabelRow(script.statusText(), script.statusColor(), true));
+            rows.add(new ScriptRow(script, manager));
+            if (script.getStatus() == ScriptInstance.Status.ERROR) {
+                SectionLabelRow error = new SectionLabelRow(script.getLastError(), script.statusColor(), true);
+                error.h = 11; // just the message, tucked under its script
+                rows.add(error);
+            }
         }
         return rows;
     }
@@ -1121,6 +1196,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private static final int MAX_VISIBLE_CONTENT = 400; // caps a panel's height before it scrolls
+    private static final int BAR_ZONE = PAD;            // width of the clickable scrollbar strip at the panel's right edge
 
     private void drawPanel(Object panelKey, PanelState state, int mouseX, int mouseY) {
         int x = (int) state.x;
@@ -1199,8 +1275,11 @@ public class ClickGui extends GuiScreen {
             int trackH = visibleContentHeight;
             int thumbH = Math.max(16, trackH * visibleContentHeight / contentHeight);
             int thumbY = contentTop + (int) ((float) state.scrollOffset / state.maxScroll * (trackH - thumbH));
-            drawRect(x + PANEL_W - 4, contentTop, x + PANEL_W - 2, contentTop + trackH, 0x22FFFFFF);
-            drawRect(x + PANEL_W - 4, thumbY, x + PANEL_W - 2, thumbY + thumbH, ACCENT);
+            boolean barHot = state.draggingBar
+                    || hit(mouseX, mouseY, x + PANEL_W - BAR_ZONE, contentTop, BAR_ZONE, trackH);
+            int barX = x + PANEL_W - 6;
+            drawRect(barX, contentTop, barX + 4, contentTop + trackH, barHot ? 0x44FFFFFF : 0x22FFFFFF);
+            drawRect(barX, thumbY, barX + 4, thumbY + thumbH, barHot ? 0xCCFFFFFF : ACCENT);
         }
     }
 
@@ -1261,7 +1340,24 @@ public class ClickGui extends GuiScreen {
                 int rx = x + PAD;
                 int rw = PANEL_W - PAD * 2;
                 int contentTop = y + HEADER_H + 6;
-                int visibleContentHeight = Math.min(sumHeight(rows), MAX_VISIBLE_CONTENT);
+                int contentHeight = sumHeight(rows);
+                int visibleContentHeight = Math.min(contentHeight, MAX_VISIBLE_CONTENT);
+
+                // Scrollbar: drag the thumb, or click the track to jump there (then keep dragging).
+                if (state.maxScroll > 0
+                        && hit(mouseX, mouseY, x + PANEL_W - BAR_ZONE, contentTop, BAR_ZONE, visibleContentHeight)) {
+                    int thumbH = Math.max(16, visibleContentHeight * visibleContentHeight / contentHeight);
+                    int thumbY = contentTop + (int) ((float) state.scrollOffset / state.maxScroll
+                            * (visibleContentHeight - thumbH));
+                    state.barTrackH = visibleContentHeight;
+                    state.barThumbH = thumbH;
+                    state.barTop = contentTop;
+                    state.barGrab = (mouseY >= thumbY && mouseY < thumbY + thumbH) ? mouseY - thumbY : thumbH / 2;
+                    state.draggingBar = true;
+                    dragScrollbar(state, mouseY);
+                    return;
+                }
+
                 int ry = contentTop - state.scrollOffset;
 
                 for (Row row : rows) {
@@ -1280,6 +1376,14 @@ public class ClickGui extends GuiScreen {
         super.mouseClicked(mouseX, mouseY, button);
     }
 
+    /** Maps the mouse position on the scrollbar track to the panel's scroll offset. */
+    private void dragScrollbar(PanelState state, int mouseY) {
+        int travel = state.barTrackH - state.barThumbH;
+        if (travel <= 0) return;
+        float ratio = (mouseY - state.barGrab - state.barTop) / (float) travel;
+        state.scrollOffset = Math.max(0, Math.min(state.maxScroll, Math.round(ratio * state.maxScroll)));
+    }
+
     @Override
     protected void mouseReleased(int mouseX, int mouseY, int state) {
         if (movingHud) {
@@ -1289,7 +1393,10 @@ public class ClickGui extends GuiScreen {
         }
         draggingSlider = null;
         draggingGenericSlider = null;
-        for (PanelState p : panels.values()) p.dragging = false;
+        for (PanelState p : panels.values()) {
+            p.dragging = false;
+            p.draggingBar = false;
+        }
         super.mouseReleased(mouseX, mouseY, state);
     }
 
@@ -1307,6 +1414,12 @@ public class ClickGui extends GuiScreen {
         if (draggingGenericSlider != null) {
             draggingGenericSlider.apply(mouseX);
             return;
+        }
+        for (PanelState state : panels.values()) {
+            if (state.draggingBar) {
+                dragScrollbar(state, mouseY);
+                return;
+            }
         }
         for (PanelState state : panels.values()) {
             if (state.dragging) {
