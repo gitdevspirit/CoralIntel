@@ -70,6 +70,6 @@ public class CommandManager {
             }
         }
 
-        ChatUtil.sendFormatted("&cUnknown command. Use &f.c help &cfor a list.");
+        ChatUtil.sendFormatted("&cUnknown command. Use &f.chelp &cfor a list.");
     }
 }

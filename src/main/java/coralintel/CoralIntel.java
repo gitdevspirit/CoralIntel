@@ -13,7 +13,7 @@ import coralintel.command.commands.SnipeMessageCommand;
 import coralintel.command.commands.PeriodStatsCommand;
 import coralintel.command.commands.BindCommand;
 import coralintel.command.commands.BlacklistCommand;
-import coralintel.command.commands.ConfigCommand;
+import coralintel.command.commands.HelpCommand;
 import coralintel.command.commands.SafelistCommand;
 import coralintel.command.commands.UnsafelistCommand;
 import coralintel.command.commands.UnblacklistCommand;
@@ -106,7 +106,7 @@ public class CoralIntel {
         commandManager.register(new BedlifyCommand());
         commandManager.register(new TabCommand());
         commandManager.register(new BlacklistCommand());
-        commandManager.register(new ConfigCommand());
+        commandManager.register(new HelpCommand());
         commandManager.register(new SafelistCommand());
         commandManager.register(new UnsafelistCommand());
         commandManager.register(new UnblacklistCommand());

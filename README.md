@@ -135,7 +135,7 @@ The command prefix is `.` (typed in chat, never sent to the server).
 
 | Command | Aliases | Description |
 | --- | --- | --- |
-| `.c <s\|l\|list\|help> [name]` | `.config` | Save / load a config, or list all commands |
+| `.chelp` | | List every CoralIntel command |
 | `.clickgui` | `.cgui` | Open the ClickGUI |
 | `.scripts` / `reload` / `enable <name>` / `disable <name>` | | List, reload, enable or disable Lua scripts. See [Scripting](#scripting-lua) |
 | `.bw <ign>` | `.bwstats` | One-off Bedwars stat lookup (fields are configurable in LobbyIntel settings) |
@@ -229,7 +229,7 @@ If a script throws an error, runs past its time limit, or recurses too deep, the
 
 #### `command.register(name, fn, description)`
 
-Adds a client command `.name`. `fn` receives a table of the words typed after it. Names are `a-z`, `0-9`, `_`, `-` (max 24) and can't clash with a built-in command or another script's command. The description appears in `.c help`.
+Adds a client command `.name`. `fn` receives a table of the words typed after it. Names are `a-z`, `0-9`, `_`, `-` (max 24) and can't clash with a built-in command or another script's command. The description appears in `.chelp`.
 
 ```lua
 command.register("echo", function(args)
@@ -401,7 +401,7 @@ chat.print("This script has run " .. runs .. " times")
 
 ## Configuration
 
-Settings are saved to `config/CoralIntel/` inside your Minecraft folder. Use the ClickGUI or `.c s <name>` / `.c l <name>` to save and load named configs.
+Settings are saved to `config/CoralIntel/` inside your Minecraft folder. Use the **Configs** panel in the ClickGUI to save, load and overwrite named configs: type a name and press Enter to save a new one, then use **Load** / **Save** next to any saved config (the highlighted one is active). There are no config chat commands, so nothing clashes with other mods.
 
 ## Disclaimer
 

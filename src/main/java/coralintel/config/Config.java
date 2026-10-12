@@ -16,6 +16,9 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -31,6 +34,27 @@ public class Config {
     public File file;
 
     public static String lastConfig;
+
+    /** Data files that share the config directory; a saved config must never overwrite them. */
+    public static final List<String> RESERVED_NAMES = Arrays.asList(
+            "blacklist", "safelist", "roles", "snapshots", "reminders", "bedlify", "script-state");
+
+    public static boolean isValidName(String name) {
+        return name != null && name.matches("[A-Za-z0-9_-]{1,32}") && !RESERVED_NAMES.contains(name.toLowerCase());
+    }
+
+    /** Names of the saved configs (without .json), sorted, with data files left out. */
+    public static List<String> listSaved() {
+        File dir = new File("./config/CoralIntel/");
+        File[] files = dir.listFiles((d, fname) -> fname.endsWith(".json")
+                && isValidName(fname.substring(0, fname.length() - 5)));
+        List<String> names = new ArrayList<>();
+        if (files != null) {
+            for (File f : files) names.add(f.getName().substring(0, f.getName().length() - 5));
+        }
+        Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
 
     public Config(String name, boolean newConfig) {
         this.name = name;

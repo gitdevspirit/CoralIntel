@@ -72,6 +72,8 @@ public class ClickGui extends GuiScreen {
     private static final String CHAT = "Chat";
     private static final String REMINDERS = "Reminders";
     private static final String SCRIPTS = "Scripts";
+    private static final String CONFIGS = "Configs";
+    private final Object newConfigKey = new Object(); // identity of the "new config name" box
     private static final int PANEL_X0 = 20;
     // Script panels (the Scripts panel plus one per module a script registered) sit on a third row
     // and are synced every frame, so reloading or disabling a script removes its panels live.
@@ -162,6 +164,10 @@ public class ClickGui extends GuiScreen {
         PanelState reminders = new PanelState(secondRowX, secondRowY);
         panels.put(REMINDERS, reminders);
         secondRow.add(reminders);
+        secondRowX += columnGap;
+        PanelState configs = new PanelState(secondRowX, secondRowY);
+        panels.put(CONFIGS, configs);
+        secondRow.add(configs);
 
         // Second-row panel k sits in the same column as first-row panel k, so when that one opens
         // (and grows taller) the one below it is pushed down instead of being covered.
@@ -348,6 +354,53 @@ public class ClickGui extends GuiScreen {
         boolean click(int x, int y, int w, int mouseX, int mouseY) {
             if (hit(mouseX, mouseY, x, y, w, h)) {
                 manager.setEnabled(script, !script.isWanted());
+                return true;
+            }
+            return false;
+        }
+    }
+
+    /** One saved config: its name (active one highlighted) and Load / Save buttons. */
+    private class ConfigRow extends Row {
+        private static final int BTN_W = 34;
+        final String name;
+
+        ConfigRow(String name) {
+            this.name = name;
+            this.h = 16;
+        }
+
+        private int saveX(int x, int w) { return x + w - BTN_W; }
+        private int loadX(int x, int w) { return saveX(x, w) - BTN_W - 4; }
+
+        private void button(int bx, int y, String label, boolean hovered) {
+            RoundedUtils.drawRoundedRect(bx, y, BTN_W, h, 3, hovered ? 0x33FFFFFF : 0x1AFFFFFF);
+            RoundedUtils.drawRoundedOutline(bx, y, BTN_W, h, 3, 1f, hovered ? ACCENT : 0x55FFFFFF);
+            int textW = mc.fontRendererObj.getStringWidth(label);
+            mc.fontRendererObj.drawString(label, bx + (BTN_W - textW) / 2, y + 4, hovered ? TEXT_ON : TEXT_DIM, false);
+        }
+
+        void render(int x, int y, int w, int mouseX, int mouseY) {
+            boolean active = name.equalsIgnoreCase(Config.lastConfig != null ? Config.lastConfig : "default");
+            int nameRoom = w - BTN_W * 2 - 12;
+            String shown = name;
+            while (shown.length() > 3 && mc.fontRendererObj.getStringWidth(shown) > nameRoom) {
+                shown = shown.substring(0, shown.length() - 1);
+            }
+            if (!shown.equals(name)) shown += "\u2026";
+            mc.fontRendererObj.drawString(shown, x, y + 4, active ? ACCENT : TEXT_ON, false);
+
+            button(loadX(x, w), y, "Load", hit(mouseX, mouseY, loadX(x, w), y, BTN_W, h));
+            button(saveX(x, w), y, "Save", hit(mouseX, mouseY, saveX(x, w), y, BTN_W, h));
+        }
+
+        boolean click(int x, int y, int w, int mouseX, int mouseY) {
+            if (hit(mouseX, mouseY, loadX(x, w), y, BTN_W, h)) {
+                new Config(name, false).load();
+                return true;
+            }
+            if (hit(mouseX, mouseY, saveX(x, w), y, BTN_W, h)) {
+                new Config(name, false).save();
                 return true;
             }
             return false;
@@ -617,6 +670,15 @@ public class ClickGui extends GuiScreen {
                 public boolean allowCommandPrefix() { return false; }
                 public int maxLength() { return PregameMessages.MAX_LENGTH; }
             };
+        }
+
+        /** Free-standing text box (used for the new config name). */
+        TextRow(String label, Object key, String emptyText, TextTarget target) {
+            this.label = label;
+            this.key = key;
+            this.emptyText = emptyText;
+            this.h = 34;
+            this.target = target;
         }
 
         /** Script text setting: saved with the script's own state, never sent anywhere. */
@@ -1008,6 +1070,34 @@ public class ClickGui extends GuiScreen {
         return rows;
     }
 
+    /** The Configs panel: a name box that saves a new config on Enter, then every saved config with Load / Save. */
+    private List<Row> configRows() {
+        List<Row> rows = new ArrayList<>();
+
+        rows.add(new TextRow("Save as new config", newConfigKey, "(type a name, Enter)", new TextTarget() {
+            public String get() { return ""; }
+            public void set(String value) {
+                if (value.isEmpty()) return;
+                if (!Config.isValidName(value)) {
+                    ChatUtil.sendFormatted("&cConfig name can only contain letters, numbers, - and _ (max 32).");
+                    return;
+                }
+                new Config(value, false).save();
+            }
+            public boolean allowCommandPrefix() { return false; }
+            public int maxLength() { return 32; }
+        }));
+
+        List<String> saved = Config.listSaved();
+        rows.add(new SectionLabelRow("SAVED (" + saved.size() + ")"));
+        if (saved.isEmpty()) {
+            rows.add(new SectionLabelRow("None yet \u2014 name one above", TEXT_DIM, true));
+        }
+        for (String name : saved) rows.add(new ConfigRow(name));
+        rows.add(new SectionLabelRow("Save overwrites. Highlighted = active", TEXT_DIM, true));
+        return rows;
+    }
+
     private List<Row> reminderRows() {
         List<Row> rows = new ArrayList<>();
         List<ReminderManager.Reminder> all = ReminderManager.getInstance().getAll();
@@ -1036,6 +1126,7 @@ public class ClickGui extends GuiScreen {
 
         if (panelKey == CHAT) return chatRows();
         if (panelKey == REMINDERS) return reminderRows();
+        if (panelKey == CONFIGS) return configRows();
         if (panelKey == SCRIPTS) return scriptRows();
 
         Module module = (Module) panelKey;
