@@ -45,18 +45,6 @@ public final class StatCache {
         long at;
         int star, level, winstreak, finalKills, finalDeaths, bedsBroken, bedsLost, kills, deaths, wins, losses;
         double fkdr, wlr;
-        /** Duels stats: {wins, losses, kills, deaths, winstreak, bestWinstreak} per mode; null in older entries. */
-        int[] classic, bridge, bwDuels;
-        boolean hasDuels;
-    }
-
-    private static int[] pack(IntelPlayer.DuelsMode m) {
-        return new int[]{m.wins, m.losses, m.kills, m.deaths, m.winstreak, m.bestWinstreak};
-    }
-
-    private static void unpack(int[] a, IntelPlayer.DuelsMode m) {
-        if (a == null || a.length < 6) return;
-        m.wins = a[0]; m.losses = a[1]; m.kills = a[2]; m.deaths = a[3]; m.winstreak = a[4]; m.bestWinstreak = a[5];
     }
 
     private StatCache() {
@@ -96,8 +84,6 @@ public final class StatCache {
 
         Entry entry = entries.get(player.name.toLowerCase(Locale.ROOT));
         if (entry == null || System.currentTimeMillis() - entry.at >= ttlMs) return false;
-        // Entries written before Duels stats existed are a miss, so the profile is fetched again.
-        if (!entry.hasDuels) return false;
 
         player.star = entry.star;
         player.level = entry.level;
@@ -112,10 +98,6 @@ public final class StatCache {
         player.losses = entry.losses;
         player.fkdr = entry.fkdr;
         player.wlr = entry.wlr;
-        unpack(entry.classic, player.duelsClassic);
-        unpack(entry.bridge, player.duelsBridge);
-        unpack(entry.bwDuels, player.duelsBedwars);
-        player.duelsLoaded = true;
         return true;
     }
 
@@ -138,10 +120,6 @@ public final class StatCache {
         entry.losses = player.losses;
         entry.fkdr = player.fkdr;
         entry.wlr = player.wlr;
-        entry.classic = pack(player.duelsClassic);
-        entry.bridge = pack(player.duelsBridge);
-        entry.bwDuels = pack(player.duelsBedwars);
-        entry.hasDuels = player.duelsLoaded;
 
         entries.put(player.name.toLowerCase(Locale.ROOT), entry);
         dirty = true;

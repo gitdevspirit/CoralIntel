@@ -81,10 +81,6 @@ public class TabCommand extends Command {
             case "column":
                 column(li, args);
                 return;
-            case "game":
-            case "mode":
-                game(li, args);
-                return;
             case "reset":
                 DropdownSetting[] cols = columns(li);
                 int[] defaults = {0, 1, 2, 3, 4, 5};
@@ -94,26 +90,6 @@ public class TabCommand extends Command {
             default:
                 reply("&cUnknown option. &7Try &f.tab &7for the list.");
         }
-    }
-
-    /** .tab game <bw|classic|bridge|bwduels>: which game's stats the tab columns show. */
-    private void game(LobbyIntel li, String[] args) {
-        if (args.length < 2) {
-            reply("&7Stats game: &f" + li.tabGame.getValue() + " &8(.tab game <bw|classic|bridge|bwduels>)");
-            return;
-        }
-        int pick;
-        switch (args[1].toLowerCase(Locale.ROOT)) {
-            case "bw": case "bedwars": pick = 0; break;
-            case "classic": case "c": pick = 1; break;
-            case "bridge": case "br": pick = 2; break;
-            case "bwduels": case "bwduel": pick = 3; break;
-            default:
-                reply("&cUnknown game. &7Try: &fbw, classic, bridge, bwduels");
-                return;
-        }
-        li.tabGame.setIndex(pick);
-        reply("&7Tab stats game: &f" + li.tabGame.getValue());
     }
 
     private void status(LobbyIntel li) {
@@ -131,8 +107,7 @@ public class TabCommand extends Command {
             sb.append("&f").append(d.getValue());
         }
         reply("&7Columns: " + sb);
-        reply("&7Stats game: &f" + li.tabGame.getValue());
-        reply("&8.tab on|off|size|bg|shadow|gray|respawn|dc|game <bw|classic|bridge|bwduels>|col <1-6> <stat>|reset");
+        reply("&8.tab on|off|size|bg|shadow|gray|respawn|dc|col <1-6> <stat>|reset");
     }
 
     private void number(SliderSetting setting, String[] args, String label, String unit) {

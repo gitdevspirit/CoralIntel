@@ -308,17 +308,6 @@ public class IntelHudOverlay {
         }
     }
 
-    /** The HUD's stats game (0 Bedwars, 1 Classic, 2 Bridge, 3 Bedwars Duels). */
-    private static int hudGame() {
-        try {
-            coralintel.module.modules.LobbyIntel li = (coralintel.module.modules.LobbyIntel)
-                    CoralIntel.moduleManager.getModule(coralintel.module.modules.LobbyIntel.class);
-            return li == null ? 0 : li.hudGame.getIndex();
-        } catch (Exception ignored) {
-            return 0;
-        }
-    }
-
     /**
      * The player whose stats this row shows. Normally the row's own player; for a nick whose real
      * account was found (Bedlify) and whose stats have loaded, the REAL player's stats, so a
@@ -352,8 +341,7 @@ public class IntelHudOverlay {
             this.player = player;
             IntelPlayer stats = statsOf(player);
             this.threat = stats.threatScore;
-            IntelPlayer.DuelsMode dm = stats.duels(hudGame());
-            this.fkdr = dm != null ? dm.kdr() : stats.fkdr;
+            this.fkdr = stats.fkdr;
             this.star = stats.star;
             this.teamRank = teamRank(player.team);
             this.name = player.name == null ? "" : player.name;
@@ -635,9 +623,8 @@ public class IntelHudOverlay {
         }
 
         if (showFkdr) {
-            String fkdrHead = hudGame() == 0 ? "FKDR" : "KDR"; // Duels have no finals
-            int headerWidth = mc.fontRendererObj.getStringWidth(fkdrHead);
-            drawText(fkdrHead, x + (cw(40) - headerWidth) / 2, headerY, headerColorArgb);
+            int headerWidth = mc.fontRendererObj.getStringWidth("FKDR");
+            drawText("FKDR", x + (cw(40) - headerWidth) / 2, headerY, headerColorArgb);
             x += cw(40);
             columnBoundaries.add(x);
         }
@@ -967,19 +954,14 @@ public class IntelHudOverlay {
             currentX += cw(35);
         }
 
-        // In a Duels mode the FKDR / WLR / WS columns show that mode's KDR / WLR / winstreak.
-        IntelPlayer.DuelsMode duels = player.duels(hudGame());
-        boolean noDuels = duels != null && !player.duelsLoaded;
-
         if (showFkdr) {
-            double ratio = duels != null ? duels.kdr() : player.fkdr;
-            String text = player.loading || noDuels || ratio < 0
+            String text = player.loading || player.fkdr < 0
                     ? "-"
-                    : String.format("%.1f", ratio);
+                    : String.format("%.1f", player.fkdr);
 
-            int color = player.loading || noDuels
+            int color = player.loading
                     ? TEXT_DIM
-                    : duels != null ? getStatColor(ratio, 1.5, 3.0) : getStatColor(ratio, 3.0, 6.0);
+                    : getStatColor(player.fkdr, 3.0, 6.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
             drawText(text, currentX + (cw(40) - textWidth) / 2, y + textOff, color);
@@ -987,14 +969,13 @@ public class IntelHudOverlay {
         }
 
         if (showWlr) {
-            double wlr = duels != null ? duels.wlr() : player.wlr;
-            String text = player.loading || noDuels || wlr < 0
+            String text = player.loading || player.wlr < 0
                     ? "-"
-                    : String.format("%.1f", wlr);
+                    : String.format("%.1f", player.wlr);
 
-            int color = player.loading || noDuels
+            int color = player.loading
                     ? TEXT_DIM
-                    : getStatColor(wlr, 2.0, 4.0);
+                    : getStatColor(player.wlr, 2.0, 4.0);
 
             int textWidth = mc.fontRendererObj.getStringWidth(text);
             drawText(text, currentX + (cw(35) - textWidth) / 2, y + textOff, color);
@@ -1002,16 +983,15 @@ public class IntelHudOverlay {
         }
 
         if (showStreak) {
-            int streak = duels != null ? duels.winstreak : player.winstreak;
-            String text = player.loading || noDuels || streak < 0
+            String text = player.loading || player.winstreak < 0
                     ? "-"
-                    : String.valueOf(streak);
+                    : String.valueOf(player.winstreak);
 
-            int color = player.loading || noDuels
+            int color = player.loading
                     ? TEXT_DIM
-                    : streak >= 10
+                    : player.winstreak >= 10
                             ? 0xFFFFCC44
-                            : streak >= 5
+                            : player.winstreak >= 5
                                     ? 0xFF44DD66
                                     : TEXT_DIM;
 

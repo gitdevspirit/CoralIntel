@@ -26,6 +26,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Shop auto middle-click** – optional setting (LobbyIntel: *Shop: Auto Middle-Click (Quick Buy)*): in the Bed Wars shop's category pages (Blocks, Melee, Armor, Tools, Ranged, Potions, Utility) a left click buys the item and also sends the middle click, so it is added to Quick Buy without a second click. Off by default.
 - **Scripting (Lua)** – drop small `.lua` scripts into `config/CoralIntel/scripts/` to add your own commands, modules (with toggle / slider / text settings in the ClickGUI), chat alerts and HUD text, without rebuilding the client. Sandboxed: scripts can't send chat to the server or touch your files, and a broken script is disabled on its own. See [Scripting](#scripting-lua).
 - **Quick queue** – `.q 1s|2s|3s|4s|bwduels` instead of typing `/play ...`.
+- **Duels (DuelsIntel)** – a separate module from the Bedwars LobbyIntel, with its own roster, HUD, stat cache and settings. Shows Duels stats for Overall, Classic, Bridge and Bedwars Duels (wins, WLR, KDR, winstreak, best winstreak) and a Duels rank (Rookie, Iron, Gold, Diamond, Master, Legend, Grandmaster, Godlike, Celestial, Divine, Ascended) worked out from wins. Players who talk in the lobby are added, nicks are marked (and denicked through Bedlify). Own panel on the second row of the ClickGUI. See `.duels` and `.dq` below.
 - **ClickGUI** – every setting in one place (default key: Right Control).
 
 ## Installation
@@ -149,12 +150,14 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.safelist <player> [reason]` / `list` | `.sl` | Safelist a player |
 | `.unsafelist <player>` | `.unsl` | Remove a player from the safelist |
 | `.q <1s\|2s\|3s\|4s\|bwduels>` | `.queue` | Queue solos / doubles / 3v3v3v3 / 4v4v4v4 / Bedwars Duels |
+| `.duels <ign> [overall\|classic\|bridge\|bwduels]` | `.duel`, `.dstats` | One-off Duels stat lookup with rank (all modes when none is given) |
+| `.dq <classic\|bridge\|bwduels\|sumo\|uhc\|op\|nodebuff\|skywars\|combo>` | `.dqueue` | Queue a Duels mode |
 | `.session` | `.sess` | Print your session stats (wins, kills, FKDR, BBLR, ... gained) |
 | `.reset` | | Restart your session stats from your current stats |
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
 | `.sm1 <text\|clear>` | | Set your snipe message |
 | `.sm` | | Send your snipe message to all chat with `/shout` |
-| `.tab [on\|off\|size\|bg\|shadow\|gray\|respawn\|dc\|game <bw\|classic\|bridge\|bwduels>\|col <1-6> <stat>\|reset]` | `.tabo` | Change the tab overlay from chat (`game` switches it to Duels stats) |
+| `.tab [on\|off\|size\|bg\|shadow\|gray\|respawn\|dc\|col <1-6> <stat>\|reset]` | `.tabo` | Change the Bed Wars tab overlay from chat |
 | `.denick [nick]` | | Find who is behind a nick (Bedlify) |
 | `.bedlify key <key>` / `clear` | | Set or remove your Bedlify API key |
 | `.remind <player> [note]` / `list` / `view <player>` / `done <player>` | `.reminder`, `.rem` | Note a possible cheater to tag in Coral later |

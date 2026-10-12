@@ -271,12 +271,6 @@ public class LobbyIntel extends Module {
             register(new BooleanSetting("Tab: Respawn Timer", true));
     public final BooleanSetting tabKeepDisconnected =
             register(new BooleanSetting("Tab: Keep Disconnected", true));
-    /** Which game's stats the tab overlay shows: Bedwars, or Classic / Bridge / Bedwars Duels (1v1). */
-    public final DropdownSetting tabGame = register(new DropdownSetting("Tab: Stats Game", 0,
-            coralintel.ui.intel.IntelPlayer.STATS_GAMES));
-    /** Same for the Intel HUD overlay (its FKDR column becomes KDR in the Duels modes). */
-    public final DropdownSetting hudGame = register(new DropdownSetting("HUD: Stats Game", 0,
-            coralintel.ui.intel.IntelPlayer.STATS_GAMES));
     public final DropdownSetting tabCol1 = register(new DropdownSetting("Tab: Column 1", 0, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
     public final DropdownSetting tabCol2 = register(new DropdownSetting("Tab: Column 2", 1, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));
     public final DropdownSetting tabCol3 = register(new DropdownSetting("Tab: Column 3", 2, coralintel.ui.tab.TabOverlay.COLUMN_OPTIONS));

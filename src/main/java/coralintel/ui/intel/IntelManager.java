@@ -1417,64 +1417,6 @@ public class IntelManager {
         }
     }
 
-    /**
-     * Reads the Duels modes the HUD / tab can show (Classic, Bridge 1v1, Bedwars Duels) from the
-     * profile's stats.Duels object. Hypixel names the fields per mode id (classic_duel_wins, ...), and
-     * the per-mode winstreaks current_winstreak_mode_<mode> / best_winstreak_mode_<mode>.
-     */
-    private void applyDuels(JsonObject duels, boolean statsPresent, IntelPlayer player) {
-        if (!statsPresent) return; // stats hidden entirely: leave the zeros, statsHidden shows "?"
-
-        if (duels == null) {
-            // Account has no Duels data: real zeros.
-            player.duelsLoaded = true;
-            return;
-        }
-
-        readDuelsMode(duels, player.duelsClassic, "classic_duel",
-                new String[]{"classic_duel_kills"}, new String[]{"classic_duel_deaths"});
-        readDuelsMode(duels, player.duelsBridge, "bridge_duel",
-                new String[]{"bridge_duel_bridge_kills", "bridge_duel_kills"},
-                new String[]{"bridge_duel_bridge_deaths", "bridge_duel_deaths"});
-        readDuelsMode(duels, player.duelsBedwars, "bedwars_two_one_duels",
-                new String[]{"bedwars_two_one_duels_kills"}, new String[]{"bedwars_two_one_duels_deaths"});
-        player.duelsLoaded = true;
-
-        if (player.duelsClassic.wins + player.duelsClassic.losses
-                + player.duelsBridge.wins + player.duelsBridge.losses
-                + player.duelsBedwars.wins + player.duelsBedwars.losses == 0) {
-            StringBuilder keys = new StringBuilder();
-            for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : duels.entrySet()) {
-                String k = e.getKey();
-                if (k.contains("classic_duel") || k.contains("bridge_duel") || k.contains("bedwars_two_one")) {
-                    keys.append(k).append(' ');
-                }
-            }
-            // Only worth a log line when the profile has related keys that the names above missed.
-            if (keys.length() > 0) {
-                dbg("[Intel] Duels: no wins/losses matched for " + player.name + ". Related keys: " + keys);
-            }
-        }
-    }
-
-    private void readDuelsMode(JsonObject duels, IntelPlayer.DuelsMode out, String mode,
-                                      String[] killKeys, String[] deathKeys) {
-        out.wins = bwInt(duels, mode + "_wins");
-        out.losses = bwInt(duels, mode + "_losses");
-        out.kills = firstInt(duels, killKeys);
-        out.deaths = firstInt(duels, deathKeys);
-        out.winstreak = firstInt(duels, "current_winstreak_mode_" + mode);
-        out.bestWinstreak = Math.max(firstInt(duels, "best_winstreak_mode_" + mode), out.winstreak);
-    }
-
-    /** First of the given keys that is present in the object (0 when none is). */
-    private int firstInt(JsonObject obj, String... keys) {
-        for (String key : keys) {
-            if (obj.has(key) && !obj.get(key).isJsonNull()) return bwInt(obj, key);
-        }
-        return 0;
-    }
-
     private boolean fetchHypixelApi(IntelPlayer player) {
         try {
             hypixelSlots.acquire();
@@ -1560,9 +1502,6 @@ public class IntelManager {
         JsonObject bedwars = stats != null && stats.has("Bedwars") && stats.get("Bedwars").isJsonObject()
                 ? stats.getAsJsonObject("Bedwars")
                 : null;
-
-        applyDuels(stats != null && stats.has("Duels") && stats.get("Duels").isJsonObject()
-                ? stats.getAsJsonObject("Duels") : null, stats != null, player);
 
         int newStar;
 

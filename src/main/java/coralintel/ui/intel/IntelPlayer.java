@@ -28,34 +28,6 @@ public class IntelPlayer {
     public int    losses      = 0;
     public boolean isNicked   = false;
 
-    // Hypixel Duels stats (1v1 modes), read from the same player profile as the Bedwars stats.
-    /** Stats for one Duels mode. */
-    public static final class DuelsMode {
-        public int wins, losses, kills, deaths, winstreak, bestWinstreak;
-
-        public double wlr() { return losses == 0 ? wins : (double) wins / losses; }
-        public double kdr() { return deaths == 0 ? kills : (double) kills / deaths; }
-    }
-
-    public final DuelsMode duelsClassic  = new DuelsMode();
-    public final DuelsMode duelsBridge   = new DuelsMode();
-    public final DuelsMode duelsBedwars  = new DuelsMode();
-    /** True once a profile with a stats object was read (the numbers above are then real, zeros included). */
-    public boolean duelsLoaded = false;
-
-    /** Stats game picker values: 0 Bedwars, 1 Classic Duels, 2 Bridge Duels, 3 Bedwars Duels. */
-    public static final String[] STATS_GAMES = {"Bedwars", "Classic Duels", "Bridge Duels", "Bedwars Duels"};
-
-    /** The Duels stats for a stats-game index, or null for Bedwars (0) / out of range. */
-    public DuelsMode duels(int game) {
-        switch (game) {
-            case 1: return duelsClassic;
-            case 2: return duelsBridge;
-            case 3: return duelsBedwars;
-            default: return null;
-        }
-    }
-
     // Denick (Bedlify): who is likely behind this nick. Set from a background thread.
     public volatile String realName     = null;
     public volatile long   realNameSeen = 0L;   // unix seconds the real name was last seen with this nick
