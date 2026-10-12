@@ -69,13 +69,15 @@ public final class TabOverlay {
      * (Tag sits after Off so configs saved before it existed keep their "Off" slots.)
      */
     public static final String[] COLUMN_OPTIONS = {
-            "Stars", "Name", "Winstreak", "FKDR", "Finals", "KDR", "Wins", "WLR", "Beds", "BBLR", "Off", "Tag"
+            "Stars", "Name", "Winstreak", "FKDR", "Finals", "KDR", "Wins", "WLR", "Beds", "BBLR", "Off", "Tag", "Best WS"
     };
 
     private enum Col {
         STARS("Stars"), NAME("Name"), WS("WS"), FKDR("FKDR"), FINALS("Finals"), KDR("KDR"),
         WINS("Wins"), WLR("WLR"), BEDS("Beds"), BBLR("BBLR"),
-        TAG("Tag");
+        TAG("Tag"),
+        /** Duels only: best winstreak in the selected mode (index 12, after Tag so saved configs keep their slots). */
+        BEST_WS("Best WS");
 
         final String header;
 
@@ -563,6 +565,16 @@ public final class TabOverlay {
         return "§" + color;
     }
 
+    /** The tab's stats game (0 Bedwars, 1 Classic, 2 Bridge, 3 Bedwars Duels). */
+    private static int statsGame() {
+        try {
+            LobbyIntel li = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
+            return li == null ? 0 : li.tabGame.getIndex();
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     private static double ratio(double pos, double neg) {
         return neg == 0 ? pos : pos / neg;
     }
@@ -578,7 +590,27 @@ public final class TabOverlay {
     private String cell(Col col, IntelPlayer p, boolean hidden) {
         if (hidden || p == null || p.loading) return col == Col.STARS ? "§8[-✫]" : "§8-";
         if (p.isNicked || p.statsHidden) return col == Col.STARS ? "§7[?✫]" : "§7?";
+        IntelPlayer.DuelsMode duels = p.duels(statsGame());
+        if (duels != null && col != Col.STARS && col != Col.NAME && col != Col.TAG) {
+            if (!p.duelsLoaded) return "§8-";
+            switch (col) {
+                case WS:
+                    return countText(duels.winstreak, 1, 3, 5, 10, 25, 50);
+                case BEST_WS:
+                    return countText(duels.bestWinstreak, 3, 5, 10, 25, 50, 100);
+                case KDR:
+                    return ratioText(duels.kdr(), 1, 1.5, 2.5, 4, 6, 10);
+                case WINS:
+                    return countText(duels.wins, 100, 500, 1000, 2500, 5000, 10000);
+                case WLR:
+                    return ratioText(duels.wlr(), 1, 1.5, 2.5, 4, 6, 10);
+                default:
+                    return "§8-";
+            }
+        }
         switch (col) {
+            case BEST_WS:
+                return "§8-"; // only tracked for the Duels modes
             case STARS:
                 return PrestigeUtil.format(p.star);
             case WS:
@@ -606,6 +638,7 @@ public final class TabOverlay {
     private static Col colFor(int pick) {
         if (pick >= 0 && pick <= 9) return Col.values()[pick];
         if (pick == 11) return Col.TAG;
+        if (pick == 12) return Col.BEST_WS;
         return null;
     }
 
@@ -618,9 +651,18 @@ public final class TabOverlay {
         List<Col> list = new ArrayList<>();
         boolean hasName = false;
         boolean hasTag = false;
+        boolean duels = li.tabGame.getIndex() != 0;
         for (int pick : picks) {
             Col col = colFor(pick);
             if (col == null) continue; // "Off"
+            if (duels) {
+                // Bedwars-only columns stand in with their Duels equivalent, so the default layout still fills up.
+                if (col == Col.FKDR) col = Col.WLR;
+                else if (col == Col.FINALS) col = Col.WINS;
+                else if (col == Col.BEDS) col = Col.BEST_WS;
+                else if (col == Col.BBLR) col = Col.KDR;
+                if (list.contains(col)) continue; // already shown
+            }
             if (col == Col.NAME) {
                 if (hasName) continue;
                 hasName = true;
