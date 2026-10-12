@@ -201,7 +201,7 @@ public final class TabOverlay {
     }
 
     private static boolean enabled(LobbyIntel li) {
-        return li != null && li.tabStats.getValue() && li.tabOverlay.getValue();
+        return li != null && li.isEnabled() && li.tabStats.getValue() && li.tabOverlay.getValue();
     }
 
     // ------------------------------------------------------------------------------------

@@ -27,7 +27,7 @@ public final class TabListFormatter {
     public static int tabBackground(int color) {
         LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
 
-        if (lobbyIntel != null && lobbyIntel.tabStats.getValue()) {
+        if (lobbyIntel != null && lobbyIntel.isEnabled() && lobbyIntel.tabStats.getValue()) {
             int rgb = LobbyIntel.TAB_BG_PALETTE[lobbyIntel.tabBgColorChoice.getIndex()];
             int alpha = (int) lobbyIntel.tabBgOpacity.getValue();
             return (alpha << 24) | rgb;
@@ -48,7 +48,7 @@ public final class TabListFormatter {
     /** The tab-list line for one player: vanilla's name plus CoralIntel's stats, tags and colours. */
     public static String decorateName(String vanillaName, NetworkPlayerInfo info) {
         LobbyIntel lobbyIntel = (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
-        if (lobbyIntel == null || !lobbyIntel.tabStats.getValue()) {
+        if (lobbyIntel == null || !lobbyIntel.isEnabled() || !lobbyIntel.tabStats.getValue()) {
             return vanillaName;
         }
 

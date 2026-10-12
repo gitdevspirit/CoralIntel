@@ -51,7 +51,7 @@ public class ShopQuickBuy {
 
         LobbyIntel li = CoralIntel.moduleManager == null ? null
                 : (LobbyIntel) CoralIntel.moduleManager.getModule(LobbyIntel.class);
-        if (li == null) return;
+        if (li == null || !li.isEnabled()) return;
         boolean everywhere = li.middleClickEverywhere.getValue();
         boolean shop = li.shopAutoMiddle.getValue();
         if (!everywhere && !shop) return;

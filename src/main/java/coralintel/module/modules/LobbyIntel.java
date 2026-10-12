@@ -487,25 +487,27 @@ public class LobbyIntel extends Module {
 
     @Override
     public void onEnabled() {
-        mc.addScheduledTask(() -> mc.displayGuiScreen(gui));
-
-        if (IntelManager.getInstance().getPlayers().isEmpty()) {
+        // Turning the module back on just resumes lobby tracking (the intel GUI has its own key / .gui).
+        if (mc.theWorld != null && IntelManager.getInstance().getPlayers().isEmpty()) {
             IntelManager.getInstance().scanLobby();
-        } else {
-            gui.setPlayers(IntelManager.getInstance().getPlayers());
         }
     }
 
     @Override
     public void onDisabled() {
-        setEnabled(true);
+        // Stop everything: the roster is dropped so nothing stale is shown when it is turned on again.
+        IntelManager.getInstance().clearAll();
+        mc.addScheduledTask(() -> {
+            if (mc.currentScreen instanceof IntelGui) mc.displayGuiScreen(null);
+        });
     }
 
     @EventTarget
     public void onKey(KeyEvent event) {
         int key = event.getKey();
 
-        if (key == hudKeybind.getKeyCode()) {
+        // The ClickGUI key must keep working while the module is off, or it could never be turned back on.
+        if (isEnabled() && key == hudKeybind.getKeyCode()) {
             boolean newState = !hudOverlay.isEnabled();
             hudOverlay.setEnabled(newState);
 
@@ -514,7 +516,7 @@ public class LobbyIntel extends Module {
             return;
         }
 
-        if (key == guiKeybind.getKeyCode()) {
+        if (isEnabled() && key == guiKeybind.getKeyCode()) {
             // Toggle open/closed — press again while the GUI is open to close it.
             if (mc.currentScreen instanceof IntelGui) {
                 mc.displayGuiScreen(null);
@@ -540,7 +542,7 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onRender2D(Render2DEvent event) {
-        if (mc.currentScreen == null && hudOverlay.isEnabled()) {
+        if (isEnabled() && mc.currentScreen == null && hudOverlay.isEnabled()) {
             syncOverlayColors();
             hudOverlay.render();
         }
@@ -548,6 +550,10 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onLoadWorld(LoadWorldEvent event) {
+        if (!isEnabled()) {
+            IntelManager.getInstance().clearAll();
+            return;
+        }
         // The message-based "starts in 1 second" /who races the actual
         // world transition into the arena — Hypixel loads a new world right
         // around the same moment the match begins, and if that world-load's
@@ -607,7 +613,7 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onTick(TickEvent event) {
-        if (event.getType() != EventType.PRE) return;
+        if (!isEnabled() || event.getType() != EventType.PRE) return;
         if (mc.theWorld == null || mc.thePlayer == null) return;
 
         retryTickCounter++;
@@ -694,7 +700,7 @@ public class LobbyIntel extends Module {
 
     @EventTarget
     public void onPacket(PacketEvent event) {
-        if (event.getType() != EventType.RECEIVE) return;
+        if (!isEnabled() || event.getType() != EventType.RECEIVE) return;
         if (!(event.getPacket() instanceof S02PacketChat)) return;
 
         S02PacketChat packet = (S02PacketChat) event.getPacket();
