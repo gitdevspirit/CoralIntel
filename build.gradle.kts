@@ -72,6 +72,11 @@ dependencies {
     shadowImpl("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
     }
+    // Lua interpreter for the scripting system (shaded into the mod jar and relocated below).
+    // Not transitive: its optional bytecode compiler (and BCEL) is not used.
+    shadowImpl("org.luaj:luaj-jse:3.0.1") {
+        isTransitive = false
+    }
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT")
     // If you don't want to log in with your real minecraft account, remove this line
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.2.1")
@@ -123,5 +128,6 @@ tasks.shadowJar {
     }
     // If you want to include other dependencies and shadow them, you can relocate them in here
     fun relocate(name: String) = relocate(name, "$baseGroup.deps.$name")
+    relocate("org.luaj")
 }
 tasks.assemble.get().dependsOn(tasks.remapJar)
