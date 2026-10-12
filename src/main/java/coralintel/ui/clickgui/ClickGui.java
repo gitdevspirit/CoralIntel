@@ -75,7 +75,7 @@ public class ClickGui extends GuiScreen {
     private static final String CONFIGS = "Configs";
     private final Object newConfigKey = new Object(); // identity of the "new config name" box
     private static final int PANEL_X0 = 20;
-    // Script panels (the Scripts panel plus one per module a script registered) sit on a third row
+    // The third row holds Configs, the Scripts panel, and one panel per module a script registered;
     // and are synced every frame, so reloading or disabling a script removes its panels live.
     private java.util.List<PanelState> firstRowPanels = new ArrayList<>();
     private java.util.List<PanelState> secondRowPanels = new ArrayList<>();
@@ -165,9 +165,6 @@ public class ClickGui extends GuiScreen {
         panels.put(REMINDERS, reminders);
         secondRow.add(reminders);
         secondRowX += columnGap;
-        PanelState configs = new PanelState(secondRowX, secondRowY);
-        panels.put(CONFIGS, configs);
-        secondRow.add(configs);
 
         // Second-row panel k sits in the same column as first-row panel k, so when that one opens
         // (and grows taller) the one below it is pushed down instead of being covered.
@@ -179,8 +176,13 @@ public class ClickGui extends GuiScreen {
         // their column (second row if there is one, else the first row), like the second row does.
         firstRowPanels = firstRow;
         secondRowPanels = secondRow;
-        PanelState scripts = new PanelState(PANEL_X0, secondRowY + HEADER_H + 16);
-        scripts.above = panelAboveScriptColumn(0);
+        int thirdRowY = secondRowY + HEADER_H + 16;
+        // Third row: Configs first, then Scripts, then any script module panels.
+        PanelState configs = new PanelState(PANEL_X0, thirdRowY);
+        configs.above = panelAboveScriptColumn(0);
+        panels.put(CONFIGS, configs);
+        PanelState scripts = new PanelState(PANEL_X0 + columnGap, thirdRowY);
+        scripts.above = panelAboveScriptColumn(1);
         panels.put(SCRIPTS, scripts);
     }
 
@@ -208,7 +210,7 @@ public class ClickGui extends GuiScreen {
             if (panels.containsKey(module)) continue;
             PanelState state = scriptPanelMemory.remove(module.getName());
             if (state == null) {
-                int slot = 1;
+                int slot = 2; // slot 0 = Configs, slot 1 = Scripts
                 for (Object key : panels.keySet()) {
                     if (key instanceof ScriptModule) slot++;
                 }

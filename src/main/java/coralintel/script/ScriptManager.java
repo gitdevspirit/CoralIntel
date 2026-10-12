@@ -47,7 +47,8 @@ public final class ScriptManager {
     static final String EV_CHANGE = "$change";
 
     private static final String[] EVENTS = {"chat", "tick", "world_load", "player_join", "player_leave", "title"};
-    private static final String[] EXAMPLES = {"gg_reminder.lua", "fkdr_alert.lua", "game_recap.lua"};
+    private static final String[] EXAMPLES = {"gg_reminder.lua", "fkdr_alert.lua", "game_recap.lua",
+            "bed_alert.lua", "win_streak.lua", "game_timer.lua", "lobby_summary.lua", "blacklist_alert.lua"};
     private static final String PREFIX = "&7[&bCoralIntel&7]&r ";
     private static final Pattern SCRIPT_NAME = Pattern.compile("^[A-Za-z0-9_-]{1,40}$");
     private static final Pattern CODES = Pattern.compile("(?i)[&\u00a7][0-9A-FK-OR]");

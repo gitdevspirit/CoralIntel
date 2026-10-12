@@ -25,7 +25,7 @@ A Forge 1.8.9 client mod for Hypixel Bedwars that scouts your bedwars lobby. It 
 - **Reminders** – jot down players who might be cheating (`.remind <player> [note]`) so you can tag them in Coral later. You're alerted if they show up in a later lobby. See [Reminders](#reminders).
 - **Shop auto middle-click** – optional setting (LobbyIntel: *Shop: Auto Middle-Click (Quick Buy)*): in the Bed Wars shop's category pages (Blocks, Melee, Armor, Tools, Ranged, Potions, Utility) a left click buys the item and also sends the middle click, so it is added to Quick Buy without a second click. Off by default.
 - **Scripting (Lua)** – drop small `.lua` scripts into `config/CoralIntel/scripts/` to add your own commands, modules (with toggle / slider / text settings in the ClickGUI), chat alerts and HUD text, without rebuilding the client. Sandboxed: scripts can't send chat to the server or touch your files, and a broken script is disabled on its own. See [Scripting](#scripting-lua).
-- **Quick queue** – `.q 1s|2s|3s|4s` instead of typing `/play ...`.
+- **Quick queue** – `.q 1s|2s|3s|4s|bwduels` instead of typing `/play ...`.
 - **ClickGUI** – every setting in one place (default key: Right Control).
 
 ## Installation
@@ -148,7 +148,7 @@ The command prefix is `.` (typed in chat, never sent to the server).
 | `.unblacklist <player>` | `.unkos`, `.unbl` | Remove a player from the blacklist |
 | `.safelist <player> [reason]` / `list` | `.sl` | Safelist a player |
 | `.unsafelist <player>` | `.unsl` | Remove a player from the safelist |
-| `.q <1s\|2s\|3s\|4s>` | `.queue` | Queue solos / doubles / 3v3v3v3 / 4v4v4v4 |
+| `.q <1s\|2s\|3s\|4s\|bwduels>` | `.queue` | Queue solos / doubles / 3v3v3v3 / 4v4v4v4 / Bedwars Duels |
 | `.session` | `.sess` | Print your session stats (wins, kills, FKDR, BBLR, ... gained) |
 | `.reset` | | Restart your session stats from your current stats |
 | `.pgm1` `.pgm2` `.pgm3` `<text\|clear>` | | Set the auto-sent pregame messages |
@@ -398,6 +398,11 @@ chat.print("This script has run " .. runs .. " times")
 | `gg_reminder.lua` | When a game ends (`VICTORY!` / `GAME OVER!` title) prints a reminder to say gg, with an optional sound. It can't type gg for you; scripts can't send chat |
 | `fkdr_alert.lua` | *FKDR Alert* module with a **Min FKDR** slider: once per game, warns when a lobby player with loaded stats is at or above it |
 | `game_recap.lua` | *Game Recap* module: after each `You earned N Bed Wars XP` line prints one recap line (XP, session record, FKDR) and keeps an all-time XP / game count in its own `data` |
+| `bed_alert.lua` | *Bed Alert* module: loud alert + sound when your bed is destroyed, optional quiet notice for other beds |
+| `win_streak.lua` | *Win Streak* module: tracks your winstreak and best streak (saved in its own `data`) on the HUD; `.resetstreak` wipes it |
+| `game_timer.lua` | *Game Timer* module: mm:ss game clock on the HUD, starts when the game begins and stops on VICTORY / GAME OVER |
+| `lobby_summary.lua` | *Lobby Summary* module: once per game prints average FKDR, nick count and the top FKDRs in the lobby |
+| `blacklist_alert.lua` | *Blacklist Alert* module: warns when a blacklisted (or Coral-tagged) player is in your lobby |
 
 ## Configuration
 
